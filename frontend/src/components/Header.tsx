@@ -27,10 +27,16 @@ export default function Header({ onRefreshClick }: { onRefreshClick?: () => void
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s max for Render cold boot
 
-      const res = await fetch(`${API_BASE_URL}/api/v1/health`, {
+      let res = await fetch(`${API_BASE_URL}/api/v1/health`, {
         signal: controller.signal,
         cache: 'no-store',
       });
+      if (res.status === 404) {
+        res = await fetch(`${API_BASE_URL}/api/health`, {
+          signal: controller.signal,
+          cache: 'no-store',
+        });
+      }
       clearTimeout(timeoutId);
 
       if (res.ok) {

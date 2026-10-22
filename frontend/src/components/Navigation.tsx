@@ -39,10 +39,16 @@ export const Navigation: React.FC = () => {
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 60000);
-      const res = await fetch("/api/v1/health", {
+      let res = await fetch("/api/v1/health", {
         signal: controller.signal,
         cache: "no-store",
       });
+      if (res.status === 404) {
+        res = await fetch("/api/health", {
+          signal: controller.signal,
+          cache: "no-store",
+        });
+      }
       clearTimeout(timeoutId);
       if (res.ok) {
         setBackendStatus("online");
