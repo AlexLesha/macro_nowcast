@@ -33,6 +33,8 @@ class Settings(BaseSettings):
         "http://127.0.0.1:3000",
         "http://localhost:8000",
         "http://127.0.0.1:8000",
+        "https://macro-nowcast.pages.dev",
+        "https://macro-nowcast-wdw2.onrender.com",
     ]
 
     # FRED Series definitions (Section 4 specs)
