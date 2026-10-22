@@ -60,7 +60,12 @@ def analyze_options_chain(
     spot_price = None
     if isinstance(df_ohlcv, pd.DataFrame) and not df_ohlcv.empty:
         c_col = "close" if "close" in df_ohlcv.columns else ("Close" if "Close" in df_ohlcv.columns else df_ohlcv.columns[0])
-        spot_price = float(df_ohlcv[c_col].iloc[-1])
+        val = df_ohlcv[c_col].iloc[-1]
+        try:
+            if val is not None and not np.isnan(float(val)) and float(val) > 0:
+                spot_price = float(val)
+        except (ValueError, TypeError):
+            spot_price = None
 
     # 2. Attempt live option chain pull via yfinance
     live_success = False
@@ -79,7 +84,12 @@ def analyze_options_chain(
             if spot_price is None:
                 hist = t.history(period="3d")
                 if not hist.empty:
-                    spot_price = float(hist["Close"].iloc[-1])
+                    val = hist["Close"].iloc[-1]
+                    try:
+                        if val is not None and not np.isnan(float(val)) and float(val) > 0:
+                            spot_price = float(val)
+                    except (ValueError, TypeError):
+                        spot_price = None
 
             if spot_price and spot_price > 0:
                 # Scan nearest 5 expirations for institutional GEX concentration
@@ -169,25 +179,26 @@ def analyze_options_chain(
 
     # 3. High-fidelity synthetic fallback if live fetch unavailable
     if not live_success:
-        base = ASSET_MICROSTRUCTURE_BASELINE.get(sym, {
-            "spot": spot_price or 100.0,
-            "call_wall": round((spot_price or 100.0) * 1.03, 1),
-            "put_wall": round((spot_price or 100.0) * 0.96, 1),
-            "gamma_flip": round((spot_price or 100.0) * 0.99, 1),
-            "gex_bn": 1.20,
-            "skew_25d": 3.5,
-            "zero_dte_ratio": 0.35,
-            "pc_ratio": 0.85,
-        })
-        spot_price = spot_price or base["spot"]
-        call_wall = base["call_wall"]
-        put_wall = base["put_wall"]
-        gamma_flip = base["gamma_flip"]
-        total_gex_m = base["gex_bn"] * 1000.0
-        skew_25d = base["skew_25d"]
-        zero_dte_ratio = base["zero_dte_ratio"]
+        base = ASSET_MICROSTRUCTURE_BASELINE.get(sym, {})
+        default_spot = base.get("spot", 100.0)
+        
+        # Strictly ensure spot_price is a valid finite positive number
+        try:
+            if spot_price is None or np.isnan(float(spot_price)) or float(spot_price) <= 0:
+                spot_price = default_spot
+            else:
+                spot_price = float(spot_price)
+        except (ValueError, TypeError):
+            spot_price = default_spot
+
+        call_wall = base.get("call_wall", round(spot_price * 1.03, 1))
+        put_wall = base.get("put_wall", round(spot_price * 0.96, 1))
+        gamma_flip = base.get("gamma_flip", round(spot_price * 0.99, 1))
+        total_gex_m = base.get("gex_bn", 1.20) * 1000.0
+        skew_25d = base.get("skew_25d", 3.5)
+        zero_dte_ratio = base.get("zero_dte_ratio", 0.35)
         weekly_ratio = min(0.85, zero_dte_ratio * 1.65)
-        pc_ratio = base["pc_ratio"]
+        pc_ratio = base.get("pc_ratio", 0.85)
 
         # Synthetic strike distribution
         strike_step = 5.0 if spot_price > 200 else (1.0 if spot_price < 50 else 2.5)
