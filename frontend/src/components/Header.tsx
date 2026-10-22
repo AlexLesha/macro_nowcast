@@ -11,12 +11,7 @@ import {
   CheckCircle2, 
   WifiOff 
 } from 'lucide-react';
-
-const rawApiUrl =
-  (process.env.NEXT_PUBLIC_API_URL && process.env.NEXT_PUBLIC_API_URL.trim() !== '')
-    ? process.env.NEXT_PUBLIC_API_URL.replace(/\/$/, '')
-    : 'https://macro-nowcast-wdw2.onrender.com';
-const API_BASE_URL = rawApiUrl.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1').replace(/[\[\]]/g, '').trim().replace(/\/$/, '');
+import { API_BASE_URL } from '@/lib/api';
 
 type HealthStatus = 'checking' | 'waking' | 'online' | 'offline';
 
