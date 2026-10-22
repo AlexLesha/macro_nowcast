@@ -1,3 +1,4 @@
+import os
 import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
@@ -27,20 +28,31 @@ app = FastAPI(
     title=settings.APP_NAME,
     version="1.0.0",
     description="Quantitative Macro Nowcasting & Intelligence Engine",
+    docs_url="/docs",
+    redoc_url="/redoc",
     lifespan=lifespan,
 )
 
-# Setup CORS for Next.js frontend
+# Parse any additional environment origins
+allowed_origins_env = os.getenv("ALLOWED_ORIGINS", "")
+env_origins = [o.strip() for o in allowed_origins_env.split(",") if o.strip()]
+cors_origins = list(set(settings.CORS_ORIGINS + env_origins + [
+    "https://macro-nowcast.pages.dev",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]))
+
+# Setup CORS for Next.js frontend on Cloudflare Pages and localhost
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
+    allow_origins=cors_origins,
     allow_origin_regex=r"https://.*\.pages\.dev",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Register routes
+# Register API router
 app.include_router(api_router)
 
 
@@ -52,13 +64,25 @@ def root():
         "status": "active",
         "docs": "/docs",
         "endpoints": {
-            "health": "/api/health",
+            "health": "/api/v1/health",
             "macro_series": "/api/macro/series/latest",
             "market_matrix": "/api/market/matrix",
             "options_microstructure": "/api/options/microstructure",
             "regime_current": "/api/regime/current",
             "intelligence_deltas": "/api/intelligence/deltas",
         }
+    }
+
+
+@app.get("/api/v1/health")
+@app.get("/api/health")
+@app.get("/health")
+def health_check():
+    """Health check endpoint for Render spin-up monitor and load balancers."""
+    return {
+        "status": "ok",
+        "service": "MacroPulse Alpha Quant Engine",
+        "environment": os.getenv("ENVIRONMENT", settings.ENVIRONMENT),
     }
 
 
@@ -69,7 +93,7 @@ def get_fcte_holdings_direct():
     return fetch_fcte_holdings().to_dict()
 
 
-
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("app.main:app", host="0.0.0.0", port=settings.PORT, reload=True)
+    port = int(os.environ.get("PORT", settings.PORT))
+    uvicorn.run("app.main:app", host="0.0.0.0", port=port, reload=True)

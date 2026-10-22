@@ -20,7 +20,8 @@ import { ExportModal } from "./ExportModal";
 
 export const Navigation: React.FC = () => {
   const pathname = usePathname();
-  const [backendStatus, setBackendStatus] = useState<"checking" | "online" | "offline">("checking");
+  const [backendStatus, setBackendStatus] = useState<"checking" | "waking" | "online" | "offline">("checking");
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [currentTime, setCurrentTime] = useState<string>("");
   const [isRefreshModalOpen, setIsRefreshModalOpen] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
@@ -34,23 +35,44 @@ export const Navigation: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
-  useEffect(() => {
-    const checkHealth = async () => {
-      try {
-        const res = await fetch("/api/health");
-        if (res.ok) {
-          setBackendStatus("online");
-        } else {
-          setBackendStatus("offline");
-        }
-      } catch {
-        setBackendStatus("offline");
+  const checkHealth = React.useCallback(async () => {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 60000);
+      const res = await fetch("/api/v1/health", {
+        signal: controller.signal,
+        cache: "no-store",
+      });
+      clearTimeout(timeoutId);
+      if (res.ok) {
+        setBackendStatus("online");
+      } else {
+        setBackendStatus("waking");
       }
-    };
-    checkHealth();
-    const poll = setInterval(checkHealth, 20000);
-    return () => clearInterval(poll);
+    } catch {
+      setBackendStatus((prev) => (prev === "waking" ? "waking" : "offline"));
+    }
   }, []);
+
+  useEffect(() => {
+    checkHealth();
+    let interval: NodeJS.Timeout;
+    if (backendStatus === "checking" || backendStatus === "waking") {
+      interval = setInterval(() => {
+        setElapsedSeconds((prev) => prev + 1);
+        if (elapsedSeconds % 5 === 0) {
+          checkHealth();
+        }
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [checkHealth, backendStatus, elapsedSeconds]);
+
+  useEffect(() => {
+    if (backendStatus === "checking" && elapsedSeconds > 2) {
+      setBackendStatus("waking");
+    }
+  }, [elapsedSeconds, backendStatus]);
 
   const navLinks = [
     { href: "/", label: "Nowcast Dashboard", icon: Activity, short: "Dashboard" },
@@ -114,18 +136,34 @@ export const Navigation: React.FC = () => {
             </div>
 
             {/* Health Badge */}
-            <div className="flex items-center gap-1.5 bg-slate-900/80 border border-slate-800 px-2.5 py-1 rounded text-[11px]">
-              <span
-                className={`h-1.5 w-1.5 rounded-full ${
-                  backendStatus === "online"
-                    ? "bg-emerald-400 shadow-[0_0_6px_#10b981]"
-                    : backendStatus === "checking"
-                    ? "bg-amber-400 animate-pulse"
-                    : "bg-rose-500"
-                }`}
-              />
-              <span className="text-slate-400 uppercase">{backendStatus}</span>
-            </div>
+            {backendStatus === "online" && (
+              <div className="flex items-center gap-1.5 bg-emerald-950/60 border border-emerald-500/30 px-2.5 py-1 rounded text-[11px] text-emerald-400 font-mono">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_6px_#10b981]" />
+                <span>LIVE API</span>
+              </div>
+            )}
+
+            {(backendStatus === "waking" || backendStatus === "checking") && (
+              <button
+                onClick={checkHealth}
+                title="Render free tier takes ~30-50s to spin up. Click to ping."
+                className="flex items-center gap-1.5 bg-amber-950/60 border border-amber-500/30 px-2.5 py-1 rounded text-[11px] text-amber-400 font-mono hover:bg-amber-900/40 transition cursor-pointer"
+              >
+                <RefreshCw className="h-3 w-3 animate-spin text-amber-400" />
+                <span>Waking Engine ({elapsedSeconds}s)...</span>
+              </button>
+            )}
+
+            {backendStatus === "offline" && (
+              <button
+                onClick={() => { setElapsedSeconds(0); setBackendStatus("checking"); checkHealth(); }}
+                title="Click to retry connection"
+                className="flex items-center gap-1.5 bg-rose-950/60 border border-rose-500/30 px-2.5 py-1 rounded text-[11px] text-rose-400 font-mono hover:bg-rose-900/40 transition cursor-pointer"
+              >
+                <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
+                <span>API Offline (Retry)</span>
+              </button>
+            )}
 
             {/* Refresh Data Button */}
             <button
