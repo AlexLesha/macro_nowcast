@@ -14,6 +14,8 @@ import {
   Zap,
 } from "lucide-react";
 
+import { getApiUrl } from "@/lib/api";
+
 export const LiquidityEngineCard: React.FC = () => {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -21,7 +23,7 @@ export const LiquidityEngineCard: React.FC = () => {
   const fetchLiquidityData = async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/liquidity/full-suite");
+      const res = await fetch(getApiUrl("/api/liquidity/full-suite"));
       if (res.ok) {
         setData(await res.json());
       }

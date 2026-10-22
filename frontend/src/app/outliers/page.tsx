@@ -14,6 +14,7 @@ import {
   Layers,
   Search,
 } from "lucide-react";
+import { getApiUrl } from "@/lib/api";
 
 export default function OutlierScannerPage() {
   const [data, setData] = useState<any>(null);
@@ -22,7 +23,7 @@ export default function OutlierScannerPage() {
   const [searchTerm, setSearchTerm] = useState<string>("");
 
   useEffect(() => {
-    fetch("/api/outliers/scan")
+    fetch(getApiUrl("/api/outliers/scan"))
       .then((r) => (r.ok ? r.json() : null))
       .then((res) => {
         if (res) setData(res);

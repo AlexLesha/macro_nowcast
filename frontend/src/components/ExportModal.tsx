@@ -13,6 +13,7 @@ import {
   Cloud,
   Sparkles,
 } from "lucide-react";
+import { getApiUrl } from "@/lib/api";
 
 interface ExportModalProps {
   isOpen: boolean;
@@ -26,7 +27,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
   if (!isOpen) return null;
 
   const handleCopyLink = () => {
-    const url = typeof window !== "undefined" ? window.location.href : "https://macropulse-alpha.vercel.app";
+    const url = typeof window !== "undefined" ? window.location.href : "https://macro-nowcast.pages.dev";
     navigator.clipboard.writeText(url);
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 2500);
@@ -35,7 +36,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
   const handleDownloadHtml = async () => {
     setIsExportingHtml(true);
     try {
-      const res = await fetch("/api/export-html");
+      const res = await fetch(getApiUrl("/api/export-html"));
       let htmlContent = "";
       if (res.ok) {
         htmlContent = await res.text();
@@ -71,9 +72,9 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
   const handleDownloadJson = async () => {
     try {
       const [regime, quant, outliers] = await Promise.all([
-        fetch("/api/regime/current").then((r) => (r.ok ? r.json() : {})),
-        fetch("/api/quant/signals").then((r) => (r.ok ? r.json() : {})),
-        fetch("/api/outliers/scan").then((r) => (r.ok ? r.json() : {})),
+        fetch(getApiUrl("/api/regime/current")).then((r) => (r.ok ? r.json() : {})),
+        fetch(getApiUrl("/api/quant/signals")).then((r) => (r.ok ? r.json() : {})),
+        fetch(getApiUrl("/api/outliers/scan")).then((r) => (r.ok ? r.json() : {})),
       ]);
 
       const payload = {

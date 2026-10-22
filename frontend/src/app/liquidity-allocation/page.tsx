@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { LiquidityEngineCard } from "@/components/LiquidityEngineCard";
 import { FcteHoldingsTable } from "@/components/FcteHoldingsTable";
+import { getApiUrl } from "@/lib/api";
 
 export default function LiquidityAllocationPage() {
   const [horizonTab, setHorizonTab] = useState<"now" | "intermediate" | "long">("now");
@@ -23,7 +24,7 @@ export default function LiquidityAllocationPage() {
   const [quantSignals, setQuantSignals] = useState<any>(null);
 
   useEffect(() => {
-    fetch("/api/quant/signals?ticker=SPY")
+    fetch(getApiUrl("/api/quant/signals?ticker=SPY"))
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (data) setQuantSignals(data);

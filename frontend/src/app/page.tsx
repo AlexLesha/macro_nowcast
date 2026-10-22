@@ -24,6 +24,7 @@ import {
 import { IntelligenceFeed } from "@/components/IntelligenceFeed";
 import { MacroNowcastCard } from "@/components/MacroNowcastCard";
 import { FcteHoldingsTable } from "@/components/FcteHoldingsTable";
+import { getApiUrl } from "@/lib/api";
 
 export default function UnifiedNowcastDashboard() {
   const [regime, setRegime] = useState<any>(null);
@@ -37,8 +38,8 @@ export default function UnifiedNowcastDashboard() {
   const handleHoldingsSync = async () => {
     setIsSyncingHoldings(true);
     try {
-      await fetch("/api/intelligence/ingest-holdings", { method: "POST" });
-      const res = await fetch("/api/intelligence/deltas");
+      await fetch(getApiUrl("/api/intelligence/ingest-holdings"), { method: "POST" });
+      const res = await fetch(getApiUrl("/api/intelligence/deltas"));
       if (res.ok) {
         setDeltas(await res.json());
       }
@@ -53,11 +54,11 @@ export default function UnifiedNowcastDashboard() {
   const fetchDashboardData = async () => {
     try {
       const [regimeRes, quantRes, liqRes, outliersRes, deltasRes] = await Promise.allSettled([
-        fetch("/api/regime/current"),
-        fetch("/api/quant/signals?ticker=SPY"),
-        fetch("/api/liquidity/us-net"),
-        fetch("/api/outliers/scan"),
-        fetch("/api/intelligence/deltas"),
+        fetch(getApiUrl("/api/regime/current")),
+        fetch(getApiUrl("/api/quant/signals?ticker=SPY")),
+        fetch(getApiUrl("/api/liquidity/us-net")),
+        fetch(getApiUrl("/api/outliers/scan")),
+        fetch(getApiUrl("/api/intelligence/deltas")),
       ]);
 
       if (regimeRes.status === "fulfilled" && regimeRes.value.ok) {

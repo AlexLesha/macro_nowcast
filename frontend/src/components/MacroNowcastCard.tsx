@@ -15,6 +15,8 @@ import {
   ArrowRight,
 } from "lucide-react";
 
+import { getApiUrl } from "@/lib/api";
+
 interface MacroNowcastProps {
   onRefresh?: () => void;
 }
@@ -26,7 +28,7 @@ export const MacroNowcastCard: React.FC<MacroNowcastProps> = () => {
   const fetchNowcast = async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/quant/full-nowcast");
+      const res = await fetch(getApiUrl("/api/quant/full-nowcast"));
       if (res.ok) {
         setData(await res.json());
       }

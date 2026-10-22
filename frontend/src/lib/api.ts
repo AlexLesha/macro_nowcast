@@ -1,36 +1,37 @@
 /**
- * Resolves the API endpoint URL for both local dev and production.
- * In production on Cloudflare Pages, relative paths (/api/...) are automatically
- * proxied to https://macro-nowcast-wdw2.onrender.com via _redirects.
- * If NEXT_PUBLIC_API_URL is explicitly provided, it prepends that base URL.
+ * Resolves the backend Quant API URL with a guaranteed fallback to Render.
  */
 
-function sanitizeUrl(url: string): string {
-  // Strip markdown formatting if accidentally included: [url](url) -> url
-  const cleaned = url.replace(/\[([^\]]+)\]\([^)]+\)/g, "$1").replace(/[\[\]]/g, "").trim();
-  return cleaned.replace(/\/$/, "");
+function sanitizeUrl(url?: string): string {
+  if (!url) return '';
+  return url
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/[\[\]]/g, '')
+    .trim()
+    .replace(/\/$/, '');
 }
 
-export const API_BASE_URL = sanitizeUrl(
-  process.env.NEXT_PUBLIC_API_URL || "https://macro-nowcast-wdw2.onrender.com"
-);
+const envUrl = sanitizeUrl(process.env.NEXT_PUBLIC_API_URL);
 
-export const API_BASE = API_BASE_URL;
+export const API_BASE_URL: string =
+  envUrl !== '' ? envUrl : 'https://macro-nowcast-wdw2.onrender.com';
+
+export const API_BASE: string = API_BASE_URL;
 
 export function getApiUrl(path: string): string {
-  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-  if (API_BASE_URL && typeof window !== "undefined" && !window.location.host.includes("pages.dev")) {
-    return `${API_BASE_URL}${normalizedPath}`;
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  if (typeof window !== 'undefined' && window.location.port === '8000') {
+    return normalizedPath;
   }
-  return normalizedPath;
+  return `${API_BASE_URL}${normalizedPath}`;
 }
 
 export async function apiClient<T>(endpoint: string, options?: RequestInit): Promise<T> {
-  const url = `${API_BASE_URL}/${endpoint.replace(/^\//, "")}`;
+  const url = getApiUrl(endpoint);
   const response = await fetch(url, {
     ...options,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
       ...options?.headers,
     },
   });

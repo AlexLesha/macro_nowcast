@@ -14,6 +14,7 @@ import {
   Layers,
   Sparkles,
 } from "lucide-react";
+import { getApiUrl } from "@/lib/api";
 
 interface RefreshModalProps {
   isOpen: boolean;
@@ -55,10 +56,10 @@ export const RefreshModal: React.FC<RefreshModalProps> = ({
 
       try {
         // Trigger pipeline run
-        await fetch("/api/v1/refresh/trigger", { method: "POST" });
+        await fetch(getApiUrl("/api/v1/refresh/trigger"), { method: "POST" });
 
         // Connect to SSE stream
-        eventSource = new EventSource("/api/v1/refresh/stream");
+        eventSource = new EventSource(getApiUrl("/api/v1/refresh/stream"));
 
         eventSource.onmessage = (event) => {
           if (!isSubscribed) return;
@@ -103,13 +104,13 @@ export const RefreshModal: React.FC<RefreshModalProps> = ({
 
     const checkStatusFallback = async () => {
       try {
-        const res = await fetch("/api/v1/refresh/status");
+        const res = await fetch(getApiUrl("/api/v1/refresh/status"));
         if (res.ok) {
           const st = await res.json();
           if (st.status === "COMPLETED") {
             setStatus("COMPLETED");
             setProgress(100);
-            const diffRes = await fetch("/api/v1/refresh/diff");
+            const diffRes = await fetch(getApiUrl("/api/v1/refresh/diff"));
             if (diffRes.ok) setDiffReport(await diffRes.json());
             if (onRefreshComplete) onRefreshComplete();
           }

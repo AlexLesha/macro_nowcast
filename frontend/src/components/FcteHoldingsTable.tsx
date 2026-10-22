@@ -11,6 +11,7 @@ import {
   Percent,
   Search,
 } from "lucide-react";
+import { getApiUrl } from "@/lib/api";
 
 interface FcteHolding {
   ticker: string;
@@ -36,9 +37,9 @@ export const FcteHoldingsTable: React.FC = () => {
     try {
       // Primary route: /api/v1/etf/fcte-holdings
       // Fallback via rewrite: /api/etf/fcte-holdings
-      let res = await fetch("/api/v1/etf/fcte-holdings");
+      let res = await fetch(getApiUrl("/api/v1/etf/fcte-holdings"));
       if (!res.ok) {
-        res = await fetch("/api/etf/fcte-holdings");
+        res = await fetch(getApiUrl("/api/etf/fcte-holdings"));
       }
 
       if (!res.ok) {

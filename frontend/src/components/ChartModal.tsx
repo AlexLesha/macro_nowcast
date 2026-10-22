@@ -11,6 +11,7 @@ import {
   Tooltip,
   CartesianGrid,
 } from "recharts";
+import { getApiUrl } from "@/lib/api";
 
 interface ChartModalProps {
   seriesId: string | null;
@@ -27,7 +28,7 @@ export const ChartModal: React.FC<ChartModalProps> = ({ seriesId, onClose }) => 
     const fetchHistory = async () => {
       setLoading(true);
       try {
-        const res = await fetch(`/api/macro/series/${seriesId}?limit=120`);
+        const res = await fetch(getApiUrl(`/api/macro/series/${seriesId}?limit=120`));
         if (res.ok) {
           const items = await res.json();
           setData(items);

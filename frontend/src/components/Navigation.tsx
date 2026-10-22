@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { RefreshModal } from "./RefreshModal";
 import { ExportModal } from "./ExportModal";
+import { API_BASE_URL } from "@/lib/api";
 
 export const Navigation: React.FC = () => {
   const pathname = usePathname();
@@ -39,12 +40,12 @@ export const Navigation: React.FC = () => {
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 60000);
-      let res = await fetch("/api/v1/health", {
+      let res = await fetch(`${API_BASE_URL}/api/v1/health`, {
         signal: controller.signal,
         cache: "no-store",
       });
       if (res.status === 404) {
-        res = await fetch("/api/health", {
+        res = await fetch(`${API_BASE_URL}/api/health`, {
           signal: controller.signal,
           cache: "no-store",
         });
