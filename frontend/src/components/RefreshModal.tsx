@@ -15,6 +15,8 @@ import {
   Sparkles,
 } from "lucide-react";
 import { getApiUrl } from "@/lib/api";
+import { RefreshHealthStrip } from "./RefreshHealthStrip";
+
 
 interface RefreshModalProps {
   isOpen: boolean;
@@ -179,6 +181,11 @@ export const RefreshModal: React.FC<RefreshModalProps> = ({
           >
             <X className="h-5 w-5" />
           </button>
+        </div>
+
+        {/* Zero-Token Traffic-Light Health & Quota Strip */}
+        <div className="px-6 pt-4 pb-1 bg-slate-950/40 border-b border-slate-800/40">
+          <RefreshHealthStrip />
         </div>
 
         {/* Progress Bar & Stage Indicator */}

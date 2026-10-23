@@ -14,6 +14,12 @@ from app.refresh_pipeline.synthesizer import LLMStrategySynthesizer
 from app.db import SessionLocal
 from app.models.db_models import RegimeSnapshot, IntelligenceDelta
 
+try:
+    from app.refresh_pipeline.health_monitor import health_tracker
+except ImportError:
+    from backend.app.refresh_pipeline.health_monitor import health_tracker
+
+
 logger = logging.getLogger(__name__)
 
 # Shared pipeline state lock
@@ -116,6 +122,7 @@ async def run_refresh_pipeline_stream() -> AsyncGenerator[str, None]:
             # Stage 1: Quantitative Hard-Data Ingestion
             refresh_orchestrator.current_stage = "ingestion"
             refresh_orchestrator.progress_pct = 20
+            health_tracker.record_macro_status(True, "FRED / Treasury Ready")
             p1 = {
                 "stage": 1,
                 "step": "ingestion",
@@ -138,6 +145,7 @@ async def run_refresh_pipeline_stream() -> AsyncGenerator[str, None]:
             # Stage 2: Quantitative Model Recalculation
             refresh_orchestrator.current_stage = "quant_math"
             refresh_orchestrator.progress_pct = 45
+            health_tracker.record_market_status(True, "yfinance / CBOE Ready")
             p2 = {
                 "stage": 2,
                 "step": "quant_math",
@@ -263,6 +271,7 @@ async def run_refresh_pipeline_stream() -> AsyncGenerator[str, None]:
                 "what_changed_markdown": structured_delta.what_changed_summary_markdown,
                 "delta": structured_delta.model_dump(),
                 "diff": result_diff,
+                "health": health_tracker.state,
             }
             refresh_orchestrator.logs.append(result_payload)
 

@@ -763,3 +763,37 @@ def scan_1_to_3_month_outliers(
         },
         "speculation_ripple_effects": speculation_orders,
     }
+
+
+def compute_gen2_crowding_and_vams_dd_modifier(
+    rsi_14d: float,
+    flow_z_3m: float,
+    vams_state: int
+) -> Dict[str, Any]:
+    """
+    Applies 42 Macro's 4-Quadrant Crowding Model (<3wk horizon) & VAMS 21D Drawdown Risk:
+    - RSI <= 30 and 3M Flow Z <= -2.0 -> SIGNAL: BULLISH (Investors Puking Local Lows) -> +15 pt boost
+    - RSI >= 70 and 3M Flow Z >= +2.0 -> SIGNAL: BEARISH (Investors Chasing Local Highs) -> -15 pt penalty
+    - RSI <= 30 and 3M Flow Z > -2.0  -> NOISE: Buying the Dip Already -> 0 pt
+    - RSI >= 70 and 3M Flow Z < +2.0  -> NOISE: Selling the Rip Already -> 0 pt
+    """
+    if rsi_14d <= 30.0 and flow_z_3m <= -2.0:
+        sig, adj = "SIGNAL_BULLISH_PUKING_LOWS", 15.0
+    elif rsi_14d >= 70.0 and flow_z_3m >= 2.0:
+        sig, adj = "SIGNAL_BEARISH_CHASING_HIGHS", -15.0
+    elif rsi_14d <= 30.0:
+        sig, adj = "NOISE_BUYING_DIP_ALREADY", 0.0
+    elif rsi_14d >= 70.0:
+        sig, adj = "NOISE_SELLING_RIP_ALREADY", 0.0
+    else:
+        sig, adj = "NEUTRAL_FLOW", 0.0
+
+    # VAMS 21-day drawdown expectation adjustment
+    vams_dd_adj = 5.0 if vams_state == 1 else (-10.0 if vams_state == -1 else 0.0)
+
+    return {
+        "crowding_quadrant": sig,
+        "crowding_score_adjustment": adj,
+        "vams_drawdown_score_adjustment": vams_dd_adj,
+        "total_score_adjustment": adj + vams_dd_adj
+    }

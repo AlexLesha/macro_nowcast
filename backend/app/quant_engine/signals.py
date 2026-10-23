@@ -666,6 +666,16 @@ def compute_dr_mo_proper_trade(vams_state: int, ticker: str, top_down_regime: st
     recommendation = "No Position"
     size_pct = 0.0
 
+    # 42 Macro 2026 rule: No SHORT: Half Positions for Equity and Crypto exposures
+    equity_or_crypto_tickers = {
+        "SPY", "QQQ", "IWM", "IWF", "IWD", "XLK", "XLE", "XLF", "XLV", "XLI", "XLP", "XLU", "XLY", "XLC", "XLB",
+        "VNQ", "XLRE", "SMH", "XBI", "XHB", "XRT", "KRE", "KBE", "ITB", "IYT", "MTUM", "QUAL", "USMV", "VLUE",
+        "SIZE", "RSP", "COWZ", "MOAT", "VUG", "VTV", "IWN", "IWO", "SPHD", "SPHB", "SPLV", "IWR", "VT",
+        "EWJ", "EWG", "EWU", "EWC", "EWA", "EPOL", "ARGT", "EWZ", "INDA", "FXI", "EWT", "EWY", "EWW", "EWL",
+        "EEM", "EFA", "VGK", "ACWX", "EZU", "GNR", "IBIT", "FBTC", "BTC", "ETH", "BITCOIN", "ETHEREUM", "GDX", "SIL"
+    }
+    is_eq_crypto = ticker.upper() in equity_or_crypto_tickers
+
     if is_historically_bullish:
         if vams_state == 1:
             recommendation = "LONG: Max Position"
@@ -681,8 +691,12 @@ def compute_dr_mo_proper_trade(vams_state: int, ticker: str, top_down_regime: st
             recommendation = "SHORT: Max Position"
             size_pct = -1.0
         elif vams_state == 0:
-            recommendation = "SHORT: Half Position"
-            size_pct = -0.5
+            if is_eq_crypto:
+                recommendation = "No Position (No Equity/Crypto Half-Shorts)"
+                size_pct = 0.0
+            else:
+                recommendation = "SHORT: Half Position"
+                size_pct = -0.5
         else:
             recommendation = "No Position (Counter-Trend VAMS)"
             size_pct = 0.0
@@ -706,6 +720,93 @@ def compute_dr_mo_proper_trade(vams_state: int, ticker: str, top_down_regime: st
         "size_multiplier": size_pct,
         "empirical_expected_value": stats["ev"],
         "empirical_win_rate": stats["wr"]
+    }
+
+
+def compute_dr_mo_2026_proper_trade(
+    vams_state: int,
+    is_historically_bullish_in_regime: bool,
+    is_equity_or_crypto: bool
+) -> Dict[str, Any]:
+    """
+    Exact 42 Macro Dr. Mo Proper Trade Rule (LMN Slide 52 / ATH Slide 25):
+    - If asset should be Bullish in current Market Regime:
+      * Bullish VAMS (+1) -> LONG: Max Position (100%)
+      * Neutral VAMS (0)  -> LONG: Half Position (50%)
+      * Bearish VAMS (-1) -> No Position (0%)
+    - If asset should be Bearish in current Market Regime:
+      * Bearish VAMS (-1) -> SHORT: Max Position (-100%)
+      * Neutral VAMS (0)  -> No Position (0%) if Equity/Crypto; else SHORT: Half Position (-50%)
+      * Bullish VAMS (+1) -> No Position (0%)
+    """
+    if is_historically_bullish_in_regime:
+        if vams_state == 1:
+            return {"recommendation": "LONG: Max Position", "size_multiplier": 1.0}
+        elif vams_state == 0:
+            return {"recommendation": "LONG: Half Position", "size_multiplier": 0.5}
+        return {"recommendation": "No Position", "size_multiplier": 0.0}
+    else:
+        if vams_state == -1:
+            return {"recommendation": "SHORT: Max Position", "size_multiplier": -1.0}
+        elif vams_state == 0:
+            if is_equity_or_crypto:
+                return {"recommendation": "No Position (No Equity/Crypto Half-Shorts)", "size_multiplier": 0.0}
+            return {"recommendation": "SHORT: Half Position", "size_multiplier": -0.5}
+        return {"recommendation": "No Position", "size_multiplier": 0.0}
+
+
+def compute_kiss_2026_portfolio(
+    primary_regime: str,
+    vt_vams: int,
+    gldm_vams: int,
+    fbtc_vams: int,
+    gold_rule: str = "april_2026_conditional"
+) -> Dict[str, Any]:
+    """
+    KISS 2026 Exact Sizing Rules (from 42 Macro April 11 & June 3, 2026 Reports):
+    - Default Tickers: 60% Stocks ($VT), 30% Gold ($GLDM), 10% Bitcoin ($FBTC), Cash ($USFR).
+    - Top-Down Risk Management Overlay:
+      * Stocks ($VT): 60% in GOLDILOCKS or REFLATION; cut in half to 30% in INFLATION or DEFLATION.
+      * Gold ($GLDM):
+        - If 'april_2026_conditional' (default): 30% in GOLDILOCKS, REFLATION, or DEFLATION; cut in half to 15% in INFLATION.
+        - If 'jan_2026_fixed': 30% fixed across all 4 regimes.
+      * Bitcoin ($FBTC): 10% in GOLDILOCKS or REFLATION; cut in half to 5% in INFLATION or DEFLATION.
+    - Bottom-Up VAMS Overlay:
+      * Bullish (+1) = 100% of Target
+      * Neutral (0)  = 50% of Target
+      * Bearish (-1) = 0% of Target
+    - Residual allocated to $USFR (WisdomTree Floating Rate Treasury Fund).
+    """
+    reg = primary_regime.upper()
+    is_risk_on = reg in ["GOLDILOCKS", "REFLATION"]
+
+    vt_target = 0.60 if is_risk_on else 0.30
+    if gold_rule == "april_2026_conditional":
+        gldm_target = 0.15 if reg == "INFLATION" else 0.30
+    else:
+        gldm_target = 0.30
+    fbtc_target = 0.10 if is_risk_on else 0.05
+
+    targets = {"VT": vt_target, "GLDM": gldm_target, "FBTC": fbtc_target}
+    vams_states = {"VT": vt_vams, "GLDM": gldm_vams, "FBTC": fbtc_vams}
+    betas_6m = {"USFR": 0.0, "VT": 1.0, "GLDM": 0.5, "FBTC": 2.0}
+
+    executed_weights = {}
+    for ticker, target in targets.items():
+        v = vams_states[ticker]
+        scalar = 1.0 if v == 1 else (0.5 if v == 0 else 0.0)
+        executed_weights[ticker] = round(target * scalar * 100.0, 2)
+
+    executed_weights["USFR"] = round(max(0.0, 100.0 - sum(executed_weights.values())), 2)
+    portfolio_spx_beta_delta = round(
+        sum((executed_weights[k] / 100.0) * betas_6m[k] for k in ["VT", "GLDM", "FBTC"]) * 100.0, 1
+    )
+
+    return {
+        "is_risk_on": is_risk_on,
+        "target_weights_pct": {k: round(v * 100.0, 1) for k, v in targets.items()},
+        "executed_weights_pct": executed_weights,
+        "portfolio_beta_adjusted_spx_delta_pct": portfolio_spx_beta_delta
     }
 
 

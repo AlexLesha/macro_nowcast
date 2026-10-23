@@ -7,6 +7,12 @@ from app.config import settings
 from app.db import init_db
 from app.api.routes import api_router
 
+try:
+    from app.refresh_pipeline.health_monitor import health_tracker
+except ImportError:
+    from backend.app.refresh_pipeline.health_monitor import health_tracker
+
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
@@ -77,13 +83,16 @@ def root():
 @app.get("/api/v1/health")
 @app.get("/api/health")
 @app.get("/health")
-def health_check():
+async def health_check():
     """Health check endpoint for Render spin-up monitor and load balancers."""
+    health_data = await health_tracker.probe_statuses()
     return {
         "status": "ok",
         "service": "MacroPulse Alpha Quant Engine",
         "environment": os.getenv("ENVIRONMENT", settings.ENVIRONMENT),
+        "health": health_data,
     }
+
 
 
 @app.get("/api/v1/etf/fcte-holdings")
@@ -147,9 +156,17 @@ async def stream_refresh_progress():
 
 @app.get("/api/v1/refresh/status")
 @app.get("/api/refresh/status")
-def get_refresh_status():
-    """Returns current status and stage of the refresh pipeline."""
-    return refresh_orchestrator.get_status()
+async def get_refresh_status(force: bool = False):
+    """Returns current status and stage of the refresh pipeline with zero-token component health."""
+    probe = await health_tracker.probe_statuses(force=force)
+    orch_status = refresh_orchestrator.get_status()
+    return {
+        **probe,
+        "status": orch_status.get("status", "IDLE"),
+        "stage": orch_status.get("stage", "Ready"),
+        "progress_pct": orch_status.get("progress_pct", 0),
+    }
+
 
 
 @app.get("/api/v1/refresh/diff")

@@ -698,3 +698,66 @@ def compute_ism_recession_probability(ism_reading: float) -> Dict[str, Any]:
     }
 
 
+def compute_2015_2019_baseline_zscore(
+    current_val: float,
+    mean_2015_19: float,
+    std_2015_19: float
+) -> float:
+    """
+    Standardizes post-2020 macro series against their 2015-2019 pre-COVID baseline
+    to prevent lock-down/reopening variance from corrupting standard deviations.
+    """
+    safe_std = max(0.05, std_2015_19)
+    return round((current_val - mean_2015_19) / safe_std, 2)
+
+
+def classify_4tier_macro_impulse(
+    val_3m_saar: float,
+    val_6m_saar: float,
+    val_12m_yoy: float,
+    invert_for_tightening: bool = False
+) -> Dict[str, Any]:
+    """
+    Exact 42 Macro 4-Tier Impulse Classification:
+    - Strong Positive Impulse: 3M SAAR > 6M SAAR > 12M YoY (Trending Acceleration)
+    - Weak Positive Impulse:   3M SAAR > 6M SAAR < 12M YoY (Transitory Acceleration)
+    - Weak Negative Impulse:   3M SAAR < 6M SAAR > 12M YoY (Transitory Deceleration)
+    - Strong Negative Impulse: 3M SAAR < 6M SAAR < 12M YoY (Trending Deceleration)
+    """
+    if val_3m_saar > val_6m_saar and val_6m_saar >= val_12m_yoy:
+        condition = "Strong Positive Impulse"
+        score = 2
+    elif val_3m_saar > val_6m_saar and val_6m_saar < val_12m_yoy:
+        condition = "Weak Positive Impulse"
+        score = 1
+    elif val_3m_saar <= val_6m_saar and val_6m_saar > val_12m_yoy:
+        condition = "Weak Negative Impulse"
+        score = -1
+    else:
+        condition = "Strong Negative Impulse"
+        score = -2
+
+    if invert_for_tightening:
+        invert_map = {
+            "Strong Positive Impulse": "Strong Tightening Impulse",
+            "Weak Positive Impulse": "Weak Tightening Impulse",
+            "Weak Negative Impulse": "Weak Easing Impulse",
+            "Strong Negative Impulse": "Strong Easing Impulse",
+        }
+        return {
+            "impulse_state": invert_map[condition],
+            "score": -score,
+            "val_3m_saar": val_3m_saar,
+            "val_6m_saar": val_6m_saar,
+            "val_12m_yoy": val_12m_yoy,
+        }
+
+    return {
+        "impulse_state": condition,
+        "score": score,
+        "val_3m_saar": val_3m_saar,
+        "val_6m_saar": val_6m_saar,
+        "val_12m_yoy": val_12m_yoy,
+    }
+
+

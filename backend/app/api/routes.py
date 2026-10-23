@@ -632,6 +632,10 @@ def get_outliers_scan(db: Session = Depends(get_db)):
 # Autonomous Refresh Pipeline (Chunk 6)
 # ----------------------------------------------------
 from app.refresh_pipeline.orchestrator import refresh_orchestrator
+try:
+    from app.refresh_pipeline.health_monitor import health_tracker
+except ImportError:
+    from backend.app.refresh_pipeline.health_monitor import health_tracker
 
 
 @api_router.post("/v1/refresh/trigger")
@@ -659,9 +663,11 @@ async def stream_refresh_pipeline():
 
 @api_router.get("/v1/refresh/status")
 @api_router.get("/refresh/status")
-def get_refresh_pipeline_status():
-    """Returns current execution state, active stage, and progress percentage."""
+async def get_refresh_pipeline_status(force: bool = False):
+    """Returns current execution state, active stage, progress percentage, and zero-token health probe."""
+    probe = await health_tracker.probe_statuses(force=force)
     return {
+        **probe,
         "status": refresh_orchestrator.status,
         "stage": refresh_orchestrator.current_stage,
         "progress_pct": refresh_orchestrator.progress_pct,
@@ -670,6 +676,7 @@ def get_refresh_pipeline_status():
         "error": refresh_orchestrator.error,
         "logs": refresh_orchestrator.logs[-10:],
     }
+
 
 
 @api_router.get("/v1/refresh/diff")

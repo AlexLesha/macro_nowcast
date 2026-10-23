@@ -468,3 +468,53 @@ def compute_hedgeye_kspy_overlay(current_price: float = 590.0, trend_pivot: floa
         "hedge_status": "ACTIVE_PROTECTION",
     }
 
+
+def compute_42m_liquidity_and_treasury_supply(
+    cb_assets_usd_tn: float,
+    broad_m2_usd_tn: float,
+    fx_reserves_ex_gold_tn: float,
+    move_index: float,
+    lead_z_sum_ex_equities_crypto: float,
+    glp_yoy_z_score: float,
+    maturing_debt_12m_bn: float = 10179.0,
+    annualized_deficit_bn: float = 2337.0,
+    fed_divestment_or_rmp_bn: float = -282.0,
+    effr: float = 3.62,
+    ois_floor_5y: float = 3.73,
+    ois_terminal_5y: float = 4.01
+) -> Dict[str, Any]:
+    """
+    Combines:
+    1. 42 Macro Global Liquidity Proxy ($tn) & Collateral Vol Adjustment
+    2. Leading Indicators Z-Sum minus GLP YoY Z-Score:
+       - y in [0.0, 0.5] -> 'Modest Uptrend'
+       - y in [0.5, 1.0+] -> 'Meaningful / Significant Uptrend'
+    3. Approximate NTM Marketable US Treasury Debt Supply ($bn)
+    4. OIS-Derived Fed Neutral Rate Spread (Cutting = Floor FFR; Hiking = Terminal FFR)
+    """
+    nominal_total_tn = cb_assets_usd_tn + broad_m2_usd_tn + fx_reserves_ex_gold_tn
+    log10_move = float(np.log10(max(10.0, move_index)))
+    vol_adjusted_proxy = round(nominal_total_tn / log10_move, 2)
+
+    y_diff = round(lead_z_sum_ex_equities_crypto - glp_yoy_z_score, 2)
+    if y_diff >= 0.50:
+        lead_signal = "MEANINGFUL UPTREND OVER MEDIUM TERM (y >= 0.50)"
+    elif y_diff >= 0.0:
+        lead_signal = "MODEST UPTREND OVER MEDIUM TERM (0.0 <= y < 0.50)"
+    elif y_diff >= -0.50:
+        lead_signal = "MODEST DOWNTREND OVER MEDIUM TERM (-0.50 <= y < 0.0)"
+    else:
+        lead_signal = "MEANINGFUL DOWNTREND OVER MEDIUM TERM (y < -0.50)"
+
+    ntm_supply_bn = round(maturing_debt_12m_bn + annualized_deficit_bn + fed_divestment_or_rmp_bn, 1)
+
+    return {
+        "nominal_global_liquidity_tn": round(nominal_total_tn, 2),
+        "vol_adjusted_global_liquidity_proxy": vol_adjusted_proxy,
+        "lead_minus_glp_z_diff": y_diff,
+        "medium_term_liquidity_signal": lead_signal,
+        "ntm_marketable_treasury_supply_bn": ntm_supply_bn,
+        "ois_cutting_neutral_spread_bps": round((ois_floor_5y - effr) * 100.0, 0),
+        "ois_hiking_neutral_spread_bps": round((ois_terminal_5y - effr) * 100.0, 0),
+    }
+

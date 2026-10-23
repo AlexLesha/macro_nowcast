@@ -8,6 +8,11 @@ from app.refresh_pipeline.orchestrator import (
     run_refresh_pipeline_stream,
 )
 
+try:
+    from app.refresh_pipeline.health_monitor import health_tracker, RefreshHealthTracker
+except ImportError:
+    from backend.app.refresh_pipeline.health_monitor import health_tracker, RefreshHealthTracker
+
 __all__ = [
     "MediaScraper",
     "StrategySynthesizer",
@@ -15,4 +20,7 @@ __all__ = [
     "RefreshPipelineOrchestrator",
     "refresh_orchestrator",
     "run_refresh_pipeline_stream",
+    "health_tracker",
+    "RefreshHealthTracker",
 ]
+

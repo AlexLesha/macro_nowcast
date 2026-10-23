@@ -15,6 +15,12 @@ from sqlalchemy.orm import Session
 from app.models.db_models import IntelligenceDelta, RegimeSnapshot
 from app.config import settings
 
+try:
+    from app.refresh_pipeline.health_monitor import health_tracker
+except ImportError:
+    from backend.app.refresh_pipeline.health_monitor import health_tracker
+
+
 logger = logging.getLogger(__name__)
 
 # =====================================================================
@@ -72,6 +78,7 @@ class LLMStrategySynthesizer:
     def synthesize(self, raw_sweep_data: dict, current_math_snapshot: dict) -> UnifiedRefreshBatchOutput:
         """Runs the single batch extraction prompt against Gemini with Pydantic JSON enforcement."""
         if not self.api_key:
+            health_tracker.record_gemini_run(False, error_msg="GEMINI_API_KEY not set")
             # Safe mock fallback if no API key is present
             return self._build_offline_mock(raw_sweep_data)
 
@@ -118,9 +125,14 @@ Critical Guidelines:
 Output MUST be valid JSON adhering strictly to the schema.
 """
             response = model.generate_content(prompt)
+            tokens_used = 0
+            if hasattr(response, "usage_metadata") and response.usage_metadata:
+                tokens_used = getattr(response.usage_metadata, "total_token_count", 0)
+            health_tracker.record_gemini_run(True, tokens_used=tokens_used)
             data = json.loads(response.text)
             return UnifiedRefreshBatchOutput(**data)
         except Exception as e:
+            health_tracker.record_gemini_run(False, error_msg=str(e))
             logger.warning(f"[Synthesizer] LLM extraction error: {e}. Falling back to baseline structure.")
             return self._build_offline_mock(raw_sweep_data)
 
