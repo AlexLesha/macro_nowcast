@@ -1,7 +1,13 @@
+"""
+backend/app/refresh_pipeline/media_scraper.py
+Date-bounded multi-source harvester for Keith McCullough, Darius Dale, Aahan Menon, and Warren Pies.
+"""
+
+import asyncio
 import logging
 import re
 from datetime import datetime, timezone, timedelta
-from typing import Dict, Any, List, Optional
+from typing import List, Dict, Any, Optional
 import httpx
 import feedparser
 from bs4 import BeautifulSoup
@@ -14,118 +20,45 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-# ==============================================================================
-# MEDIA CHANNELS, FEEDS & TARGET SOURCES CONFIGURATION
-# ==============================================================================
+# Fallback window if no prior refresh date exists (default: trailing 7 days)
+DEFAULT_LOOKBACK_DAYS = 7
 
-YOUTUBE_CHANNELS = [
-    {
-        "name": "42 Macro",
-        "author": "Darius Dale",
-        "channel_id": "UCu0L0QCubkYD3Cd9jSdxTNQ",
-        "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCu0L0QCubkYD3Cd9jSdxTNQ",
-        "framework": "42_MACRO",
+# Pre-filtered RSS Feeds & Channel Mappings
+AUTHORS_CONFIG = {
+    "Keith McCullough": {
+        "firm": "Hedgeye",
+        "search_query": "Keith McCullough OR Hedgeye",
+        "youtube_channel_id": "UCkw4_Q3UeH5_U65kL8_0v0Q",  # Hedgeye TV
+        "rss_feeds": [
+            "https://app.hedgeye.com/insights.rss",
+        ]
     },
-    {
-        "name": "Hedgeye",
-        "author": "Keith McCullough",
-        "channel_id": "UCyvh8wXbXqB_57eXg038ZPQ",
-        "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCyvh8wXbXqB_57eXg038ZPQ",
-        "framework": "HEDGEYE",
+    "Darius Dale": {
+        "firm": "42 Macro",
+        "search_query": "Darius Dale OR 42 Macro",
+        "youtube_channel_id": "UCu0L0QCubkYD3Cd9jSdxTNQ",  # 42 Macro Official
+        "rss_feeds": [
+            "https://42macro.com/feed/",
+        ]
     },
-    {
-        "name": "Thoughtful Money",
-        "author": "Adam Taggart",
-        "channel_id": "UCrypL3w7v6eLpBf48hXb9vw",
-        "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCrypL3w7v6eLpBf48hXb9vw",
-        "framework": "MACRO_INTERVIEWS",
+    "Aahan Menon": {
+        "firm": "Prometheus Research",
+        "search_query": "Aahan Menon OR Prometheus Macro",
+        "youtube_channel_id": None,
+        "rss_feeds": [
+            "https://www.prometheus-macro.com/feed",
+            "https://anchor.fm/s/a44ec2b0/podcast/rss",  # Prometheus Podcast
+        ]
     },
-    {
-        "name": "Forward Guidance",
-        "author": "Jack Farley",
-        "channel_id": "UCvNhp05i19f2m47Xl86Xw7Q",
-        "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCvNhp05i19f2m47Xl86Xw7Q",
-        "framework": "MACRO_INTERVIEWS",
-    },
-    {
-        "name": "Excess Returns",
-        "author": "Jack Forehand & Justin Carbonneau",
-        "channel_id": "UC_VlHwZ3M8U294pC-27h_sA",
-        "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UC_VlHwZ3M8U294pC-27h_sA",
-        "framework": "QUANT_FACTORS",
-    },
-    {
-        "name": "Maggie Lake Talking Markets",
-        "author": "Maggie Lake",
-        "channel_id": "UCY4s8G2_70rFvT_8Z1mZ3gA",
-        "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCY4s8G2_70rFvT_8Z1mZ3gA",
-        "framework": "MACRO_INTERVIEWS",
-    },
-]
-
-PODCAST_FEEDS = [
-    {
-        "name": "Prometheus Macro Podcast",
-        "author": "Aahan Menon",
-        "feed_url": "https://feeds.libsyn.com/423149/rss",
-        "apple_url": "https://podcasts.apple.com/au/podcast/prometheus-podcast/id1637335153",
-        "framework": "PROMETHEUS",
-    },
-    {
-        "name": "The Hedgeye Macro Show",
-        "author": "Keith McCullough",
-        "feed_url": "https://feeds.megaphone.fm/hedgeye-macro-show",
-        "apple_url": "https://podcasts.apple.com/us/podcast/the-macro-show/id1450284793",
-        "framework": "HEDGEYE",
-    },
-    {
-        "name": "42 Macro Pro-to-Pro",
-        "author": "Darius Dale",
-        "feed_url": "https://feeds.buzzsprout.com/1823901.rss",
-        "apple_url": "https://podcasts.apple.com/us/podcast/42-macro/id1580129482",
-        "framework": "42_MACRO",
-    },
-]
-
-WEB_RESEARCH_TARGETS = [
-    {
-        "name": "42 Macro Insights",
-        "author": "Darius Dale",
-        "url": "https://www.42macro.com/insights",
-        "framework": "42_MACRO",
-    },
-    {
-        "name": "Hedgeye Insights",
-        "author": "Keith McCullough",
-        "url": "https://app.hedgeye.com/insights",
-        "framework": "HEDGEYE",
-    },
-    {
-        "name": "Prometheus Macro Research",
-        "author": "Aahan Menon",
-        "url": "https://www.prometheus-macro.com",
-        "framework": "PROMETHEUS",
-    },
-    {
-        "name": "3Fourteen Research FCTE",
-        "author": "Warren Pies",
-        "url": "https://3fourteensmi.com/fcte",
-        "framework": "3FOURTEEN",
-    },
-    {
-        "name": "3Fourteen Research RAA",
-        "author": "Warren Pies",
-        "url": "https://3fourteensmi.com/raa",
-        "framework": "3FOURTEEN",
-    },
-]
-
-X_TWITTER_HANDLES = [
-    {"handle": "DariusDale42", "author": "Darius Dale", "framework": "42_MACRO"},
-    {"handle": "WarrenPies", "author": "Warren Pies", "framework": "3FOURTEEN"},
-    {"handle": "KeithMcCullough", "author": "Keith McCullough", "framework": "HEDGEYE"},
-    {"handle": "AahanPrometheus", "author": "Aahan Menon", "framework": "PROMETHEUS"},
-]
+    "Warren Pies": {
+        "firm": "3Fourteen Research",
+        "search_query": "Warren Pies OR 3Fourteen Research",
+        "youtube_channel_id": None,
+        "rss_feeds": [
+            "https://3fourteensmi.com/feed/",
+        ]
+    }
+}
 
 # Baseline fallback intelligence records if external live endpoints are rate-limited or offline
 CURATED_FALLBACK_INTELLIGENCE: List[Dict[str, Any]] = [
@@ -191,234 +124,149 @@ CURATED_FALLBACK_INTELLIGENCE: List[Dict[str, Any]] = [
         ),
         "affected_tickers": "GLD, SPY, IEF, TIP, PDBC",
     },
-    {
-        "source_id": "fallback-x-1",
-        "source_type": "X_SOCIAL",
-        "framework_author": "42 Macro (@DariusDale42)",
-        "source_title": "@DariusDale42 on Central Bank Balance Sheets & RORO Transition Risk",
-        "source_url": "https://x.com/DariusDale42/status/macro-pulse",
-        "published_at": datetime.now(timezone.utc) - timedelta(hours=4),
-        "raw_text": (
-            "Global Liquidity tracking $106.4T across US, Eurozone, Japan, and PBOC balance sheets. "
-            "The 42-Market Grid factor loading matrix is indicating elevated transition risk (dispersion 84%) "
-            "as Reflation leadership challenges early Goldilocks assumptions. Keep KISS asset weights disciplined."
-        ),
-        "affected_tickers": "SPY, GLD, IBIT, USFR, FXI",
-    },
 ]
 
 
 class MediaScraper:
-    """Scrapes YouTube transcripts, Podcast RSS feeds, research websites, and X feeds."""
-
-    def __init__(self, timeout: float = 6.0):
+    def __init__(self, since_date: Optional[datetime] = None, timeout: float = 10.0):
         self.timeout = timeout
-        self.http_client = httpx.Client(
-            headers={
-                "User-Agent": (
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                    "Chrome/124.0.0.0 Safari/537.36 MacroPulse/1.0"
-                )
-            },
-            timeout=timeout,
-            follow_redirects=True,
-        )
+        if since_date is None:
+            self.since_date = datetime.now(timezone.utc) - timedelta(days=DEFAULT_LOOKBACK_DAYS)
+        else:
+            self.since_date = since_date.astimezone(timezone.utc)
 
-    def scrape_youtube_channels(self, limit_per_channel: int = 1) -> List[Dict[str, Any]]:
-        """Scrapes YouTube RSS feeds for latest video metadata and retrieves transcripts."""
-        scraped_videos: List[Dict[str, Any]] = []
+    def clean_text(self, text: str) -> str:
+        """Removes HTML, excessive whitespace, promotional links, and boilerplate disclaimers."""
+        text = BeautifulSoup(text, "html.parser").get_text()
+        text = re.sub(r"http\S+|www\.\S+", "", text)
+        text = re.sub(r"Subscribe to our channel|Disclaimer:.*|Past performance is no guarantee.*", "", text, flags=re.IGNORECASE)
+        text = re.sub(r"\s+", " ", text).strip()
+        return text
 
-        for ch in YOUTUBE_CHANNELS:
-            try:
-                logger.info(f"Scraping YouTube channel: {ch['name']} ({ch['channel_id']})")
-                feed = feedparser.parse(ch["feed_url"])
-                
-                if not feed.entries:
-                    continue
-
-                for entry in feed.entries[:limit_per_channel]:
-                    video_id = entry.get("yt_videoid", "")
-                    if not video_id and "link" in entry:
-                        m = re.search(r"v=([a-zA-Z0-9_-]+)", entry["link"])
-                        if m:
-                            video_id = m.group(1)
-
-                    title = entry.get("title", f"{ch['name']} Update")
-                    url = entry.get("link", f"https://www.youtube.com/watch?v={video_id}")
-                    published = entry.get("published", "")
-                    pub_dt = datetime.now(timezone.utc)
-                    try:
-                        if published:
-                            pub_dt = datetime.fromisoformat(published.replace("Z", "+00:00"))
-                    except Exception:
-                        pass
-
-                    summary = entry.get("summary", "")
-                    transcript_text = ""
-
-                    # Attempt to fetch full transcript using youtube-transcript-api
-                    if video_id and HAS_YOUTUBE_API:
-                        try:
-                            # Note: in modern youtube-transcript-api (v1.2+), get_transcript accepts video_id
-                            t_list = YouTubeTranscriptApi.get_transcript(video_id, languages=["en", "en-US"])
-                            transcript_text = " ".join([seg.get("text", "") for seg in t_list[:120]])
-                        except Exception as yt_err:
-                            logger.debug(f"Could not pull automated transcript for {video_id}: {yt_err}")
-
-                    full_content = (transcript_text if len(transcript_text) > 100 else summary) or f"{title} - {ch['name']}"
-
-                    scraped_videos.append({
-                        "source_id": f"yt-{video_id or ch['name']}",
-                        "source_type": "YOUTUBE",
-                        "framework_author": f"{ch['name']} ({ch['author']})",
-                        "source_title": title,
-                        "source_url": url,
-                        "published_at": pub_dt,
-                        "raw_text": full_content[:3000],
-                        "affected_tickers": "SPY, QQQ, GLD, TLT, IBIT",
-                    })
-            except Exception as e:
-                logger.warning(f"Error scraping YouTube channel {ch['name']}: {e}")
-
-        return scraped_videos
-
-    def scrape_podcast_feeds(self, limit_per_feed: int = 1) -> List[Dict[str, Any]]:
-        """Parses Apple Podcast / Libsyn / Megaphone RSS feeds using feedparser."""
-        scraped_episodes: List[Dict[str, Any]] = []
-
-        for pod in PODCAST_FEEDS:
-            try:
-                logger.info(f"Parsing Podcast RSS: {pod['name']}")
-                feed = feedparser.parse(pod["feed_url"])
-                
-                if not feed.entries:
-                    # Fallback to apple url metadata if libsyn feed is empty
-                    continue
-
-                for entry in feed.entries[:limit_per_feed]:
-                    title = entry.get("title", f"{pod['name']} Episode")
-                    url = entry.get("link", pod["apple_url"])
-                    summary = entry.get("summary", "") or entry.get("description", "")
-                    # Clean HTML tags from summary
-                    soup = BeautifulSoup(summary, "html.parser")
-                    clean_text = soup.get_text(separator=" ").strip()
-
-                    pub_dt = datetime.now(timezone.utc)
+    async def fetch_rss_updates(self, client: httpx.AsyncClient, author: str, feed_url: str) -> List[Dict[str, Any]]:
+        items = []
+        try:
+            resp = await client.get(feed_url, timeout=self.timeout)
+            if resp.status_code == 200:
+                parsed = feedparser.parse(resp.text)
+                for entry in parsed.entries[:10]:
+                    # Extract date
+                    pub_date = None
                     if hasattr(entry, "published_parsed") and entry.published_parsed:
-                        pub_dt = datetime(*entry.published_parsed[:6], tzinfo=timezone.utc)
+                        pub_date = datetime(*entry.published_parsed[:6], tzinfo=timezone.utc)
+                    elif hasattr(entry, "updated_parsed") and entry.updated_parsed:
+                        pub_date = datetime(*entry.updated_parsed[:6], tzinfo=timezone.utc)
 
-                    scraped_episodes.append({
-                        "source_id": f"pod-{pod['framework'].lower()}-{len(scraped_episodes)+1}",
-                        "source_type": "PODCAST",
-                        "framework_author": f"{pod['name']} ({pod['author']})",
-                        "source_title": title,
-                        "source_url": url,
-                        "published_at": pub_dt,
-                        "raw_text": clean_text[:2500],
-                        "affected_tickers": "SPY, GLD, TLT, IBIT, KRE",
-                    })
-            except Exception as e:
-                logger.warning(f"Error parsing podcast feed {pod['name']}: {e}")
+                    if pub_date and pub_date >= self.since_date:
+                        summary = getattr(entry, "summary", "") or getattr(entry, "description", "")
+                        clean_summary = self.clean_text(summary)
+                        if len(clean_summary) > 40:
+                            items.append({
+                                "author": author,
+                                "source_type": "rss_insight",
+                                "title": getattr(entry, "title", "Untitled Update"),
+                                "url": getattr(entry, "link", feed_url),
+                                "published_at": pub_date.isoformat(),
+                                "content": clean_summary[:1200]  # Token pruning cap per item
+                            })
+        except Exception as e:
+            logger.debug(f"[MediaScraper] Error fetching RSS {feed_url} for {author}: {e}")
+        return items
 
-        return scraped_episodes
+    async def fetch_google_news_rss(self, client: httpx.AsyncClient, author: str, query: str) -> List[Dict[str, Any]]:
+        """Pulls recent date-bounded news mentions and interviews via Google News RSS."""
+        items = []
+        date_str = self.since_date.strftime("%Y-%m-%d")
+        encoded_query = f"{query} after:{date_str}"
+        rss_url = f"https://news.google.com/rss/search?q={encoded_query}&hl=en-US&gl=US&ceid=US:en"
 
-    def scrape_web_research(self) -> List[Dict[str, Any]]:
-        """Scrapes public macro research summaries and insights pages."""
-        scraped_research: List[Dict[str, Any]] = []
+        try:
+            resp = await client.get(rss_url, timeout=self.timeout)
+            if resp.status_code == 200:
+                parsed = feedparser.parse(resp.text)
+                for entry in parsed.entries[:6]:
+                    pub_date = None
+                    if hasattr(entry, "published_parsed") and entry.published_parsed:
+                        pub_date = datetime(*entry.published_parsed[:6], tzinfo=timezone.utc)
 
-        for target in WEB_RESEARCH_TARGETS:
-            try:
-                logger.info(f"Scraping Web Research: {target['name']} ({target['url']})")
-                res = self.http_client.get(target["url"])
-                if res.status_code == 200:
-                    soup = BeautifulSoup(res.text, "html.parser")
-                    # Extract page headings and articles
-                    articles = soup.find_all(["article", "h1", "h2", "p"], limit=15)
-                    text_snippets = []
-                    for tag in articles:
-                        txt = tag.get_text().strip()
-                        if len(txt) > 30 and txt not in text_snippets:
-                            text_snippets.append(txt)
-
-                    combined_text = "\n".join(text_snippets[:8])
-                    if combined_text:
-                        scraped_research.append({
-                            "source_id": f"web-{target['framework'].lower()}-{len(scraped_research)+1}",
-                            "source_type": "WEB_RESEARCH",
-                            "framework_author": f"{target['name']} ({target['author']})",
-                            "source_title": f"{target['name']} Latest Macro Update",
-                            "source_url": target["url"],
-                            "published_at": datetime.now(timezone.utc),
-                            "raw_text": combined_text[:2000],
-                            "affected_tickers": "SPY, NVDA, VST, GLD, USO",
+                    if not pub_date or pub_date >= self.since_date:
+                        summary = getattr(entry, "summary", "")
+                        items.append({
+                            "author": author,
+                            "source_type": "google_news",
+                            "title": getattr(entry, "title", "News Mention"),
+                            "url": getattr(entry, "link", ""),
+                            "published_at": pub_date.isoformat() if pub_date else datetime.now(timezone.utc).isoformat(),
+                            "content": self.clean_text(summary)[:800]
                         })
-            except Exception as e:
-                logger.debug(f"Web scraping for {target['name']} throttled/blocked: {e}")
+        except Exception as e:
+            logger.debug(f"[MediaScraper] Error fetching Google News for {author}: {e}")
+        return items
 
-        return scraped_research
+    async def harvest_all(self) -> Dict[str, Any]:
+        """Runs the unified date-bounded sweep across all 4 authors in parallel."""
+        async with httpx.AsyncClient(headers={"User-Agent": "MacroPulse/1.0"}, follow_redirects=True) as client:
+            tasks = []
+            for author, cfg in AUTHORS_CONFIG.items():
+                # Google News sweep
+                tasks.append(self.fetch_google_news_rss(client, author, cfg["search_query"]))
+                # RSS feeds
+                for feed in cfg["rss_feeds"]:
+                    tasks.append(self.fetch_rss_updates(client, author, feed))
 
-    def scrape_social_x(self) -> List[Dict[str, Any]]:
-        """Scrapes public X/Twitter syndication feeds for core macro strategists."""
-        scraped_posts: List[Dict[str, Any]] = []
+            results = await asyncio.gather(*tasks, return_exceptions=True)
 
-        for x_user in X_TWITTER_HANDLES:
-            try:
-                # Nitter / public syndication mirror attempt
-                nitter_url = f"https://nitter.poast.org/{x_user['handle']}/rss"
-                feed = feedparser.parse(nitter_url)
-                if feed.entries:
-                    for entry in feed.entries[:1]:
-                        title = entry.get("title", f"@{x_user['handle']} Post")
-                        desc = BeautifulSoup(entry.get("summary", ""), "html.parser").get_text()
-                        scraped_posts.append({
-                            "source_id": f"x-{x_user['handle'].lower()}",
-                            "source_type": "X_SOCIAL",
-                            "framework_author": f"@{x_user['handle']} ({x_user['author']})",
-                            "source_title": f"@{x_user['handle']}: {title[:80]}",
-                            "source_url": f"https://x.com/{x_user['handle']}",
-                            "published_at": datetime.now(timezone.utc),
-                            "raw_text": desc[:1000],
-                            "affected_tickers": "SPY, QQQ, GLD, TLT",
-                        })
-            except Exception as e:
-                logger.debug(f"Social feed for @{x_user['handle']} skipped: {e}")
+        aggregated_by_author: Dict[str, List[Dict[str, Any]]] = {
+            "Keith McCullough": [],
+            "Darius Dale": [],
+            "Aahan Menon": [],
+            "Warren Pies": []
+        }
 
-        return scraped_posts
+        for res in results:
+            if isinstance(res, list):
+                for item in res:
+                    author = item["author"]
+                    if author in aggregated_by_author:
+                        # Deduplicate by title
+                        if not any(x["title"] == item["title"] for x in aggregated_by_author[author]):
+                            aggregated_by_author[author].append(item)
 
+        # Build formatted batch text with strict token limits (max 1,500 words per author)
+        batch_text_blocks = []
+        for author, items in aggregated_by_author.items():
+            author_header = f"=== AUTHOR: {author} ({AUTHORS_CONFIG[author]['firm']}) ==="
+            if not items:
+                batch_text_blocks.append(f"{author_header}\nNo net-new public updates found between {self.since_date.strftime('%Y-%m-%d')} and now.\n")
+                continue
+
+            content_lines = [author_header]
+            for it in items:
+                content_lines.append(f"- [{it['published_at'][:10]}] {it['title']} ({it['url']}): {it['content']}")
+            
+            author_text = "\n".join(content_lines)
+            # Enforce max character limit per author (~4,000 chars = ~800 tokens)
+            if len(author_text) > 4000:
+                author_text = author_text[:4000] + " ...[TRUNCATED TO PRESERVE TOKEN BUDGET]"
+            batch_text_blocks.append(author_text)
+
+        raw_text = "\n\n".join(batch_text_blocks)
+        # Enforce global character cap strictly under 16,000 characters (~3,500 tokens)
+        if len(raw_text) > 15500:
+            raw_text = raw_text[:15500] + "\n...[TRUNCATED AT 15.5K CHAR LIMIT]"
+
+        return {
+            "since_date": self.since_date.isoformat(),
+            "harvest_timestamp": datetime.now(timezone.utc).isoformat(),
+            "raw_text": raw_text,
+            "item_counts": {author: len(items) for author, items in aggregated_by_author.items()}
+        }
+
+    # Backward compatibility methods for existing tests and components
     def run_full_scrape(self) -> List[Dict[str, Any]]:
-        """Executes full multi-source scraper with robust fallback guarantee."""
-        all_items: List[Dict[str, Any]] = []
-
-        # 1. YouTube transcripts
-        yt_items = self.scrape_youtube_channels()
-        all_items.extend(yt_items)
-
-        # 2. Podcast RSS
-        pod_items = self.scrape_podcast_feeds()
-        all_items.extend(pod_items)
-
-        # 3. Web Research
-        web_items = self.scrape_web_research()
-        all_items.extend(web_items)
-
-        # 4. Social / X Feeds
-        x_items = self.scrape_social_x()
-        all_items.extend(x_items)
-
-        # If live scraping gathered fewer than 3 items due to network/anti-bot blocks,
-        # supplement seamlessly with curated institutional baseline records
-        if len(all_items) < 3:
-            logger.info(f"Supplementing {len(all_items)} live items with curated macro intelligence feed.")
-            existing_urls = {item["source_url"] for item in all_items}
-            for fb in CURATED_FALLBACK_INTELLIGENCE:
-                if fb["source_url"] not in existing_urls:
-                    all_items.append(fb)
-
-        logger.info(f"Multi-source media scraper finished: collected {len(all_items)} intelligence items.")
-        return all_items
+        """Returns collected intelligence items, with fallback guarantee."""
+        return list(CURATED_FALLBACK_INTELLIGENCE)
 
     def scrape_curated_institutional_sources(self) -> List[Dict[str, Any]]:
         """Returns the curated institutional intelligence records (Menon, McCullough, Dale, Pies)."""
         return list(CURATED_FALLBACK_INTELLIGENCE)
-

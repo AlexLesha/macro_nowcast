@@ -93,6 +93,61 @@ def get_fcte_holdings_direct():
     return fetch_fcte_holdings().to_dict()
 
 
+# ==============================================================================
+# CHUNK 6: AUTONOMOUS REFRESH PIPELINE & SSE STREAMING ENDPOINTS
+# ==============================================================================
+
+from datetime import datetime, timezone
+from fastapi.responses import StreamingResponse
+
+try:
+    from backend.app.refresh_pipeline.orchestrator import (
+        run_refresh_pipeline_stream,
+        refresh_orchestrator,
+    )
+except ImportError:
+    from app.refresh_pipeline.orchestrator import (
+        run_refresh_pipeline_stream,
+        refresh_orchestrator,
+    )
+
+
+@app.post("/api/v1/refresh/trigger")
+@app.post("/api/refresh/trigger")
+async def trigger_refresh():
+    """Triggers the refresh pipeline in background and returns immediate status."""
+    return refresh_orchestrator.trigger()
+
+
+@app.get("/api/v1/refresh/stream")
+@app.get("/api/refresh/stream")
+async def stream_refresh_progress():
+    """Server-Sent Events endpoint streaming real-time progress to the UI modal."""
+    return StreamingResponse(
+        run_refresh_pipeline_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@app.get("/api/v1/refresh/status")
+@app.get("/api/refresh/status")
+def get_refresh_status():
+    """Returns current status and stage of the refresh pipeline."""
+    return refresh_orchestrator.get_status()
+
+
+@app.get("/api/v1/refresh/diff")
+@app.get("/api/refresh/diff")
+def get_refresh_diff():
+    """Returns the latest 'What Changed Since Last Refresh' diff report."""
+    return refresh_orchestrator.get_diff()
+
+
 if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("PORT", settings.PORT))
