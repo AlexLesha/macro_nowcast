@@ -669,3 +669,32 @@ def compute_prometheus_analog(state_vec: Optional[Dict[str, float]] = None) -> D
         "expected_returns": res["similarity_weighted_expected_returns"],
     }
 
+
+def compute_ism_recession_probability(ism_reading: float) -> Dict[str, Any]:
+    """
+    Calculates historical recession probability based on ISM Manufacturing Index:
+    - ISM < 50: 60% probability of recession
+    - ISM < 47: 80% probability of recession
+    - ISM < 46: 100% probability of recession
+    """
+    if ism_reading < 46.0:
+        prob = 1.00
+        tier = "EXTREME_RECESSION_CERTAINTY (100%)"
+    elif ism_reading < 47.0:
+        prob = 0.80
+        tier = "HIGH_RECESSION_PROBABILITY (80%)"
+    elif ism_reading < 50.0:
+        prob = 0.60
+        tier = "ELEVATED_RECESSION_RISK (60%)"
+    else:
+        prob = 0.15
+        tier = "EXPANSIONARY_ZONE (Low Risk)"
+
+    return {
+        "ism_reading": ism_reading,
+        "recession_probability": prob,
+        "risk_tier": tier,
+        "source": "42 Macro / ISM Historical Survey Data (since 1948)"
+    }
+
+

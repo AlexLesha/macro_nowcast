@@ -4,6 +4,17 @@ from typing import Dict, Any, List, Optional, Tuple, Union
 import numpy as np
 import pandas as pd
 
+try:
+    from app.quant_engine.hedgeye_quad_matrix import (
+        HEDGEYE_EMPIRICAL_BACKTEST,
+        HEDGEYE_PORTFOLIO_MODELS,
+    )
+except ImportError:
+    from backend.app.quant_engine.hedgeye_quad_matrix import (
+        HEDGEYE_EMPIRICAL_BACKTEST,
+        HEDGEYE_PORTFOLIO_MODELS,
+    )
+
 logger = logging.getLogger(__name__)
 
 # ==============================================================================
@@ -462,28 +473,15 @@ def compute_kiss_and_dr_mo_portfolios(
 
     for sym in all_70:
         v_st = vams_dict.get(sym, 1 if sym in ["XLK", "GLD", "SPY"] else 0)
-        # Factor signal synthesis
-        if v_st > 0 and grid_regime in ["REFLATION", "GOLDILOCKS"]:
-            sig = "MAX_LONG (+100%)"
-            wt = 1.0
-        elif v_st > 0:
-            sig = "HALF_LONG (+50%)"
-            wt = 0.5
-        elif v_st == 0:
-            sig = "FLAT (0%)"
-            wt = 0.0
-        elif v_st < 0 and grid_regime == "DEFLATION":
-            sig = "MAX_SHORT (-100%)"
-            wt = -1.0
-        else:
-            sig = "HALF_SHORT (-50%)"
-            wt = -0.5
+        trade = compute_dr_mo_proper_trade(v_st, sym, grid_regime)
 
         dr_mo_signals.append({
             "ticker": sym,
             "vams_state": v_st,
-            "signal": sig,
-            "target_exposure_pct": wt * 100.0,
+            "signal": trade["recommendation"],
+            "target_exposure_pct": trade["size_multiplier"] * 100.0,
+            "empirical_expected_value": trade["empirical_expected_value"],
+            "empirical_win_rate": trade["empirical_win_rate"],
         })
 
     return {
@@ -641,4 +639,93 @@ def compute_dr_mo_factor_scores(
         "factors": res["dr_mo_model_signals"],
         "kiss_model": res["kiss_model"],
     }
+
+
+# ==============================================================================
+# 6. DR. MO PROPER TRADE & EMPIRICAL QUAD ALIGNMENT
+# ==============================================================================
+
+def compute_dr_mo_proper_trade(vams_state: int, ticker: str, top_down_regime: str) -> Dict[str, Any]:
+    """
+    Implements 42 Macro's exact Discretionary Risk Management Overlay ("Dr. Mo") logic:
+    - Target regime: 'Goldilocks' (Q1), 'Reflation' (Q2), 'Inflation' (Q3), 'Deflation' (Q4)
+    - Returns: recommendation (str), position_size_pct (float), rationale (str)
+    """
+    # Map top down regime to Quad key
+    regime_map = {
+        "Goldilocks": "Q1", "Reflation": "Q2", "Inflation": "Q3", "Deflation": "Q4",
+        "Quad 1": "Q1", "Quad 2": "Q2", "Quad 3": "Q3", "Quad 4": "Q4"
+    }
+    q_key = regime_map.get(top_down_regime, "Q2")
+    
+    # Check if ticker has empirical history
+    stats = HEDGEYE_EMPIRICAL_BACKTEST.get(ticker, {}).get(q_key, {"ev": 0.0, "wr": 0.50})
+    is_historically_bullish = stats["ev"] > 0.2 and stats["wr"] >= 0.60
+    is_historically_bearish = stats["ev"] < -0.2 or stats["wr"] < 0.45
+
+    recommendation = "No Position"
+    size_pct = 0.0
+
+    if is_historically_bullish:
+        if vams_state == 1:
+            recommendation = "LONG: Max Position"
+            size_pct = 1.0
+        elif vams_state == 0:
+            recommendation = "LONG: Half Position"
+            size_pct = 0.5
+        else:
+            recommendation = "No Position (Counter-Trend VAMS)"
+            size_pct = 0.0
+    elif is_historically_bearish:
+        if vams_state == -1:
+            recommendation = "SHORT: Max Position"
+            size_pct = -1.0
+        elif vams_state == 0:
+            recommendation = "SHORT: Half Position"
+            size_pct = -0.5
+        else:
+            recommendation = "No Position (Counter-Trend VAMS)"
+            size_pct = 0.0
+    else:
+        # Neutral asset in this regime
+        if vams_state == 1:
+            recommendation = "LONG: Half Position (Tactical Momentum)"
+            size_pct = 0.5
+        elif vams_state == -1:
+            recommendation = "SHORT: Half Position (Tactical Weakness)"
+            size_pct = -0.5
+        else:
+            recommendation = "No Position"
+            size_pct = 0.0
+
+    return {
+        "ticker": ticker,
+        "regime": top_down_regime,
+        "vams_state": vams_state,
+        "recommendation": recommendation,
+        "size_multiplier": size_pct,
+        "empirical_expected_value": stats["ev"],
+        "empirical_win_rate": stats["wr"]
+    }
+
+
+def compute_empirical_quad_alignment_score(ticker: str, current_quad: str) -> float:
+    """
+    Computes a 0 to 100 alignment score based on Hedgeye's 20-year empirical table:
+    - 100: Top historical performer with high win rate (>70% positive ratio)
+    - 50: Neutral or mixed historical performance
+    - 0: Systematically negative expected return / poor win rate
+    """
+    q_map = {"Quad 1": "Q1", "Quad 2": "Q2", "Quad 3": "Q3", "Quad 4": "Q4"}
+    qk = q_map.get(current_quad, "Q2")
+    
+    if ticker in HEDGEYE_EMPIRICAL_BACKTEST:
+        metrics = HEDGEYE_EMPIRICAL_BACKTEST[ticker].get(qk, {"ev": 0.0, "wr": 0.50})
+        # Score = scaled combination of win rate and expected return
+        ev_score = min(50.0, max(0.0, (metrics["ev"] + 1.0) * 25.0))  # -1.0% to +1.0% -> 0 to 50
+        wr_score = min(50.0, max(0.0, (metrics["wr"] - 0.3) * 100.0)) # 30% to 80% -> 0 to 50
+        return round(ev_score + wr_score, 1)
+        
+    return 50.0  # Default neutral for non-indexed tickers
+
 
