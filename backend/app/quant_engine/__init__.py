@@ -30,6 +30,11 @@ from app.quant_engine.hedgeye_quad_matrix import (
     HEDGEYE_EMPIRICAL_BACKTEST,
     HEDGEYE_PORTFOLIO_MODELS,
 )
+from app.quant_engine.forty_two_macro_engine import (
+    FortyTwoMacroEngine,
+    GLOBAL_MACRO_RISK_MATRIX_42,
+    DR_MO_56_UNIVERSE,
+)
 
 __all__ = [
     "compute_growth_nowcast",
@@ -52,4 +57,7 @@ __all__ = [
     "scan_1_to_3_month_outliers",
     "HEDGEYE_EMPIRICAL_BACKTEST",
     "HEDGEYE_PORTFOLIO_MODELS",
+    "FortyTwoMacroEngine",
+    "GLOBAL_MACRO_RISK_MATRIX_42",
+    "DR_MO_56_UNIVERSE",
 ]

@@ -14,6 +14,7 @@ import {
   Target,
   Sparkles,
   Compass,
+  BarChart3,
 } from "lucide-react";
 import { RefreshModal } from "./RefreshModal";
 import { ExportModal } from "./ExportModal";
@@ -88,6 +89,7 @@ export const Navigation: React.FC = () => {
     { href: "/outliers", label: "1-3M Outlier Scanner", icon: Target, short: "Outliers" },
     { href: "/speculation", label: "Speculation Matrix", icon: Sparkles, short: "Speculation" },
     { href: "/scenarios", label: "Policy Playbook", icon: Compass, short: "Scenarios" },
+    { href: "/42-macro", label: "42 Macro Deep-Dive", icon: BarChart3, short: "42Macro" },
   ];
 
   return (

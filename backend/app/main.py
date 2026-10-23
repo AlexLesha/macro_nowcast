@@ -93,6 +93,17 @@ def get_fcte_holdings_direct():
     return fetch_fcte_holdings().to_dict()
 
 
+@app.get("/api/v1/42macro/dashboard")
+@app.get("/api/42macro/dashboard")
+def get_42_macro_dashboard():
+    """Returns the complete 42 Macro institutional suite with a Plain-English Executive Summary."""
+    try:
+        from backend.app.quant_engine.forty_two_macro_engine import FortyTwoMacroEngine
+    except ImportError:
+        from app.quant_engine.forty_two_macro_engine import FortyTwoMacroEngine
+    return FortyTwoMacroEngine.get_complete_dashboard_payload()
+
+
 # ==============================================================================
 # CHUNK 6: AUTONOMOUS REFRESH PIPELINE & SSE STREAMING ENDPOINTS
 # ==============================================================================

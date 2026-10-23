@@ -79,6 +79,7 @@ export default function Header({ onRefreshClick }: { onRefreshClick?: () => void
     { name: '4. 1–3M Outliers', href: '/outliers' },
     { name: '5. Speculation Matrix', href: '/speculation' },
     { name: '6. 4Q Scenarios', href: '/scenarios' },
+    { name: '7. 42 Macro Deep-Dive', href: '/42-macro' },
   ];
 
   return (
