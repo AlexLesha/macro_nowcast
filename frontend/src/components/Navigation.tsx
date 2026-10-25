@@ -1,45 +1,39 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  Activity,
-  RefreshCw,
-  Share2,
-  Terminal,
-  Layers,
-  Scale,
-  TrendingUp,
-  Target,
-  Sparkles,
-  Compass,
-  BarChart3,
-  Crosshair,
-  Flame,
-} from "lucide-react";
 import { RefreshModal } from "./RefreshModal";
 import { ExportModal } from "./ExportModal";
 import { API_BASE_URL } from "@/lib/api";
+
+const NAV_ITEMS_ROW_1 = [
+  { label: "1. Executive Summary", href: "/" },
+  { label: "2. Framework Synthesis", href: "/synthesis" },
+  { label: "3. Liquidity & Allocation", href: "/liquidity-allocation" },
+  { label: "4. Outliers", href: "/outliers" },
+];
+
+const NAV_ITEMS_ROW_2 = [
+  { label: "5. 1st/2nd/3rd Order Speculation", href: "/speculation" },
+  { label: "6. 4Q Scenarios & Policy", href: "/scenarios" },
+  { label: "7. 42 Macro Deep-Dive", href: "/42-macro" },
+  { label: "8. Commodities & Alts", href: "/commodities-alternatives" },
+];
 
 export const Navigation: React.FC = () => {
   const pathname = usePathname();
   const [backendStatus, setBackendStatus] = useState<"checking" | "waking" | "online" | "offline">("checking");
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
-  const [currentTime, setCurrentTime] = useState<string>("");
+  const [displayDate, setDisplayDate] = useState<string>("");
   const [isRefreshModalOpen, setIsRefreshModalOpen] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
   useEffect(() => {
-    const updateTime = () => {
-      setCurrentTime(new Date().toUTCString().replace("GMT", "UTC"));
-    };
-    updateTime();
-    const interval = setInterval(updateTime, 1000);
-    return () => clearInterval(interval);
+    setDisplayDate(new Date().toISOString().slice(0, 10));
   }, []);
 
-  const checkHealth = React.useCallback(async () => {
+  const checkHealth = useCallback(async () => {
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 60000);
@@ -84,124 +78,139 @@ export const Navigation: React.FC = () => {
     }
   }, [elapsedSeconds, backendStatus]);
 
-  const navLinks = [
-    { href: "/", label: "Nowcast Dashboard", icon: Activity, short: "Dashboard" },
-    { href: "/synthesis", label: "Framework Synthesis", icon: Scale, short: "Synthesis" },
-    { href: "/liquidity-allocation", label: "Liquidity & Allocation", icon: Layers, short: "Liquidity" },
-    { href: "/outliers", label: "1-3M Outlier Scanner", icon: Target, short: "Outliers" },
-    { href: "/speculation", label: "Speculation Matrix", icon: Sparkles, short: "Speculation" },
-    { href: "/scenarios", label: "Policy Playbook", icon: Compass, short: "Scenarios" },
-    { href: "/42-macro", label: "42 Macro Deep-Dive", icon: BarChart3, short: "42Macro" },
-    { href: "/commodities-alternatives", label: "8. Commodities & Alts", icon: Flame, short: "Commodities" },
-    { href: "/stock-xray", label: "Stock X-Ray", icon: Crosshair, short: "X-Ray" },
-  ];
+  const apiOnline = backendStatus === "online";
+  const apiStatusLabel =
+    backendStatus === "online"
+      ? "Live API Synced"
+      : backendStatus === "waking"
+      ? `Waking Engine (${elapsedSeconds}s)`
+      : backendStatus === "checking"
+      ? "Connecting..."
+      : "API Offline (Click to Retry)";
 
   return (
     <>
-      <header className="border-b border-slate-800 bg-[#0c121e]/95 backdrop-blur-md sticky top-0 z-40 px-4 sm:px-6 py-2.5">
-        <div className="max-w-7xl mx-auto flex flex-col lg:flex-row items-center justify-between gap-3">
-          {/* Brand & Sub-Page Navigation */}
-          <div className="flex flex-wrap items-center gap-4 w-full lg:w-auto justify-between lg:justify-start">
-            <Link href="/" className="flex items-center gap-2.5 shrink-0 group">
-              <div className="h-8 w-8 rounded-lg bg-gradient-to-tr from-cyan-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-cyan-500/20 border border-cyan-400/30 group-hover:border-cyan-300 transition">
-                <Activity className="h-4 w-4 text-white" />
-              </div>
-              <div className="flex items-baseline gap-1.5">
-                <span className="font-mono text-base font-bold tracking-wider text-slate-100">
-                  MACROPULSE<span className="text-cyan-400">.ALPHA</span>
-                </span>
-                <span className="text-[9px] uppercase font-mono px-1.5 py-0.2 rounded bg-cyan-950/80 text-cyan-400 border border-cyan-800/50">
-                  v1.0
-                </span>
-              </div>
-            </Link>
+      <header className="sticky top-0 z-40 w-full border-b border-slate-800 bg-[#090D16]/95 backdrop-blur-md">
+        {/* Aligned to exact max-w-7xl mx-auto px-4 md:px-6 container width */}
+        <div className="max-w-7xl mx-auto px-4 md:px-6 pt-2.5 pb-3 space-y-2.5">
+          {/* TOP UTILITY BAR: Brand & Regime Left | Date, API Status, Refresh & Export Moved Higher & Aligned Right */}
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800/80 pb-2">
+            <div className="flex items-center gap-3">
+              <Link href="/" className="text-base md:text-lg font-bold tracking-tight text-white hover:opacity-90 transition">
+                MacroPulse <span className="text-cyan-400">Alpha</span>
+              </Link>
+              <span className="hidden sm:inline-block px-2.5 py-0.5 rounded bg-blue-500/15 border border-blue-500/30 text-blue-300 font-mono text-[11px]">
+                GRID: REFLATION • US QUAD: Q2
+              </span>
+              <Link
+                href="/stock-xray"
+                className={`hidden md:inline-flex items-center px-2 py-0.5 rounded border text-[11px] font-mono transition ${
+                  pathname === "/stock-xray"
+                    ? "bg-purple-600/30 border-purple-400 text-purple-300 font-semibold"
+                    : "bg-slate-900/60 border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700"
+                }`}
+              >
+                Stock X-Ray
+              </Link>
+            </div>
 
-            {/* Sub-Pages Tabs */}
-            <nav className="flex items-center gap-1 overflow-x-auto py-1 text-xs font-mono">
-              {navLinks.map((link) => {
-                const Icon = link.icon;
-                const isActive = pathname === link.href;
+            {/* Date, API Status, Refresh & Export aligned flush with right edge of content table */}
+            <div className="flex flex-wrap items-center gap-2 font-mono text-xs">
+              <span className="px-2.5 py-1 rounded bg-slate-900 border border-slate-800 text-slate-300">
+                {displayDate || "2026-10-26"}
+              </span>
+
+              <button
+                onClick={() => {
+                  if (!apiOnline) {
+                    setElapsedSeconds(0);
+                    setBackendStatus("checking");
+                    checkHealth();
+                  }
+                }}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded border transition ${
+                  apiOnline
+                    ? "bg-emerald-950/40 border-emerald-500/40 text-emerald-300"
+                    : backendStatus === "waking" || backendStatus === "checking"
+                    ? "bg-amber-950/40 border-amber-500/40 text-amber-300"
+                    : "bg-rose-950/40 border-rose-500/40 text-rose-300 cursor-pointer"
+                }`}
+              >
+                <span
+                  className={`h-2 w-2 rounded-full ${
+                    apiOnline
+                      ? "bg-emerald-400 animate-pulse shadow-[0_0_6px_#10b981]"
+                      : backendStatus === "waking" || backendStatus === "checking"
+                      ? "bg-amber-400 animate-spin"
+                      : "bg-rose-500"
+                  }`}
+                />
+                {apiStatusLabel}
+              </button>
+
+              <button
+                id="header-refresh-data-button"
+                onClick={() => setIsRefreshModalOpen(true)}
+                className="px-3 py-1 rounded bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white font-semibold shadow-sm transition active:scale-[0.98]"
+              >
+                ↻ Refresh Data
+              </button>
+
+              <button
+                id="header-export-share-button"
+                onClick={() => setIsExportModalOpen(true)}
+                className="px-3 py-1 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 transition"
+              >
+                Export
+              </button>
+            </div>
+          </div>
+
+          {/* 2-LINE MAIN NAVIGATION MENU (Aligned to full width of content table) */}
+          <nav className="space-y-1.5 font-mono text-xs">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+              {NAV_ITEMS_ROW_1.map((item) => {
+                const active = pathname === item.href;
                 return (
                   <Link
-                    key={link.href}
-                    id={`nav-link-${link.short.toLowerCase()}`}
-                    href={link.href}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md font-medium transition-all whitespace-nowrap ${
-                      isActive
-                        ? "bg-cyan-500/15 text-cyan-300 border border-cyan-500/40 shadow-sm shadow-cyan-500/10"
-                        : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 border border-transparent"
+                    key={item.href}
+                    id={`nav-link-${item.href.replace("/", "") || "summary"}`}
+                    href={item.href}
+                    className={`px-3 py-1.5 rounded-md border text-center font-medium transition truncate ${
+                      active
+                        ? "bg-blue-600/90 border-blue-400 text-white shadow-sm"
+                        : "bg-[#111827] border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-white"
                     }`}
                   >
-                    <Icon className={`h-3.5 w-3.5 ${isActive ? "text-cyan-400" : "text-slate-400"}`} />
-                    <span>{link.label}</span>
+                    {item.label}
                   </Link>
                 );
               })}
-            </nav>
-          </div>
-
-          {/* Action Buttons & Status Indicators */}
-          <div className="flex items-center gap-2.5 text-xs font-mono shrink-0 w-full lg:w-auto justify-end">
-            {/* UTC Clock */}
-            <div className="hidden xl:flex items-center gap-1.5 bg-slate-900/80 border border-slate-800 px-2.5 py-1 rounded text-slate-400 text-[11px]">
-              <Terminal className="h-3 w-3 text-cyan-400" />
-              <span>{currentTime || "UTC"}</span>
             </div>
-
-            {/* Health Badge */}
-            {backendStatus === "online" && (
-              <div className="flex items-center gap-1.5 bg-emerald-950/60 border border-emerald-500/30 px-2.5 py-1 rounded text-[11px] text-emerald-400 font-mono">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_6px_#10b981]" />
-                <span>LIVE API</span>
-              </div>
-            )}
-
-            {(backendStatus === "waking" || backendStatus === "checking") && (
-              <button
-                onClick={checkHealth}
-                title="Render free tier takes ~30-50s to spin up. Click to ping."
-                className="flex items-center gap-1.5 bg-amber-950/60 border border-amber-500/30 px-2.5 py-1 rounded text-[11px] text-amber-400 font-mono hover:bg-amber-900/40 transition cursor-pointer"
-              >
-                <RefreshCw className="h-3 w-3 animate-spin text-amber-400" />
-                <span>Waking Engine ({elapsedSeconds}s)...</span>
-              </button>
-            )}
-
-            {backendStatus === "offline" && (
-              <button
-                onClick={() => { setElapsedSeconds(0); setBackendStatus("checking"); checkHealth(); }}
-                title="Click to retry connection"
-                className="flex items-center gap-1.5 bg-rose-950/60 border border-rose-500/30 px-2.5 py-1 rounded text-[11px] text-rose-400 font-mono hover:bg-rose-900/40 transition cursor-pointer"
-              >
-                <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
-                <span>API Offline (Retry)</span>
-              </button>
-            )}
-
-            {/* Refresh Data Button */}
-            <button
-              id="header-refresh-data-button"
-              onClick={() => setIsRefreshModalOpen(true)}
-              className="px-3 py-1.5 rounded-md bg-gradient-to-r from-cyan-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 text-white font-mono font-semibold flex items-center gap-1.5 shadow-md shadow-cyan-900/30 border border-cyan-400/30 transition hover:scale-[1.02] active:scale-[0.98]"
-            >
-              <RefreshCw className="h-3.5 w-3.5" />
-              <span>Refresh Data</span>
-            </button>
-
-            {/* Export / Share Button */}
-            <button
-              id="header-export-share-button"
-              onClick={() => setIsExportModalOpen(true)}
-              className="px-3 py-1.5 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-200 font-mono font-semibold flex items-center gap-1.5 border border-slate-700 transition hover:border-slate-600"
-            >
-              <Share2 className="h-3.5 w-3.5 text-indigo-400" />
-              <span>Export</span>
-            </button>
-          </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+              {NAV_ITEMS_ROW_2.map((item) => {
+                const active = pathname === item.href;
+                return (
+                  <Link
+                    key={item.href}
+                    id={`nav-link-${item.href.replace("/", "")}`}
+                    href={item.href}
+                    className={`px-3 py-1.5 rounded-md border text-center font-medium transition truncate ${
+                      active
+                        ? "bg-blue-600/90 border-blue-400 text-white shadow-sm"
+                        : "bg-[#111827] border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-white"
+                    }`}
+                  >
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </div>
+          </nav>
         </div>
       </header>
 
-      {/* Modals */}
+      {/* Autonomous Modals */}
       <RefreshModal isOpen={isRefreshModalOpen} onClose={() => setIsRefreshModalOpen(false)} />
       <ExportModal isOpen={isExportModalOpen} onClose={() => setIsExportModalOpen(false)} />
     </>
