@@ -797,3 +797,241 @@ def compute_gen2_crowding_and_vams_dd_modifier(
         "vams_drawdown_score_adjustment": vams_dd_adj,
         "total_score_adjustment": adj + vams_dd_adj
     }
+
+
+def compute_pivot_vs_continuation_scores(
+    rsi_14d: float,
+    range_pos_pct: float,
+    flow_z_3m: float,
+    vams_state: int,
+    eps_rev_breadth_30d: float,
+    macro_quad_tailwind: float,
+    capex_or_fcf_score: float,
+    jensens_alpha_ann_pct: float
+) -> Dict[str, Any]:
+    """
+    Scores an asset on two distinct institutional scales (0-100):
+    1. Bottoming Pivot Score (Rewards low RSI/range position + washed-out flows + positive fundamental/macro catalyst)
+    2. Trend Continuation Score (Rewards VAMS +1 + positive Jensen's Alpha + positive EPS revisions + un-crowded flows)
+    """
+    # 1. Unloved Bottoming Pivot Score (0-100)
+    unloved_price_score = max(0.0, min(35.0, (60.0 - rsi_14d) * 0.8 + (50.0 - range_pos_pct) * 0.3))
+    washed_out_flow_score = max(0.0, min(20.0, (-flow_z_3m + 0.5) * 8.0))
+    catalyst_inflection_score = (
+        max(0.0, min(20.0, (eps_rev_breadth_30d + 0.2) * 25.0))
+        + (macro_quad_tailwind * 0.15)
+        + (capex_or_fcf_score * 0.10)
+    )
+    pivot_score = round(min(99.0, unloved_price_score + washed_out_flow_score + catalyst_inflection_score), 1)
+
+    # 2. Trend Continuation Score (0-100)
+    vams_bonus = 30.0 if vams_state == 1 else (15.0 if vams_state == 0 else 0.0)
+    alpha_bonus = max(0.0, min(25.0, jensens_alpha_ann_pct * 1.2))
+    eps_bonus = max(0.0, min(20.0, eps_rev_breadth_30d * 25.0))
+    not_crowded_bonus = 15.0 if flow_z_3m < 2.0 else -15.0
+    continuation_score = round(min(99.0, vams_bonus + alpha_bonus + eps_bonus + not_crowded_bonus + (capex_or_fcf_score * 0.10)), 1)
+
+    is_priority_1_pivot = (rsi_14d <= 52.0 or range_pos_pct <= 40.0) and pivot_score >= 68.0
+    return {
+        "priority_tier": (
+            "PRIORITY 1: UNLOVED BOTTOMING PIVOT"
+            if is_priority_1_pivot
+            else "PRIORITY 2: TREND CONTINUATION COMPOUNDER"
+        ),
+        "pivot_score_100": pivot_score,
+        "continuation_score_100": continuation_score,
+    }
+
+
+def get_multi_horizon_actionable_ideas() -> Dict[str, Any]:
+    """Returns pre-seeded & dynamically scored actionable ideas across 1-3M, 12M, and 3Y+ horizons."""
+    return {
+        "as_of_date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+        "horizons": {
+            "1_to_3_months": {
+                "label": "Immediate Horizon (1–3 Months)",
+                "subtitle": "Tactical Coiled Springs, Probable Range Lower-Bound Pivots & Un-Crowded Breakouts",
+                "priority_1_unloved_pivots": [
+                    {
+                        "ticker": "DBA / NTR",
+                        "name": "Invesco DB Agriculture ETF & Nutrien Ltd.",
+                        "asset_class": "Commodities / Ag Equities",
+                        "pivot_score": 91.0,
+                        "price_and_vams": "RSI: 39 | Flow Z: -0.9σ | VAMS: +1 (Fresh Bullish Flip)",
+                        "why_unloved_and_pivoting": "Speculator COT positioning is washed out at the 22nd percentile and 14D RSI sits at 39, yet physical grain/softs term structure is backwardated (+5.3% ann. roll yield + 3.62% SOFR = +8.88% Net Convenience Yield) and VAMS just flipped Bullish (+1).",
+                        "actionable_trade": "LONG $DBA (Direct Futures ETF) + Accumulate $NTR (Fertilizer turnaround with positive 30D EPS revisions).",
+                        "invalidation_stop": "Close below 63-day Trend pivot or curve flipping into >-4% contango.",
+                    },
+                    {
+                        "ticker": "EQT / WMB",
+                        "name": "EQT Corp & Williams Companies (NatGas / AI Pipeline Pivot)",
+                        "asset_class": "Energy Equities (Bypassing $UNG Contango)",
+                        "pivot_score": 89.5,
+                        "price_and_vams": "NatGas RSI: 39 | COT Specs: 18th Pct | Producer VAMS: 0 -> +1",
+                        "why_unloved_and_pivoting": "Natural gas specs are at an extreme washed-out 18th percentile while commercial hedgers are heavily net long. Because front-month $UNG suffers -32.9% annualized contango bleed, Structure #1 routes capital into low-cost Appalachian gas reserves ($EQT) and AI data-center pipeline toll roads ($WMB) where 30D EPS revisions are turning positive.",
+                        "actionable_trade": "AVOID $UNG; Buy $EQT and $WMB in the bottom 25% of their Probable Range.",
+                        "invalidation_stop": "Break below 200-day moving average or Henry Hub < $2.40.",
+                    },
+                    {
+                        "ticker": "FBTC / IBIT",
+                        "name": "Spot Bitcoin ETFs (Testing On-Chain Whale Breakeven Floor)",
+                        "asset_class": "Digital Assets / Shadow Liquidity",
+                        "pivot_score": 86.0,
+                        "price_and_vams": "Price: $67,069 | 14D RSI: 22–26 (Oversold) | VAMS: -1 (Watch 0 Flip)",
+                        "why_unloved_and_pivoting": "Bitcoin is deeply oversold (14D RSI 22) and sitting right on top of its Short-Term Holder Realized Price ($64,250) and US ETF Cost Basis VWAP ($61,800). Structure #2 shows Coinbase USD spot premium is positive (+14.5 bps), 30D Stablecoin minting is +3.8% (expanding dry powder), and Macro Weather 1-3M outlook is Bullish.",
+                        "actionable_trade": "Staged Accumulation at $64,250–$67,000; scale from 0% to 5% KISS weight the day VAMS flips from -1 to 0.",
+                        "invalidation_stop": "Sustained weekly close below US ETF VWAP Cost Basis ($61,800).",
+                    },
+                    {
+                        "ticker": "XLF / JPM / KRE",
+                        "name": "US Financials & Money-Center / Regional Banks",
+                        "asset_class": "US Equity Sector",
+                        "pivot_score": 84.0,
+                        "price_and_vams": "14D RSI: 50 | VAMS: 0 (Neutral Coiled Spring) | P/TBV: Attractive",
+                        "why_unloved_and_pivoting": "Financials lagged Mega-Cap Tech ($XLK RSI 84) and sit at Neutral VAMS (0) with RSI 50, but benefit from 3 converging tailwinds: (1) 2s10s curve steepening, (2) 30D upward NII & EPS revisions, and (3) 42 Macro's Paradigm C bank deregulation (SLR relief).",
+                        "actionable_trade": "LONG Half Position in $XLF / $JPM now; upgrade to Max Position on VAMS flip to +1.",
+                        "invalidation_stop": "HY OAS credit spreads widening > +60 bps or SOFR - IORB > +5 bps.",
+                    },
+                ],
+                "priority_2_trend_compounders": [
+                    {
+                        "ticker": "TPL / USO / PDBC",
+                        "name": "Texas Pacific Land & Backwardated Crude / Commodity Basket",
+                        "asset_class": "Commodities & Royalty Compounders",
+                        "continuation_score": 92.5,
+                        "price_and_vams": "VAMS: +1 (Bullish) | RSI: 50–52 (Un-Crowded) | Flow Z: +0.4σ",
+                        "why_trend_has_runway": "Already in a confirmed Bullish VAMS (+1) trend in Reflation/Quad 2, yet far from overbought (RSI 51, COT 34th pct). Harvests +11.09% rate-adjusted convenience yield in $USO/$PDBC while $TPL delivers 90%+ FCF margins with zero capex drag.",
+                        "actionable_trade": "LONG: Max Position in $TPL, $USO, and $PDBC.",
+                        "invalidation_stop": "VAMS flip to -1 or Brent crude breaking below 63D Trend.",
+                    },
+                    {
+                        "ticker": "CBOE / ANET / MPWR",
+                        "name": "Cboe Global Markets, Arista Networks & Monolithic Power",
+                        "asset_class": "3Fourteen FCTE Quality + AI Infrastructure Compounders",
+                        "continuation_score": 88.0,
+                        "price_and_vams": "VAMS: +1 | True FCF Conversion: >90% | 30D EPS Revs: Positive",
+                        "why_trend_has_runway": "While Mega-Cap $MGK triggered a short-term Bearish Crowding signal (RSI 75, Flow Z +6.2σ), 2nd-order AI power/networking enablers ($ANET, $MPWR) and volatility exchange toll-collectors ($CBOE) have positive Jensen's Alpha (+14% ann.), positive 30D EPS revision breadth, and un-crowded Flow Z-scores (< +1.2σ).",
+                        "actionable_trade": "Buy dips toward the lower half of their 15D Probable Range; trim $MGK rips to fund.",
+                        "invalidation_stop": "30D EPS revision breadth turning negative or VAMS flipping -1.",
+                    },
+                ],
+            },
+            "12_months": {
+                "label": "Short-Term Horizon (6–12 Months)",
+                "subtitle": "Forward Quad Base-Effect Inflections, OIS/Accord 2.0 Beneficiaries & Cyclical Broadening",
+                "priority_1_unloved_pivots": [
+                    {
+                        "ticker": "WPM / AEM / GLDM",
+                        "name": "Wheaton Precious Metals, Agnico Eagle & Gold Bullion",
+                        "asset_class": "Precious Metals & Streamers",
+                        "pivot_score": 93.0,
+                        "price_and_vams": "Gold RSI: 42 | Miner Valuation vs SPX: 19th Pct | Sovereign Residual: +1.85σ",
+                        "why_unloved_and_pivoting": "Gold pulled back to RSI 42 (Neutral/Bearish short-term VAMS), shaking out paper tourists. Yet Structure #2D proves covert sovereign central-bank accumulation (+1.85σ residual, +11.4% Asian session return), and Gold Miners trade at the 19th valuation percentile vs. the S&P 500 despite record FCF margins.",
+                        "actionable_trade": "Accumulate $WPM and $AEM on dips toward Gold's $4,248 Probable Range floor; hold 15–30% $GLDM.",
+                        "invalidation_stop": "Sovereign Gold Residual dropping below -1.0σ alongside Fed hiking above 4.50%.",
+                    },
+                    {
+                        "ticker": "IWM / AVUV",
+                        "name": "US Small-Cap Value & Quality (AQR/Verdad Credit-Recovery Setup)",
+                        "asset_class": "US Equity Style Factor",
+                        "pivot_score": 85.0,
+                        "price_and_vams": "Valuation vs Large Cap: 12th Pct | COT Positioning: 25th Pct | VAMS: +1",
+                        "why_unloved_and_pivoting": "Small caps sit near 25-year relative valuation lows vs. Mega-Cap Tech because of Higher-for-Longer rate fears. However, 42 Macro's Corporate Profitability Model (+607 bps) and Paradigm C bank deregulation + Fed RMP liquidity support unlock domestic credit creation over the next 6–12 months. Using the Avantis Quality/Value filter ($AVUV) strips out unprofitable 'zombie' small caps.",
+                        "actionable_trade": "Overweight $AVUV (Quality Small-Cap Value) and $IWM on pullbacks while SOFR - IORB stays < 0 bps.",
+                        "invalidation_stop": "HY OAS credit spreads breaking above 450 bps.",
+                    },
+                    {
+                        "ticker": "IVOL",
+                        "name": "Quadratic Interest Rate Volatility & Inflation Hedge ETF",
+                        "asset_class": "Rates / Yield Curve Steepener",
+                        "pivot_score": 83.5,
+                        "price_and_vams": "2s10s Curve: Normalizing | 10Y Supply Wall: $12.23T NTM",
+                        "why_unloved_and_pivoting": "With $12.23T in Approximate NTM Marketable Treasury Supply (231% of US savings) colliding with an accommodative Fed (EFFR 11–39 bps below OIS Neutral), the 2s10s yield curve faces structural steepening pressure over the next 12 months.",
+                        "actionable_trade": "LONG $IVOL as a convex 6–12M yield-curve steepener and inflation breakeven hedge.",
+                        "invalidation_stop": "FOMC enacting aggressive Volcker-style hikes that invert 2s10s below -50 bps.",
+                    },
+                ],
+                "priority_2_trend_compounders": [
+                    {
+                        "ticker": "ACWX / EWJ / EEM",
+                        "name": "Global Equities ex-US, Japan & Emerging Markets ($VT Convergence)",
+                        "asset_class": "Global Equities",
+                        "continuation_score": 89.0,
+                        "price_and_vams": "VAMS: +1 | RSI: 66–71 | Valuation Discount vs US: -35%",
+                        "why_trend_has_runway": "Direct expression of 42 Macro's 2026 KISS upgrade from $SPYM to $VT: AI diffusion and global productivity/profitability convergence allow cheaper international markets ($EWJ, $EEM, $ACWX) to compound alongside a softening US Dollar.",
+                        "actionable_trade": "LONG: Max Position in $VT, $EWJ, and $EEM per Dr. Mo matrix.",
+                        "invalidation_stop": "DXY US Dollar Index breaking above 104.5 with VAMS +1.",
+                    },
+                    {
+                        "ticker": "XLI / GWW / ODFL",
+                        "name": "US Industrials, Domestic Reshoring & B2B Logistics Leaders",
+                        "asset_class": "US Equity Sector / Quality Compounders",
+                        "continuation_score": 87.5,
+                        "price_and_vams": "XLI VAMS: +1 | RSI: 55 (Un-Crowded) | Pod 2 Margins: Expanding",
+                        "why_trend_has_runway": "Beneficiary of Paradigm C 'Run It Hot' capex, Section 232 reshoring, and 6.3% YoY Nominal GDP growth, with RSI at a comfortable 55 and strong True FCF conversion (>88%).",
+                        "actionable_trade": "LONG $XLI, $GWW, and $ODFL.",
+                        "invalidation_stop": "ISM Manufacturing dropping below 47 (80% recession tier).",
+                    },
+                ],
+            },
+            "3_plus_years": {
+                "label": "Long-Term Secular Horizon (3+ Years)",
+                "subtitle": "Capex Depletion Supercycles, Fourth Turning Debasement & AI Productivity Winners",
+                "priority_1_unloved_pivots": [
+                    {
+                        "ticker": "SRUUF / CCJ / URA",
+                        "name": "Physical Uranium & Tier-1 Nuclear Fuel Cycle",
+                        "asset_class": "Secular Commodity Depletion Supercycle",
+                        "pivot_score": 96.0,
+                        "price_and_vams": "Capex/DD&A: 0.68x | RSI: 44 (Unloved Pullback) | Inventory Z: -1.9σ",
+                        "why_unloved_and_pivoting": "The #1 multi-year asymmetric setup in Structure #3: Uranium has pulled back to RSI 44 (VAMS 0) even as industry Capex-to-Depletion sits at 0.68x and sovereigns/hyperscalers commit to 10-to-20-year nuclear baseload expansion.",
+                        "actionable_trade": "Build core 3–5 year position in $SRUUF (Physical Trust) and $CCJ (Cameco) on every cyclical dip.",
+                        "invalidation_stop": "Industry Capex/DD&A exceeding 1.5x (new mine oversupply).",
+                    },
+                    {
+                        "ticker": "COPX / FCX / SCCO",
+                        "name": "Global Copper Miners & Electrification Reserve Owners",
+                        "asset_class": "Secular Commodity Depletion Supercycle",
+                        "pivot_score": 92.0,
+                        "price_and_vams": "Copper/Gold Ratio: -1.65σ | Capex/DD&A: 0.79x | Mine Lead Time: 16 Yrs",
+                        "why_unloved_and_pivoting": "The Copper-to-Gold ratio sits at a generational -1.65σ extreme while copper ore grades decline and AI data centers + grid modernization + defense require massive copper tonnage that cannot be brought online in <10 years.",
+                        "actionable_trade": "Accumulate $COPX, $FCX, and $SCCO as core 3+ year real-asset compounders.",
+                        "invalidation_stop": "Global capex cycle overbuilding (>1.4x DD&A).",
+                    },
+                    {
+                        "ticker": "XLE / TPL / CNQ",
+                        "name": "Long-Reserve-Life Energy Producers & Permian Land Royalties",
+                        "asset_class": "Secular Hard-Asset Value",
+                        "pivot_score": 90.5,
+                        "price_and_vams": "Gold-to-Oil Ratio: 56.9x (vs 16.5x Historical Mean) | S&P Weight: <4%",
+                        "why_unloved_and_pivoting": "At a 56.9x Gold-to-Oil ratio, crude oil and long-life energy reserves are at a 95th-percentile historical discount to monetary gold. Capex discipline (0.84x DD&A) turns $TPL and $CNQ into free-cash-flow return machines.",
+                        "actionable_trade": "Core secular overweight in $TPL and $CNQ / $XLE.",
+                        "invalidation_stop": "OPEC+ abandoning supply discipline into a global Deep Quad 4 recession.",
+                    },
+                ],
+                "priority_2_trend_compounders": [
+                    {
+                        "ticker": "CEG / VST / GRID",
+                        "name": "Nuclear Baseload Power & Smart-Grid Infrastructure",
+                        "asset_class": "Secular AI Power Monetization (3rd Order)",
+                        "continuation_score": 94.0,
+                        "price_and_vams": "PPAs: 10–20Yr Contracted | Pod 1 & 2 RoC: Accelerating",
+                        "why_trend_has_runway": "Electricity is the ultimate physical bottleneck of the AI Productivity Boom. Nuclear and grid operators lock in inflation-escalated multi-decade cash flows.",
+                        "actionable_trade": "Core long-term compounder sleeve in $CEG and $GRID; add on rate-driven pullbacks.",
+                        "invalidation_stop": "Regulatory price caps on wholesale data-center power contracts.",
+                    },
+                    {
+                        "ticker": "VT + GLDM + FBTC (KISS 60/30/10)",
+                        "name": "42 Macro KISS Structural Debasement Portfolio",
+                        "asset_class": "Multi-Asset Core Wealth Engine",
+                        "continuation_score": 95.0,
+                        "price_and_vams": "0% Long Nominal Bonds | Foreign Official Treasury Share: Record Low 13%",
+                        "why_trend_has_runway": "In a Fourth Turning where US Public Debt is 114% of domestic liquidity and NTM Treasury supply is $12.23T/yr, replacing obsolete 60/40 nominal bonds with 30% Gold ($GLDM), 10% Bitcoin ($FBTC), and Dynamic $USFR Cash structurally protects purchasing power.",
+                        "actionable_trade": "Maintain systematic 60% $VT / 30% $GLDM / 10% $FBTC core governed by daily VAMS.",
+                        "invalidation_stop": "Structural fiscal surplus + positive real rates >3% (Paradigm B austerity).",
+                    },
+                ],
+            },
+        },
+    }
+

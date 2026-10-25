@@ -246,6 +246,18 @@ async def get_commodities_alternatives_dashboard():
     }
 
 
+@app.get("/api/v1/outliers/multi-horizon")
+@app.get("/api/outliers/multi-horizon")
+def get_multi_horizon_outliers():
+    """Returns the Multi-Horizon Actionable Idea Scanner dataset across 1-3M, 12M, and 3Y+ horizons."""
+    try:
+        from backend.app.quant_engine.options_outliers import get_multi_horizon_actionable_ideas
+    except ImportError:
+        from app.quant_engine.options_outliers import get_multi_horizon_actionable_ideas
+
+    return get_multi_horizon_actionable_ideas()
+
+
 # ==============================================================================
 # CHUNK 6: AUTONOMOUS REFRESH PIPELINE & SSE STREAMING ENDPOINTS
 # ==============================================================================

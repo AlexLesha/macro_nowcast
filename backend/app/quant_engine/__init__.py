@@ -31,6 +31,8 @@ from app.quant_engine.options_outliers import (
     compute_crowding_and_dispersion,
     scan_1_to_3_month_outliers,
     compute_gen2_crowding_and_vams_dd_modifier,
+    compute_pivot_vs_continuation_scores,
+    get_multi_horizon_actionable_ideas,
 )
 from app.quant_engine.hedgeye_quad_matrix import (
     HEDGEYE_EMPIRICAL_BACKTEST,
@@ -77,4 +79,6 @@ __all__ = [
     "GLOBAL_MACRO_RISK_MATRIX_42",
     "DR_MO_56_UNIVERSE",
     "CommoditiesAndAlternativesEngine",
+    "compute_pivot_vs_continuation_scores",
+    "get_multi_horizon_actionable_ideas",
 ]
