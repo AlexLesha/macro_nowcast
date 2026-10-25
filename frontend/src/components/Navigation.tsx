@@ -16,6 +16,7 @@ import {
   Compass,
   BarChart3,
   Crosshair,
+  Flame,
 } from "lucide-react";
 import { RefreshModal } from "./RefreshModal";
 import { ExportModal } from "./ExportModal";
@@ -91,6 +92,7 @@ export const Navigation: React.FC = () => {
     { href: "/speculation", label: "Speculation Matrix", icon: Sparkles, short: "Speculation" },
     { href: "/scenarios", label: "Policy Playbook", icon: Compass, short: "Scenarios" },
     { href: "/42-macro", label: "42 Macro Deep-Dive", icon: BarChart3, short: "42Macro" },
+    { href: "/commodities-alternatives", label: "8. Commodities & Alts", icon: Flame, short: "Commodities" },
     { href: "/stock-xray", label: "Stock X-Ray", icon: Crosshair, short: "X-Ray" },
   ];
 

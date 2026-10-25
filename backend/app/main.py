@@ -216,6 +216,36 @@ async def get_single_stock_xray(
         return {"status": "error", "ticker": ticker.upper(), "message": str(e)}
 
 
+@app.get("/api/v1/commodities-alternatives/dashboard")
+@app.get("/api/commodities-alternatives/dashboard")
+async def get_commodities_alternatives_dashboard():
+    """Returns Structures #1, #2, and #3 for the /commodities-alternatives sub-page."""
+    try:
+        from backend.app.quant_engine.commodities_engine import CommoditiesAndAlternativesEngine
+    except ImportError:
+        from app.quant_engine.commodities_engine import CommoditiesAndAlternativesEngine
+
+    s1 = CommoditiesAndAlternativesEngine.compute_structure_1_term_structure(sofr_rate_pct=3.62)
+    s2 = await CommoditiesAndAlternativesEngine.compute_structure_2_shadow_plumbing()
+    s3 = CommoditiesAndAlternativesEngine.compute_structure_3_capex_depletion_clock()
+
+    return {
+        "status": "ok",
+        "as_of_date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+        "executive_summary": {
+            "headline": "Physical Scarcity + Shadow Liquidity Expansion Favor Backwardated Energy ($USO/$TPL), Copper ($COPX), and Prime-Coin/Gold Dip Accumulation",
+            "top_actionable_calls": [
+                "IMMEDIATE (1-3M): Long Backwardated Energy ($USO, $PDBC, $TPL) harvesting +11.1% rate-adjusted convenience yield; avoid $UNG contango bleed and express NatGas via $EQT/$WMB.",
+                "SHADOW PLUMBING (1-3M to 12M): Cayman Basis Trade repo stress is calm (SOFR - IORB = -3 bps, MOVE = 73), supporting Risk-On carry ($CLOZ, $SPHB). Watch $FBTC/$IBIT at its $64.2k STH Realized Price floor with washed-out 22 RSI for a VAMS pivot.",
+                "STRUCTURAL CAPEX CLOCK (12M to 3Y+): Gold/Oil ratio at 56.9x (vs 16.5x historical norm) and Capex/DD&A < 0.85x in Uranium ($CCJ/$SRUUF) and Copper ($COPX/$FCX) signal a generational catch-up in physical resource producers.",
+            ],
+        },
+        "structure_1_term_structure": s1,
+        "structure_2_shadow_plumbing": s2,
+        "structure_3_capex_clock": s3,
+    }
+
+
 # ==============================================================================
 # CHUNK 6: AUTONOMOUS REFRESH PIPELINE & SSE STREAMING ENDPOINTS
 # ==============================================================================

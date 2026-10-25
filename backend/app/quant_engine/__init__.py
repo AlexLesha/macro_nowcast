@@ -41,6 +41,10 @@ from app.quant_engine.forty_two_macro_engine import (
     GLOBAL_MACRO_RISK_MATRIX_42,
     DR_MO_56_UNIVERSE,
 )
+try:
+    from app.quant_engine.commodities_engine import CommoditiesAndAlternativesEngine
+except ImportError:
+    from backend.app.quant_engine.commodities_engine import CommoditiesAndAlternativesEngine
 
 __all__ = [
     "compute_growth_nowcast",
@@ -72,4 +76,5 @@ __all__ = [
     "FortyTwoMacroEngine",
     "GLOBAL_MACRO_RISK_MATRIX_42",
     "DR_MO_56_UNIVERSE",
+    "CommoditiesAndAlternativesEngine",
 ]
