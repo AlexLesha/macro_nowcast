@@ -1,0 +1,7 @@
+# SPEED & EFFICIENCY DIRECTIVES (Lovable Mode)
+1. NO OVER-PLANNING: For simple UI, text, color, style, or layout requests, DO NOT generate a multi-step mission plan or deep thought log. Act directly.
+2. GREP FIRST: When searching for UI text, labels, classes, or copy, run a single targeted ripgrep/grep search for the exact user-visible text. Never read whole directory trees.
+3. CONFINED SCOPE: Only inspect and modify the exact file containing the component. Do not touch routing, state, types, or related files unless explicitly broken.
+4. TARGETED DIFFS: Apply surgical inline changes. Do not re-write or re-output entire files.
+5. NO AUTO-TESTING: Do not run builds, linter suites, or spawn headless browser sessions for visual checks unless explicitly requested.
+6. Run in Turbo mode. Do not spawn browser sessions or visual verification. Apply the styling updates directly, and exit.

@@ -25,6 +25,7 @@ const NAV_ITEMS_ROW_2 = [
   { label: "6. 4Q Scenarios & Policy", href: "/scenarios" },
   { label: "7. 42 Macro Deep-Dive", href: "/42-macro" },
   { label: "8. Commodities & Alts", href: "/commodities-alternatives" },
+  { label: "9. Options & Vol Lab", href: "/options-lab" },
 ];
 
 export default function Header({
@@ -118,7 +119,7 @@ export default function Header({
               );
             })}
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5">
             {NAV_ITEMS_ROW_2.map((item) => {
               const active = pathname === item.href;
               return (

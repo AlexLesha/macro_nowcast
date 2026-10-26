@@ -241,6 +241,21 @@ def get_multi_horizon_outliers(force: bool = False):
     return get_multi_horizon_actionable_ideas(force_refresh=force)
 
 
+@app.get("/api/v1/options-lab/dashboard")
+@app.get("/api/options-lab/dashboard")
+async def get_options_lab_dashboard(ticker: str = "SPY", force: bool = False):
+    """Computes all 5 Options & Volatility Surface modules dynamically from live option chains & market feeds."""
+    try:
+        from backend.app.quant_engine.options_surface_engine import OptionsAndVolatilitySurfaceEngine
+    except ImportError:
+        from app.quant_engine.options_surface_engine import OptionsAndVolatilitySurfaceEngine
+
+    return OptionsAndVolatilitySurfaceEngine.build_options_lab_dashboard(
+        target_ticker=ticker,
+        force_refresh=force
+    )
+
+
 # ==============================================================================
 # CHUNK 6: AUTONOMOUS REFRESH PIPELINE & SSE STREAMING ENDPOINTS
 # ==============================================================================

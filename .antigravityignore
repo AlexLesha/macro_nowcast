@@ -1,0 +1,15 @@
+node_modules/
+.next/
+dist/
+build/
+out/
+.venv/
+venv/
+__pycache__/
+coverage/
+.turbo/
+.cache/
+.git/
+package-lock.json
+pnpm-lock.yaml
+yarn.lock

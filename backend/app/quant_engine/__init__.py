@@ -48,6 +48,11 @@ try:
 except ImportError:
     from backend.app.quant_engine.commodities_engine import CommoditiesAndAlternativesEngine
 
+try:
+    from app.quant_engine.options_surface_engine import OptionsAndVolatilitySurfaceEngine
+except ImportError:
+    from backend.app.quant_engine.options_surface_engine import OptionsAndVolatilitySurfaceEngine
+
 __all__ = [
     "compute_growth_nowcast",
     "compute_inflation_nowcast",
@@ -79,6 +84,7 @@ __all__ = [
     "GLOBAL_MACRO_RISK_MATRIX_42",
     "DR_MO_56_UNIVERSE",
     "CommoditiesAndAlternativesEngine",
+    "OptionsAndVolatilitySurfaceEngine",
     "compute_pivot_vs_continuation_scores",
     "get_multi_horizon_actionable_ideas",
 ]
