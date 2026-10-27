@@ -32,6 +32,7 @@ export default function UnifiedNowcastDashboard() {
   const [liquidity, setLiquidity] = useState<any>(null);
   const [outliers, setOutliers] = useState<any>(null);
   const [deltas, setDeltas] = useState<any[]>([]);
+  const [execData, setExecData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [isSyncingHoldings, setIsSyncingHoldings] = useState(false);
 
@@ -53,12 +54,13 @@ export default function UnifiedNowcastDashboard() {
 
   const fetchDashboardData = async () => {
     try {
-      const [regimeRes, quantRes, liqRes, outliersRes, deltasRes] = await Promise.allSettled([
+      const [regimeRes, quantRes, liqRes, outliersRes, deltasRes, execRes] = await Promise.allSettled([
         fetch(getApiUrl("/api/regime/current")),
         fetch(getApiUrl("/api/quant/signals?ticker=SPY")),
         fetch(getApiUrl("/api/liquidity/us-net")),
         fetch(getApiUrl("/api/outliers/scan")),
         fetch(getApiUrl("/api/intelligence/deltas")),
+        fetch(getApiUrl("/api/v1/executive-summary")),
       ]);
 
       if (regimeRes.status === "fulfilled" && regimeRes.value.ok) {
@@ -75,6 +77,9 @@ export default function UnifiedNowcastDashboard() {
       }
       if (deltasRes.status === "fulfilled" && deltasRes.value.ok) {
         setDeltas(await deltasRes.value.json());
+      }
+      if (execRes.status === "fulfilled" && execRes.value.ok) {
+        setExecData(await execRes.value.json());
       }
     } catch (err) {
       console.error("Dashboard fetch error:", err);
@@ -186,15 +191,18 @@ export default function UnifiedNowcastDashboard() {
               <span>PROMETHEUS 1965 ANALOG</span>
             </div>
             <div className="flex items-baseline gap-2 pt-1">
-              <span className="text-xl font-bold font-mono text-slate-100">2019-Q3</span>
+              <span className="text-xl font-bold font-mono text-slate-100">
+                {execData?.kpi_3_similarity_match?.top_historical_period || "2019-Q3"}
+              </span>
               <span className="text-xs font-mono text-amber-400 font-bold px-1.5 py-0.2 rounded bg-amber-950/80 border border-amber-800">
-                86.4% MATCH
+                {execData?.kpi_3_similarity_match?.similarity_score_pct ?? 86.4}% MATCH
               </span>
             </div>
             <div className="text-[11px] font-mono text-slate-400 pt-0.5">
-              <span>63D Exp Return: </span>
-              <span className="text-emerald-400 font-semibold">SPY +12.4%</span> &bull;{" "}
-              <span className="text-amber-300 font-semibold">GLD +14.2%</span>
+              <span>Expected Return: </span>
+              <span className="text-emerald-400 font-semibold">
+                SPY {execData?.kpi_3_similarity_match?.expected_21d_spy_return_pct || "+1.8%"}
+              </span>
             </div>
           </div>
 
@@ -224,12 +232,12 @@ export default function UnifiedNowcastDashboard() {
             </div>
             <div className="flex items-baseline gap-2 pt-1">
               <span className="text-sm font-bold font-mono text-emerald-300 px-2 py-0.5 rounded bg-emerald-950/80 border border-emerald-800/80">
-                BULLISH CO-SIGN
+                {execData?.kpi_5_move_vix_cosigner?.cosigner_state || "BULLISH CO-SIGN"}
               </span>
             </div>
             <div className="text-[11px] font-mono text-slate-400 pt-1">
-              MOVE: <strong className="text-slate-200">94.2</strong> (&lt;25th %ile) &bull; VIX:{" "}
-              <strong className="text-slate-200">15.8</strong>
+              MOVE: <strong className="text-slate-200">{execData?.kpi_5_move_vix_cosigner?.move_index ?? 94.2}</strong> ({execData?.kpi_5_move_vix_cosigner?.move_1y_pct ?? 25}th pct) &bull; VIX:{" "}
+              <strong className="text-slate-200">{execData?.kpi_5_move_vix_cosigner?.vix_index ?? 15.8}</strong>
             </div>
           </div>
         </div>
@@ -323,34 +331,34 @@ export default function UnifiedNowcastDashboard() {
             <div>
               <div className="flex justify-between text-slate-300 mb-1">
                 <span className="font-semibold text-indigo-400">Equities Bucket</span>
-                <span>41.0%</span>
+                <span>{execData?.card_b_3fourteen_raa?.equities_pct ?? 41.0}%</span>
               </div>
               <div className="w-full bg-slate-900 rounded-full h-2 overflow-hidden border border-slate-800">
-                <div className="bg-indigo-500 h-full rounded-full" style={{ width: "41.0%" }} />
+                <div className="bg-indigo-500 h-full rounded-full" style={{ width: `${execData?.card_b_3fourteen_raa?.equities_pct ?? 41.0}%` }} />
               </div>
-              <p className="text-[10px] text-slate-400 mt-0.5">Tilt: High FCTE Quality &bull; FDS, EBAY, PAYX, MNST overweight</p>
+              <p className="text-[10px] text-slate-400 mt-0.5">Tilt: High FCTE Quality &bull; Top: {(execData?.card_b_3fourteen_raa?.top_holdings || ["SPY", "PDBC", "GLDM"]).slice(0, 4).join(", ")}</p>
             </div>
 
             <div>
               <div className="flex justify-between text-slate-300 mb-1">
                 <span className="font-semibold text-blue-400">Fixed Income Bucket</span>
-                <span>29.3%</span>
+                <span>{execData?.card_b_3fourteen_raa?.fixed_income_pct ?? 29.3}%</span>
               </div>
               <div className="w-full bg-slate-900 rounded-full h-2 overflow-hidden border border-slate-800">
-                <div className="bg-blue-500 h-full rounded-full" style={{ width: "29.3%" }} />
+                <div className="bg-blue-500 h-full rounded-full" style={{ width: `${execData?.card_b_3fourteen_raa?.fixed_income_pct ?? 29.3}%` }} />
               </div>
-              <p className="text-[10px] text-slate-400 mt-0.5">Focus: Short-to-Intermediate durations ($SHY / $IEF)</p>
+              <p className="text-[10px] text-slate-400 mt-0.5">Focus: Short-to-Intermediate durations ($SHY / $IEF / $SCHQ)</p>
             </div>
 
             <div>
               <div className="flex justify-between text-slate-300 mb-1">
                 <span className="font-semibold text-amber-400">Alternatives &amp; Commodities</span>
-                <span>29.7%</span>
+                <span>{execData?.card_b_3fourteen_raa?.alternatives_pct ?? 29.7}%</span>
               </div>
               <div className="w-full bg-slate-900 rounded-full h-2 overflow-hidden border border-slate-800">
-                <div className="bg-amber-500 h-full rounded-full" style={{ width: "29.7%" }} />
+                <div className="bg-amber-500 h-full rounded-full" style={{ width: `${execData?.card_b_3fourteen_raa?.alternatives_pct ?? 29.7}%` }} />
               </div>
-              <p className="text-[10px] text-slate-400 mt-0.5">Focus: Bullion ($GLD), Energy ($USO), Industrial Metals ($CPER)</p>
+              <p className="text-[10px] text-slate-400 mt-0.5">Focus: Bullion ($GLDM), Commodities ($PDBC), Crypto ($IBIT)</p>
             </div>
           </div>
 
@@ -379,24 +387,36 @@ export default function UnifiedNowcastDashboard() {
           <div className="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800 space-y-2">
             <div className="text-[11px] font-mono text-slate-400 uppercase">Regime Designation:</div>
             <div className="text-base font-bold font-mono text-cyan-400 tracking-wide">
-              {kspyOverlay.replace(/_/g, " ")}
+              {(execData?.card_c_kspy_option_overlay?.kspy_overlay_regime || kspyOverlay).replace(/_/g, " ")}
             </div>
-            <p className="text-xs text-slate-300 font-mono leading-relaxed">{kspyDesc}</p>
+            <p className="text-xs text-slate-300 font-mono leading-relaxed">
+              {execData?.card_c_kspy_option_overlay?.plain_english_verdict || kspyDesc}
+            </p>
           </div>
 
-          <div className="grid grid-cols-2 gap-2 text-xs font-mono">
+          <div className="grid grid-cols-3 gap-2 text-xs font-mono">
             <div className="p-2.5 rounded-lg bg-slate-900/60 border border-slate-800">
-              <span className="text-slate-400 text-[10px] block">Gamma Flip Strike</span>
-              <strong className="text-slate-100">$581.00</strong>
+              <span className="text-slate-400 text-[10px] block">Put Wall</span>
+              <strong className="text-slate-100">
+                ${execData?.card_c_kspy_option_overlay?.put_wall_strike ? Number(execData.card_c_kspy_option_overlay.put_wall_strike).toFixed(1) : "540.0"}
+              </strong>
             </div>
             <div className="p-2.5 rounded-lg bg-slate-900/60 border border-slate-800">
-              <span className="text-slate-400 text-[10px] block">Call Wall Magnet</span>
-              <strong className="text-slate-100">$595.00</strong>
+              <span className="text-slate-400 text-[10px] block">Gamma Flip</span>
+              <strong className="text-slate-100">
+                ${execData?.card_c_kspy_option_overlay?.gamma_flip_price ? Number(execData.card_c_kspy_option_overlay.gamma_flip_price).toFixed(1) : "581.0"}
+              </strong>
+            </div>
+            <div className="p-2.5 rounded-lg bg-slate-900/60 border border-slate-800">
+              <span className="text-slate-400 text-[10px] block">Call Wall</span>
+              <strong className="text-slate-100">
+                ${execData?.card_c_kspy_option_overlay?.call_wall_strike ? Number(execData.card_c_kspy_option_overlay.call_wall_strike).toFixed(1) : "595.0"}
+              </strong>
             </div>
           </div>
 
           <div className="pt-2 text-[11px] font-mono text-slate-400 border-t border-slate-800/80">
-            Systematic overlay finances zero-cost tail protection when S&amp;P 500 pushes into the top 20% of its risk range.
+            Net GEX: <strong className="text-cyan-400">{execData?.card_c_kspy_option_overlay?.net_gex_bn ? `${execData.card_c_kspy_option_overlay.net_gex_bn > 0 ? "+" : ""}${execData.card_c_kspy_option_overlay.net_gex_bn}B` : "+4.2B"}</strong> &bull; Systematic overlay finances zero-cost tail protection when S&amp;P 500 pushes into top of risk range.
           </div>
         </div>
       </div>

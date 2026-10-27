@@ -16,6 +16,11 @@ from scipy.stats import norm
 from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional
 
+try:
+    from backend.app.config import fetch_ohlcv_Slot_with_failover
+except ImportError:
+    from app.config import fetch_ohlcv_Slot_with_failover
+
 SECTOR_ETFS = ["XLK", "XLF", "XLE", "XLV", "XLI", "XLY", "XLP", "XLU", "XLB", "XLRE", "XLC"]
 FLOW_SCAN_ETFS = [
     {"ticker": "SPY", "name": "S&P 500 Trust", "group": "Equity Index"},
@@ -708,21 +713,7 @@ class OptionsAndVolatilitySurfaceEngine:
             | {x["ticker"] for x in FLOW_SCAN_ETFS}
         )
 
-        close_df = pd.DataFrame()
-        vol_df = pd.DataFrame()
-        try:
-            raw = yf.download(batch_tickers, period="1y", interval="1d", progress=False, auto_adjust=True)
-            if isinstance(raw.columns, pd.MultiIndex):
-                if "Close" in raw.columns.levels[0]:
-                    close_df = raw["Close"]
-                elif "Adj Close" in raw.columns.levels[0]:
-                    close_df = raw["Adj Close"]
-                if "Volume" in raw.columns.levels[0]:
-                    vol_df = raw["Volume"]
-            else:
-                close_df = raw
-        except Exception:
-            pass
+        close_df, vol_df = fetch_ohlcv_Slot_with_failover(batch_tickers, period="1y")
 
         # Target ticker spot, 21D RV & 15D Probable Range
         if clean_tk in close_df.columns and not close_df[clean_tk].dropna().empty:

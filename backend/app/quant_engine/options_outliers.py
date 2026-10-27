@@ -332,6 +332,20 @@ def analyze_options_chain(
 
 # ==============================================================================
 # 2. CROWDING, DISPERSION & 3FOURTEEN INVERSE ETF RATIO
+def _sanitize_floats(obj: Any) -> Any:
+    if isinstance(obj, float):
+        if np.isnan(obj) or np.isinf(obj):
+            return 0.0
+        return obj
+    elif isinstance(obj, dict):
+        return {k: _sanitize_floats(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [_sanitize_floats(v) for v in obj]
+    return obj
+
+
+# ==============================================================================
+# 2. CROWDING, DISPERSION & 3FOURTEEN INVERSE ETF RATIO
 # ==============================================================================
 
 def compute_crowding_and_dispersion(
@@ -345,10 +359,18 @@ def compute_crowding_and_dispersion(
       3. 3Fourteen Speculative Inverse ETF Volume Ratio (SQQQ + SOXS + SPXS vs Leveraged Total)
          to detect sentiment capitulation (>50%).
     """
+    try:
+        from backend.app.config import fetch_ohlcv_Slot_with_failover
+    except ImportError:
+        try:
+            from app.config import fetch_ohlcv_Slot_with_failover
+        except ImportError:
+            fetch_ohlcv_Slot_with_failover = None
+
     # ----------------------------------------------------
     # A. 42 MACRO VRP CROWDING Z-SCORE
     # ----------------------------------------------------
-    # Baseline VIX level
+    current_vix = None
     if isinstance(vix_series, (float, int)):
         current_vix = float(vix_series)
     elif isinstance(vix_series, pd.Series) and not vix_series.empty:
@@ -356,11 +378,30 @@ def compute_crowding_and_dispersion(
     elif isinstance(vix_series, pd.DataFrame) and not vix_series.empty:
         c_col = "close" if "close" in vix_series.columns else vix_series.columns[0]
         current_vix = float(vix_series[c_col].iloc[-1])
-    else:
-        current_vix = 16.2  # Institutional baseline
 
-    # Realized volatility baseline (SPY 21D RV)
-    spy_rv_21d = 12.8  # Typical realized vol
+    spy_rv_21d = None
+
+    # Try live pull for ^VIX and SPY if either is missing
+    if (current_vix is None or spy_rv_21d is None) and fetch_ohlcv_Slot_with_failover is not None:
+        try:
+            c_df, _ = fetch_ohlcv_Slot_with_failover(["^VIX", "SPY"], period="3mo")
+            if current_vix is None and "^VIX" in c_df.columns:
+                v_s = c_df["^VIX"].dropna()
+                if not v_s.empty:
+                    current_vix = float(v_s.iloc[-1])
+            if "SPY" in c_df.columns:
+                s_s = c_df["SPY"].dropna()
+                if len(s_s) >= 22:
+                    spy_rets = np.log(s_s / s_s.shift(1)).dropna().tail(21)
+                    spy_rv_21d = float(spy_rets.std() * np.sqrt(252.0) * 100.0)
+        except Exception as e:
+            logger.debug(f"Failed to fetch live ^VIX / SPY: {e}")
+
+    # Fallbacks if still None or invalid
+    if current_vix is None or np.isnan(current_vix) or current_vix <= 0:
+        current_vix = 16.2  # Institutional baseline
+    if spy_rv_21d is None or np.isnan(spy_rv_21d) or spy_rv_21d <= 0:
+        spy_rv_21d = 12.8  # Typical realized vol
 
     # VRP = Implied Vol (VIX) - Realized Vol (SPY RV_21d)
     vrp_level = current_vix - spy_rv_21d
@@ -386,11 +427,9 @@ def compute_crowding_and_dispersion(
     # ----------------------------------------------------
     # B. 11-SECTOR MoM SHARPE DISPERSION VS ^COR1M
     # ----------------------------------------------------
-    # 11 SPDR Sectors
     sectors = ["XLK", "XLE", "XLF", "XLV", "XLI", "XLP", "XLU", "XLY", "XLC", "XLB", "XLRE"]
     sector_sharpes: Dict[str, float] = {}
 
-    # Default representative institutional 21D annualized Sharpe ratios across sectors
     default_sharpes = {
         "XLK": 2.15, "XLE": 0.45, "XLF": 1.85, "XLV": 0.65, "XLI": 1.40,
         "XLP": 0.35, "XLU": 1.25, "XLY": 1.65, "XLC": 1.95, "XLB": 0.85, "XLRE": 0.50
@@ -409,7 +448,28 @@ def compute_crowding_and_dispersion(
             else:
                 sector_sharpes[sec] = default_sharpes[sec]
     else:
-        sector_sharpes = default_sharpes
+        # Attempt live fetch for 11 SPDR sectors
+        try:
+            if fetch_ohlcv_Slot_with_failover is not None:
+                c_sec, _ = fetch_ohlcv_Slot_with_failover(sectors, period="3mo")
+                for sec in sectors:
+                    if sec in c_sec.columns:
+                        s_sec = c_sec[sec].dropna()
+                        if len(s_sec) >= 22:
+                            rets = np.log(s_sec / s_sec.shift(1)).dropna().tail(21)
+                            mean_ret = rets.mean() * 252.0
+                            vol_ret = rets.std() * np.sqrt(252.0)
+                            sec_sharpe = float(mean_ret / max(vol_ret, 1e-4))
+                            sector_sharpes[sec] = round(sec_sharpe, 2)
+                        else:
+                            sector_sharpes[sec] = default_sharpes[sec]
+                    else:
+                        sector_sharpes[sec] = default_sharpes[sec]
+            else:
+                sector_sharpes = default_sharpes
+        except Exception as e:
+            logger.debug(f"Failed to fetch live sector sharpes: {e}")
+            sector_sharpes = default_sharpes
 
     sharpe_values = list(sector_sharpes.values())
     sharpe_dispersion_std = round(float(np.std(sharpe_values)), 2)
@@ -436,21 +496,34 @@ def compute_crowding_and_dispersion(
     # ----------------------------------------------------
     # C. 3FOURTEEN SPECULATIVE INVERSE ETF VOLUME RATIO
     # ----------------------------------------------------
-    # Tracks retail and institutional inverse hedging capitulation:
     # Inverse: SQQQ (3x Short QQQ) + SOXS (3x Short Semis) + SPXS (3x Short SPY)
     # Total Leveraged: (SQQQ + SOXS + SPXS) + (TQQQ + SOXL + SPXL)
-    # Baseline representative volumes:
-    vol_sqqq = 58000000
-    vol_soxs = 42000000
-    vol_spxs = 18000000
-    total_inverse_vol = vol_sqqq + vol_soxs + vol_spxs  # 118M
+    leveraged_tickers = ["SQQQ", "SOXS", "SPXS", "TQQQ", "SOXL", "SPXL"]
+    vol_map = {}
+    try:
+        if fetch_ohlcv_Slot_with_failover is not None:
+            _, v_df = fetch_ohlcv_Slot_with_failover(leveraged_tickers, period="1mo")
+            for tk in leveraged_tickers:
+                if tk in v_df.columns:
+                    s_vol = v_df[tk].dropna()
+                    if len(s_vol) >= 5:
+                        vol_map[tk] = float(s_vol.tail(5).mean())
+                    elif not s_vol.empty:
+                        vol_map[tk] = float(s_vol.iloc[-1])
+    except Exception as e:
+        logger.debug(f"Failed to fetch live leveraged ETF volumes: {e}")
 
-    vol_tqqq = 82000000
-    vol_soxl = 68000000
-    vol_spxl = 14000000
-    total_bull_vol = vol_tqqq + vol_soxl + vol_spxl    # 164M
+    vol_sqqq = vol_map.get("SQQQ", 58000000.0)
+    vol_soxs = vol_map.get("SOXS", 42000000.0)
+    vol_spxs = vol_map.get("SPXS", 18000000.0)
+    total_inverse_vol = vol_sqqq + vol_soxs + vol_spxs
 
-    total_leveraged_vol = total_inverse_vol + total_bull_vol
+    vol_tqqq = vol_map.get("TQQQ", 82000000.0)
+    vol_soxl = vol_map.get("SOXL", 68000000.0)
+    vol_spxl = vol_map.get("SPXL", 14000000.0)
+    total_bull_vol = vol_tqqq + vol_soxl + vol_spxl
+
+    total_leveraged_vol = max(1.0, total_inverse_vol + total_bull_vol)
     inverse_etf_ratio = round((total_inverse_vol / total_leveraged_vol) * 100.0, 1)
 
     # Capitulation trigger when inverse ETF share > 50%
@@ -466,7 +539,7 @@ def compute_crowding_and_dispersion(
         sentiment_regime = "NORMAL_SPECULATIVE_EQUILIBRIUM"
         sentiment_desc = f"Speculative Inverse ETF share is {inverse_etf_ratio}%. Balanced retail participation without extreme positioning imbalances."
 
-    return {
+    payload = {
         "vrp_z_score": vrp_z,
         "speculative_inverse_etf_volume_ratio": inverse_etf_ratio,
         "vrp_crowding": {
@@ -493,6 +566,7 @@ def compute_crowding_and_dispersion(
             "tracked_bull_tickers": ["TQQQ", "SOXL", "SPXL"],
         },
     }
+    return _sanitize_floats(payload)
 
 
 # ==============================================================================

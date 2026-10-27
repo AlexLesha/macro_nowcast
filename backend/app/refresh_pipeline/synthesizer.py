@@ -68,7 +68,7 @@ class UnifiedRefreshBatchOutput(BaseModel):
 
 class LLMStrategySynthesizer:
     def __init__(self, api_key: Optional[str] = None):
-        self.api_key = api_key or os.getenv("GEMINI_API_KEY") or getattr(settings, "LLM_API_KEY", None)
+        self.api_key = api_key or os.getenv("GEMINI_API_KEY") or getattr(settings, "GEMINI_API_KEY", None) or getattr(settings, "LLM_API_KEY", None)
         if self.api_key:
             try:
                 genai.configure(api_key=self.api_key)

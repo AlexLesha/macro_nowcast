@@ -1,23 +1,14 @@
 import { NextResponse } from "next/server";
 
+// NOTE [Revisit in next check]: Kept under Option B for Next.js static export compatibility.
+// Evaluated for full deprecation/removal in future checks since client-side ExportModal
+// completely handles standalone HTML downloads directly from the FastAPI backend (/api/export-html).
 export const dynamic = "force-static";
 
 export async function GET() {
   try {
-    // Attempt to pull latest live metrics from backend if available
-    let backendData: any = null;
-    try {
-      const res = await fetch("http://127.0.0.1:8000/api/regime/current", {
-        next: { revalidate: 30 },
-      });
-      if (res.ok) {
-        backendData = await res.json();
-      }
-    } catch {
-      // Backend not running; will use built-in canonical data
-    }
-
-    const html = generateStandaloneHtml(backendData);
+    // Static pre-render uses canonical baseline macro data
+    const html = generateStandaloneHtml(null);
 
     return new NextResponse(html, {
       status: 200,

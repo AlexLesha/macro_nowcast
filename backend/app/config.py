@@ -1,33 +1,47 @@
-from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import Field
-from typing import List
+"""
+backend/app/config.py
+Centralized API Key Registry & Multi-Provider Data Failover Hub for MacroPulse Alpha.
+Includes registered institutional keys for FRED, Finnhub, Tiingo, Polygon, Gemini, CoinGecko, and EIA.
+"""
+
 import os
+import io
+import time
+from pathlib import Path
+from dotenv import load_dotenv
+import httpx
+import numpy as np
+import pandas as pd
+import yfinance as yf
+from typing import Dict, Any, List, Optional, Tuple
+
+# Automatically discover and load .env file from backend/ or parent repo root
+BASE_DIR = Path(__file__).resolve().parent.parent  # backend/
+_env_path = BASE_DIR / ".env"
+if not _env_path.exists():
+    _env_path = BASE_DIR.parent / ".env"
+if _env_path.exists():
+    load_dotenv(dotenv_path=_env_path)
+
+_default_sqlite = f"sqlite:///{(BASE_DIR / 'macro_pulse.db').as_posix()}"
+_raw_db_url = os.getenv("DATABASE_URL", _default_sqlite)
+if _raw_db_url.startswith("sqlite:///."):
+    _db_filename = _raw_db_url.split("/")[-1]
+    if "macro_nowcast.db" in _db_filename:
+        _db_filename = "macro_pulse.db"
+    _resolved_db_url = f"sqlite:///{(BASE_DIR / _db_filename).as_posix()}"
+else:
+    _resolved_db_url = _raw_db_url
 
 
-class Settings(BaseSettings):
-    """MacroPulse Alpha backend configuration settings."""
-
-    # API Keys
-    FRED_API_KEY: str = Field(default="", description="Federal Reserve Economic Data API Key")
-    TIINGO_API_KEY: str = Field(default="", description="Tiingo Financial Data API Key")
-    YOUTUBE_API_KEY: str = Field(default="", description="YouTube Data API Key")
-    OPENAI_OR_GEMINI_API_KEY: str = Field(default="", description="OpenAI or Gemini API Key for intelligence extraction")
-
-    # Database & Cache
-    DATABASE_URL: str = Field(
-        default="sqlite:///./macro_pulse.db",
-        description="Database connection URL (PostgreSQL or SQLite fallback)",
-    )
-    REDIS_URL: str = Field(
-        default="redis://localhost:6379/0",
-        description="Redis connection URL for caching and queues",
-    )
-
-    # API Server Settings
+class Settings:
+    PROJECT_NAME: str = "MacroPulse Alpha"
+    VERSION: str = "3.0.0"
     APP_NAME: str = "MacroPulse Alpha Engine"
-    ENVIRONMENT: str = "development"
+    ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
     DEBUG: bool = True
-    PORT: int = 8000
+    PORT: int = int(os.getenv("PORT", "8000"))
+
     CORS_ORIGINS: List[str] = [
         "http://localhost:3000",
         "http://127.0.0.1:3000",
@@ -37,36 +51,31 @@ class Settings(BaseSettings):
         "https://macro-nowcast-wdw2.onrender.com",
     ]
 
-    # FRED Series definitions (Section 4 specs)
+    # 1. Registered Institutional & Cloud API Keys (with Environment Overrides)
+    FRED_API_KEY: str = (os.getenv("FRED_API_KEY") or "144fff836b3f5b3ae7d21fdc98642fab").strip()
+    FINNHUB_API_KEY: str = (os.getenv("FINNHUB_API_KEY") or "dbfjmm9r01qqd6ctiqkgdbfjmm9r01qqd6ctiql0").strip()
+    TIINGO_API_KEY: str = (os.getenv("TIINGO_API_KEY") or "1074014207d48cd4ad5b07794cd71abe8cf7c209").strip()
+    POLYGON_API_KEY: str = (os.getenv("POLYGON_API_KEY") or "WZnctVKofEtDx4eRc2ELykNaTLcXS6Pb").strip()
+    GEMINI_API_KEY: str = (
+        os.getenv("GEMINI_API_KEY")
+        or os.getenv("OPENAI_OR_GEMINI_API_KEY")
+        or "AQ.Ab8RN6KpOYRoOXzIWZJDkiZBB44niBznua_J7jSiGU1xbf-wZA"
+    ).strip()
+    LLM_API_KEY: str = GEMINI_API_KEY
+    COINGECKO_API_KEY: str = (os.getenv("COINGECKO_API_KEY") or "CG-rnC4Mdv7RATeDMRnf3UmezQw").strip()
+    EIA_API_KEY: str = (os.getenv("EIA_API_KEY") or "7z7gPfML8tRL67NqTNB6hTKRPWLKzf8jcwbnRQgT").strip()
+
+    DATABASE_URL: str = _resolved_db_url
+    REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+
+    # Key FRED series list
     FRED_SERIES: List[str] = [
-        "GDPC1",                 # Real GDP (Quarterly)
-        "GDP",                   # Nominal GDP
-        "PCEC96",                # Real Personal Consumption Expenditures
-        "CPIAUCSL",              # Consumer Price Index for All Urban Consumers: All Items
-        "CPILFESL",              # Core CPI (Ex Food & Energy)
-        "CUSR0000SAH1",          # CPI Shelter
-        "CORESTICKM159SFRBATL",  # Atlanta Fed Sticky CPI
-        "CES2023610001",         # Average Hourly Earnings (Total Private)
-        "UNDCONTSA",             # Housing Starts Under Construction
-        "ICSA",                  # Initial Jobless Claims (Weekly)
-        "JTSJOL",                # JOLTS Job Openings
-        "WALCL",                 # Fed Total Assets (Total Balance Sheet)
-        "WTREGEN",               # Treasury General Account (TGA) Weekly
-        "RRPONTSYD",             # Overnight Reverse Repo Facility (ON RRP)
-        "WRESBAL",               # Reserve Balances with Federal Reserve Banks
-        "M2SL",                  # M2 Money Stock
-        "GFDEBTN",               # Total Public Debt
-        "IIPUSNETIQ",            # Net International Investment Position
-        "DGS2",                  # 2-Year Treasury Constant Maturity Rate
-        "DGS10",                 # 10-Year Treasury Constant Maturity Rate
-        "DFII10",                # 10-Year TIPS Real Yield
-        "BAMLC0A0CM",            # ICE BofA US Corporate Index OAS (Investment Grade)
-        "BAMLH0A0HYM2",          # ICE BofA US High Yield Index OAS
-        "BAMLH0A3HYC",           # ICE BofA CCC & Lower High Yield OAS
-        "DCOILBRENTEU",          # Crude Oil Prices: Brent
+        "GDPC1", "GDP", "PCEC96", "CPIAUCSL", "CPILFESL", "CUSR0000SAH1",
+        "CORESTICKM159SFRBATL", "CES2023610001", "UNDCONTSA", "ICSA", "JTSJOL",
+        "WALCL", "WTREGEN", "RRPONTSYD", "WRESBAL", "M2SL", "GFDEBTN", "IIPUSNETIQ",
+        "DGS2", "DGS10", "DFII10", "BAMLC0A0CM", "BAMLH0A0HYM2", "BAMLH0A3HYC", "DCOILBRENTEU"
     ]
 
-    # Key tickers for Market & Options Ingestion
     CORE_TICKERS: List[str] = [
         "SPY", "QQQ", "IWM", "TLT", "IEF", "SHY", "HYG", "LQD",
         "GLD", "SLV", "USO", "UUP", "FXE", "VIXY", "XLE", "XLF",
@@ -75,11 +84,196 @@ class Settings(BaseSettings):
 
     OPTIONS_TICKERS: List[str] = ["SPY", "QQQ", "IWM", "AAPL", "NVDA", "MSFT", "TSLA"]
 
-    model_config = SettingsConfigDict(
-        env_file=".env",
-        env_file_encoding="utf-8",
-        extra="ignore",
-    )
-
 
 settings = Settings()
+
+# In-memory TTL caches to prevent redundant external calls within the same 10-15 minute window
+_FRED_SERIES_CACHE: Dict[str, Dict[str, Any]] = {}
+_OHLCV_BATCH_CACHE: Dict[str, Dict[str, Any]] = {}
+
+
+def fetch_fred_series_live(series_id: str, limit: int = 400, ttl_sec: int = 900) -> pd.Series:
+    """
+    Fetches a FRED time series using the registered FRED_API_KEY JSON endpoint first,
+    with automatic fallback to the keyless fredgraph.csv endpoint.
+    Returns a clean pd.Series indexed by pd.DatetimeIndex.
+    """
+    now = time.time()
+    cached = _FRED_SERIES_CACHE.get(series_id)
+    if cached and (now - cached["ts"]) < ttl_sec:
+        return cached["series"]
+
+    # Primary: Official FRED JSON API (120 req/min with FRED_API_KEY)
+    if settings.FRED_API_KEY:
+        url = (
+            "https://api.stlouisfed.org/fred/series/observations"
+            f"?series_id={series_id}&api_key={settings.FRED_API_KEY}&file_type=json"
+            f"&sort_order=desc&limit={limit}"
+        )
+        try:
+            with httpx.Client(timeout=6.0) as client:
+                r = client.get(url)
+                if r.status_code == 200:
+                    obs = r.json().get("observations", [])
+                    records = []
+                    for item in obs:
+                        val_str = item.get("value", ".")
+                        if val_str not in (".", "", None):
+                            try:
+                                records.append((pd.to_datetime(item["date"]), float(val_str)))
+                            except Exception:
+                                continue
+                    if records:
+                        records.sort(key=lambda x: x[0])
+                        s = pd.Series(
+                            [x[1] for x in records],
+                            index=pd.DatetimeIndex([x[0] for x in records]),
+                            name=series_id,
+                        )
+                        _FRED_SERIES_CACHE[series_id] = {"ts": now, "series": s}
+                        return s
+        except Exception:
+            pass
+
+    # Fallback: Public FRED CSV
+    csv_url = f"https://fred.stlouisfed.org/graph/fredgraph.csv?id={series_id}"
+    try:
+        with httpx.Client(timeout=6.0) as client:
+            r = client.get(csv_url)
+            if r.status_code == 200:
+                df = pd.read_csv(io.StringIO(r.text))
+                date_col = "DATE" if "DATE" in df.columns else df.columns[0]
+                val_col = series_id if series_id in df.columns else df.columns[1]
+                df[date_col] = pd.to_datetime(df[date_col], errors="coerce")
+                df[val_col] = pd.to_numeric(df[val_col], errors="coerce")
+                df = df.dropna(subset=[date_col, val_col]).sort_values(date_col).tail(limit)
+                s = pd.Series(df[val_col].values, index=pd.DatetimeIndex(df[date_col]), name=series_id)
+                _FRED_SERIES_CACHE[series_id] = {"ts": now, "series": s}
+                return s
+    except Exception:
+        pass
+
+    return pd.Series(dtype=float, name=series_id)
+
+
+def fetch_tiingo_single_ticker(ticker: str, start_date: str = "2024-01-01") -> pd.DataFrame:
+    """Fetches daily OHLCV from Tiingo REST API using TIINGO_API_KEY when yfinance is rate-limited."""
+    if not settings.TIINGO_API_KEY or ticker.startswith("^") or "=" in ticker:
+        return pd.DataFrame()
+    clean_tk = ticker.replace(".", "-")
+    url = f"https://api.tiingo.com/tiingo/daily/{clean_tk}/prices?startDate={start_date}&token={settings.TIINGO_API_KEY}"
+    try:
+        with httpx.Client(timeout=5.0) as client:
+            r = client.get(url, headers={"Content-Type": "application/json"})
+            if r.status_code == 200:
+                data = r.json()
+                if isinstance(data, list) and data:
+                    df = pd.DataFrame(data)
+                    df["date"] = pd.to_datetime(df["date"]).dt.tz_localize(None)
+                    df = df.set_index("date").sort_index()
+                    df["Close"] = df.get("adjClose", df.get("close"))
+                    df["Volume"] = df.get("adjVolume", df.get("volume", 0))
+                    return df[["Close", "Volume"]]
+    except Exception:
+        pass
+    return pd.DataFrame()
+
+
+def fetch_polygon_single_ticker(ticker: str, start_date: str = "2024-01-01") -> pd.DataFrame:
+    """Fetches daily aggregate bars from Polygon.io using POLYGON_API_KEY as secondary failover."""
+    if not settings.POLYGON_API_KEY or ticker.startswith("^") or "=" in ticker:
+        return pd.DataFrame()
+    end_date = pd.Timestamp.utcnow().strftime("%Y-%m-%d")
+    url = (
+        f"https://api.polygon.io/v2/aggs/ticker/{ticker}/range/1/day/{start_date}/{end_date}"
+        f"?adjusted=true&sort=asc&limit=500&apiKey={settings.POLYGON_API_KEY}"
+    )
+    try:
+        with httpx.Client(timeout=5.0) as client:
+            r = client.get(url)
+            if r.status_code == 200:
+                results = r.json().get("results", [])
+                if results:
+                    df = pd.DataFrame(results)
+                    df["date"] = pd.to_datetime(df["t"], unit="ms")
+                    df = df.set_index("date").sort_index()
+                    df["Close"] = df["c"]
+                    df["Volume"] = df.get("v", 0)
+                    return df[["Close", "Volume"]]
+    except Exception:
+        pass
+    return pd.DataFrame()
+
+
+def fetch_ohlcv_Slot_with_failover(
+    tickers: List[str], period: str = "1y", ttl_sec: int = 600
+) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    """
+    Downloads Close and Volume DataFrames for a list of tickers using yfinance batch first,
+    and automatically fills any missing/rate-limited equity/ETF columns via Tiingo -> Polygon.
+    """
+    key = f"{','.join(sorted(set(tickers)))}_{period}"
+    now = time.time()
+    cached = _OHLCV_BATCH_CACHE.get(key)
+    if cached and (now - cached["ts"]) < ttl_sec:
+        return cached["close"], cached["volume"]
+
+    close_df = pd.DataFrame()
+    vol_df = pd.DataFrame()
+    unique_tks = list(dict.fromkeys(tickers))
+
+    try:
+        raw = yf.download(unique_tks, period=period, interval="1d", progress=False, auto_adjust=True)
+        if isinstance(raw.columns, pd.MultiIndex):
+            if "Close" in raw.columns.levels[0]:
+                close_df = raw["Close"].copy()
+            elif "Adj Close" in raw.columns.levels[0]:
+                close_df = raw["Adj Close"].copy()
+            if "Volume" in raw.columns.levels[0]:
+                vol_df = raw["Volume"].copy()
+        elif not raw.empty:
+            tk0 = unique_tks[0]
+            close_df = pd.DataFrame({tk0: raw["Close"]})
+            vol_df = pd.DataFrame({tk0: raw.get("Volume", pd.Series(dtype=float))})
+    except Exception:
+        pass
+
+    # Failover check: fill any missing equity/ETF tickers via Tiingo or Polygon
+    for tk in unique_tks:
+        if tk not in close_df.columns or close_df[tk].dropna().empty:
+            t_df = fetch_tiingo_single_ticker(tk)
+            if t_df.empty:
+                t_df = fetch_polygon_single_ticker(tk)
+            if not t_df.empty:
+                close_df[tk] = t_df["Close"]
+                vol_df[tk] = t_df["Volume"]
+
+    _OHLCV_BATCH_CACHE[key] = {"ts": now, "close": close_df, "volume": vol_df}
+    return close_df, vol_df
+
+
+# Convenient alias for fetch_ohlcv_Slot_with_failover
+fetch_ohlcv_with_failover = fetch_ohlcv_Slot_with_failover
+
+
+def fetch_live_coingecko_prices() -> Dict[str, float]:
+    """Fetches live Bitcoin and Ethereum USD spot prices from CoinGecko with keyless fallback."""
+    headers = (
+        {"x-cg-demo-api-key": settings.COINGECKO_API_KEY, "Accept": "application/json"}
+        if settings.COINGECKO_API_KEY
+        else {"Accept": "application/json"}
+    )
+    url = "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum&vs_currencies=usd"
+    out = {"btc": 0.0, "eth": 0.0}
+    try:
+        with httpx.Client(timeout=4.5) as client:
+            r = client.get(url, headers=headers)
+            if r.status_code != 200:
+                r = client.get(url)
+            if r.status_code == 200:
+                js = r.json()
+                out["btc"] = float(js.get("bitcoin", {}).get("usd", 0.0) or 0.0)
+                out["eth"] = float(js.get("ethereum", {}).get("usd", 0.0) or 0.0)
+    except Exception:
+        pass
+    return out

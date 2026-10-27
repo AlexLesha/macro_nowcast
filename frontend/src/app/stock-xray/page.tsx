@@ -209,12 +209,12 @@ export default function StockXRayPage() {
     try {
       const clean = ticker.trim().toUpperCase();
       let res = await fetch(
-        `${API_BASE_URL}/api/v1/stock/xray/${clean}?regime=${selectedRegime}&quad=${encodeURIComponent(selectedQuad)}`,
+        getApiUrl(`/api/v1/stock/xray/${clean}?regime=${selectedRegime}&quad=${encodeURIComponent(selectedQuad)}`),
         { cache: "no-store" }
       );
       if (!res.ok) {
         res = await fetch(
-          `${API_BASE_URL}/api/stock/xray/${clean}?regime=${selectedRegime}&quad=${encodeURIComponent(selectedQuad)}`,
+          getApiUrl(`/api/stock/xray/${clean}?regime=${selectedRegime}&quad=${encodeURIComponent(selectedQuad)}`),
           { cache: "no-store" }
         );
       }

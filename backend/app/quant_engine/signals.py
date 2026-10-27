@@ -17,6 +17,19 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+
+def _sanitize_floats(obj: Any) -> Any:
+    if isinstance(obj, float):
+        if np.isnan(obj) or np.isinf(obj):
+            return 0.0
+        return obj
+    elif isinstance(obj, dict):
+        return {k: _sanitize_floats(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [_sanitize_floats(v) for v in obj]
+    return obj
+
+
 # ==============================================================================
 # 1. 42 MACRO VOLATILITY-ADJUSTED MOMENTUM SIGNAL (VAMS)
 # ==============================================================================
@@ -546,7 +559,7 @@ def compute_pod_123_and_fcte_quality_screen(
     else:
         candidates = SP500_UNIVERSE_BASELINE
 
-    # Extract 63D momentum if ohlcv_df supplied
+    # Extract 63D momentum if ohlcv_df supplied or fetch live
     mom_63d_map: Dict[str, float] = {}
     if isinstance(ohlcv_df, pd.DataFrame) and not ohlcv_df.empty:
         try:
@@ -558,6 +571,22 @@ def compute_pod_123_and_fcte_quality_screen(
                         mom_63d_map[str(sym)] = m_ret
         except Exception:
             pass
+    elif ohlcv_df is None:
+        try:
+            try:
+                from backend.app.config import fetch_ohlcv_Slot_with_failover
+            except ImportError:
+                from app.config import fetch_ohlcv_Slot_with_failover
+            tks = [s.get("ticker") for s in candidates if s.get("ticker")]
+            if tks and fetch_ohlcv_Slot_with_failover is not None:
+                c_df, _ = fetch_ohlcv_Slot_with_failover(tks, period="3mo")
+                for tk in tks:
+                    if tk in c_df.columns:
+                        s_c = c_df[tk].dropna()
+                        if len(s_c) >= 20:
+                            mom_63d_map[tk] = float((s_c.iloc[-1] / s_c.iloc[0] - 1.0) * 100.0)
+        except Exception as e:
+            logger.debug(f"Failed to fetch live momentum in signals.py: {e}")
 
     results = []
 
@@ -618,13 +647,13 @@ def compute_pod_123_and_fcte_quality_screen(
     top_longs = [s for s in results if s["conviction_tier"] == "POD_123_CONVICTION_LONG"]
     top_shorts = [s for s in results if s["conviction_tier"] == "POD_123_UNDERWEIGHT_CANDIDATE"]
 
-    return {
+    return _sanitize_floats({
         "ranked_universe_count": len(results),
         "top_conviction_longs": top_longs,
         "top_underweight_candidates": top_shorts,
         "qualified_candidates": top_longs,
         "full_screen_results": results,
-    }
+    })
 
 
 def compute_dr_mo_factor_scores(

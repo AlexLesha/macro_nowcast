@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { RefreshModal } from "./RefreshModal";
 import { ExportModal } from "./ExportModal";
-import { API_BASE_URL } from "@/lib/api";
+import { getApiUrl } from "@/lib/api";
 
 const NAV_ITEMS_ROW_1 = [
   { label: "1. Executive Summary", href: "/" },
@@ -29,21 +29,28 @@ export const Navigation: React.FC = () => {
   const [displayDate, setDisplayDate] = useState<string>("");
   const [isRefreshModalOpen, setIsRefreshModalOpen] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [liveHeaderBadge, setLiveHeaderBadge] = useState<string>("GRID: REFLATION • US QUAD: Q2");
 
   useEffect(() => {
     setDisplayDate(new Date().toISOString().slice(0, 10));
+    fetch(getApiUrl("/api/v1/executive-summary"), { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((json) => {
+        if (json?.header_badge) setLiveHeaderBadge(json.header_badge);
+      })
+      .catch(() => {});
   }, []);
 
   const checkHealth = useCallback(async () => {
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 60000);
-      let res = await fetch(`${API_BASE_URL}/api/v1/health`, {
+      let res = await fetch(getApiUrl("/api/v1/health"), {
         signal: controller.signal,
         cache: "no-store",
       });
       if (res.status === 404) {
-        res = await fetch(`${API_BASE_URL}/api/health`, {
+        res = await fetch(getApiUrl("/api/health"), {
           signal: controller.signal,
           cache: "no-store",
         });
@@ -101,7 +108,7 @@ export const Navigation: React.FC = () => {
                 MacroPulse <span className="text-cyan-400">Alpha</span>
               </Link>
               <span className="hidden sm:inline-block px-2.5 py-0.5 rounded bg-blue-500/15 border border-blue-500/30 text-blue-300 font-mono text-[11px]">
-                GRID: REFLATION • US QUAD: Q2
+                {liveHeaderBadge}
               </span>
               <Link
                 href="/stock-xray"

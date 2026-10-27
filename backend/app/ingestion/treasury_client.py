@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime
+from datetime import datetime, date, timezone
 from typing import Dict, Any, List, Optional
 import httpx
 from sqlalchemy.orm import Session
@@ -96,7 +96,7 @@ class TreasuryClient:
         mts_data = self.fetch_mts_deficits(page_size=60)
         
         counts = {"TGA_DAILY": 0, "MTS_NET_OUTLAYS": 0}
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
         # Ingest TGA
         for item in tga_data:

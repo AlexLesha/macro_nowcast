@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
-import { API_BASE_URL } from "@/lib/api";
+import { getApiUrl } from "@/lib/api";
 
 type HorizonKey = "1_to_3_months" | "12_months" | "3_plus_years";
 
@@ -25,9 +25,7 @@ export default function MultiHorizonOutliersPage() {
 
   const fetchLiveOutliers = (force = false) => {
     setLoading(true);
-    const apiBase =
-      process.env.NEXT_PUBLIC_API_URL || API_BASE_URL || "https://macro-nowcast-wdw2.onrender.com";
-    fetch(`${apiBase}/api/v1/outliers/multi-horizon?force=${force}`, {
+    fetch(getApiUrl(`/api/v1/outliers/multi-horizon?force=${force}`), {
       cache: "no-store",
     })
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))

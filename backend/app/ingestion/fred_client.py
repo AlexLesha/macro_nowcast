@@ -1,6 +1,6 @@
 import io
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional, Dict, Any
 import httpx
 import numpy as np
@@ -138,7 +138,7 @@ class FredClient:
             transformed_df = transformed_df.tail(limit_records)
 
         inserted_count = 0
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
         for idx_date, row in transformed_df.iterrows():
             record_date = idx_date.date()

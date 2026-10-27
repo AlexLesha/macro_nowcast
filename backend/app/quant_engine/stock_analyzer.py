@@ -25,6 +25,73 @@ except ImportError:
     from app.quant_engine.forty_two_macro_engine import FortyTwoMacroEngine, DR_MO_56_UNIVERSE
     from app.quant_engine.hedgeye_quad_matrix import HEDGEYE_EMPIRICAL_BACKTEST
 
+try:
+    from backend.app.config import settings
+except ImportError:
+    from app.config import settings
+
+
+def fetch_finnhub_fundamentals_and_revisions(ticker: str) -> Dict[str, Any]:
+    """
+    Queries Finnhub API using settings.FINNHUB_API_KEY for:
+    1. /stock/metric?symbol={ticker}&metric=all (52W high/low, ROIC, ROE, Gross/Operating Margin, EPS growth, Net Debt)
+    2. /stock/recommendation?symbol={ticker} (30D analyst Buy/Strong Buy vs Sell revision momentum)
+    """
+    clean_tk = ticker.strip().upper()
+    out: Dict[str, Any] = {
+        "finnhub_synced": False,
+        "eps_growth_ttm_yoy_pct": None,
+        "rev_growth_ttm_yoy_pct": None,
+        "rev_growth_3y_cagr_pct": None,
+        "operating_margin_ttm_pct": None,
+        "gross_margin_ttm_pct": None,
+        "roe_ttm_pct": None,
+        "roic_ttm_pct": None,
+        "analyst_buy_share_pct": None,
+        "analyst_revision_delta": 0,
+    }
+    api_key = getattr(settings, "FINNHUB_API_KEY", "") or ""
+    if not api_key:
+        return out
+
+    base_url = "https://finnhub.io/api/v1"
+    headers = {"X-Finnhub-Token": api_key}
+
+    try:
+        with httpx.Client(timeout=5.0, headers=headers) as client:
+            r_met = client.get(f"{base_url}/stock/metric?symbol={clean_tk}&metric=all")
+            if r_met.status_code == 200:
+                m = r_met.json().get("metric", {})
+                if m:
+                    out["finnhub_synced"] = True
+                    out["eps_growth_ttm_yoy_pct"] = m.get("epsGrowthTTMYoy")
+                    out["rev_growth_ttm_yoy_pct"] = m.get("revenueGrowthTTMYoy")
+                    out["rev_growth_3y_cagr_pct"] = m.get("revenueGrowth3Y")
+                    out["operating_margin_ttm_pct"] = m.get("operatingMarginTTM")
+                    out["gross_margin_ttm_pct"] = m.get("grossMarginTTM")
+                    out["roe_ttm_pct"] = m.get("roeTTM")
+                    out["roic_ttm_pct"] = m.get("roiTTM")
+
+            r_rec = client.get(f"{base_url}/stock/recommendation?symbol={clean_tk}")
+            if r_rec.status_code == 200:
+                recs = r_rec.json()
+                if isinstance(recs, list) and len(recs) >= 1:
+                    latest = recs[0]
+                    buys = int(latest.get("strongBuy", 0)) + int(latest.get("buy", 0))
+                    holds = int(latest.get("hold", 0))
+                    sells = int(latest.get("sell", 0)) + int(latest.get("strongSell", 0))
+                    total = max(1, buys + holds + sells)
+                    out["analyst_buy_share_pct"] = round((buys / total) * 100.0, 1)
+                    if len(recs) >= 2:
+                        prior = recs[1]
+                        prior_buys = int(prior.get("strongBuy", 0)) + int(prior.get("buy", 0))
+                        out["analyst_revision_delta"] = buys - prior_buys
+    except Exception as e:
+        logger.debug(f"Finnhub fetch note for {clean_tk}: {e}")
+
+    return out
+
+
 # SEC EDGAR requires a descriptive User-Agent header (zero registration or API key needed)
 SEC_EDGAR_HEADERS = {
     "User-Agent": "MacroPulseAlpha/2.0 (quant-engine@macropulse-alpha.dev)",
@@ -567,8 +634,35 @@ class SingleStockXRayEngine:
         ebitda = float(info.get("ebitda", 0) or 0)
         net_income = float(info.get("netIncomeToCommon", 0) or 0)
         market_cap = float(info.get("marketCap", 1) or 1)
-        short_term_debt = 0.20 * total_debt
-        interest_expense = 0.045 * total_debt
+
+        # Dynamic Short-Term Debt extraction from balance sheet
+        short_term_debt = 0.0
+        if isinstance(q_bal, pd.DataFrame) and not q_bal.empty:
+            for tag in ["Current Debt", "Short Long Term Debt", "Current Debt And Capital Lease Obligation"]:
+                if tag in q_bal.index:
+                    try:
+                        short_term_debt = float(q_bal.loc[tag].dropna().iloc[0] or 0.0)
+                        break
+                    except Exception:
+                        pass
+        if short_term_debt <= 0.0:
+            short_term_debt = round(0.18 * total_debt, 2)
+
+        # Dynamic Interest Expense extraction from income statement
+        interest_expense = 0.0
+        if isinstance(q_fin, pd.DataFrame) and not q_fin.empty:
+            for tag in ["Interest Expense", "Interest Expense Non Operating"]:
+                if tag in q_fin.index:
+                    try:
+                        val = float(q_fin.loc[tag].dropna().iloc[0] or 0.0)
+                        interest_expense = abs(val) * 4.0  # Annualized from quarterly
+                        break
+                    except Exception:
+                        pass
+        if interest_expense <= 0.0:
+            interest_expense = round(0.045 * total_debt, 2)
+
+        effective_interest_rate = round((interest_expense / max(1.0, total_debt)) * 100.0, 2) if total_debt > 0 else 4.5
         net_debt = total_debt - total_cash
         net_debt_to_ebitda = round(net_debt / ebitda, 2) if ebitda > 0 else (0.0 if net_debt <= 0 else 3.5)
         interest_coverage = round(ebitda / interest_expense, 1) if interest_expense > 0 else 25.0
@@ -576,12 +670,15 @@ class SingleStockXRayEngine:
         annual_after_tax_rate_hit = (exposed_debt * 0.01 - total_cash * 0.005) * (1.0 - 0.21)
         eps_impact_100bps_pct = round((-annual_after_tax_rate_hit / (net_income if net_income > 0 else 0.05 * market_cap)) * 100.0, 2)
         tlt_corr = macro_sens.get("TLT", {}).get("corr_6m", 0.0)
+
         return {
             "total_debt_bn": round(total_debt / 1e9, 2),
             "total_cash_bn": round(total_cash / 1e9, 2),
+            "short_term_debt_bn": round(short_term_debt / 1e9, 2),
+            "annual_interest_expense_bn": round(interest_expense / 1e9, 2),
             "net_debt_to_ebitda": net_debt_to_ebitda,
             "interest_coverage_x": interest_coverage,
-            "effective_interest_rate_pct": 4.5,
+            "effective_interest_rate_pct": effective_interest_rate,
             "est_eps_impact_from_plus_100bps_rates_pct": eps_impact_100bps_pct,
             "bond_price_corr_6m": tlt_corr,
             "implied_10y_yield_corr_6m": round(-tlt_corr, 2),
@@ -601,9 +698,39 @@ class SingleStockXRayEngine:
         gross_margin = round((info.get("grossMargins", 0) or 0) * 100.0, 1)
         roe = round((info.get("returnOnEquity", 0) or 0) * 100.0, 1)
         roa = round((info.get("returnOnAssets", 0) or 0) * 100.0, 1)
+
+        # Dynamic calculation of QoQ revenue and operating margin acceleration
+        rev_accel_bps = 120.0
+        prior_rev_yoy = rev_yoy - 1.2
+        if isinstance(q_fin, pd.DataFrame) and not q_fin.empty and "Total Revenue" in q_fin.index:
+            try:
+                rev_series = q_fin.loc["Total Revenue"].dropna()
+                if len(rev_series) >= 3:
+                    q0 = float(rev_series.iloc[0])
+                    q1 = float(rev_series.iloc[1])
+                    q2 = float(rev_series.iloc[2]) if len(rev_series) > 2 else q1
+                    curr_growth = ((q0 - q1) / max(1.0, abs(q1))) * 100.0
+                    prev_growth = ((q1 - q2) / max(1.0, abs(q2))) * 100.0
+                    rev_accel_bps = round((curr_growth - prev_growth) * 100.0, 1)
+                    prior_rev_yoy = round(prev_growth, 1)
+            except Exception:
+                pass
+
+        op_margin_change_bps = 85.0
+        if isinstance(q_fin, pd.DataFrame) and not q_fin.empty and "Operating Income" in q_fin.index and "Total Revenue" in q_fin.index:
+            try:
+                rev_s = q_fin.loc["Total Revenue"].dropna()
+                op_s = q_fin.loc["Operating Income"].dropna()
+                if len(rev_s) >= 2 and len(op_s) >= 2:
+                    m0 = (float(op_s.iloc[0]) / max(1.0, float(rev_s.iloc[0]))) * 100.0
+                    m1 = (float(op_s.iloc[1]) / max(1.0, float(rev_s.iloc[1]))) * 100.0
+                    op_margin_change_bps = round((m0 - m1) * 100.0, 1)
+            except Exception:
+                pass
+
         return {
-            "pod_1_revenue": {"rev_yoy_pct": rev_yoy, "prior_qtr_rev_yoy_pct": rev_yoy - 1.2, "rev_acceleration_bps": 120.0, "status": "ACCELERATING" if rev_yoy >= 0 else "DECELERATING", "forward_base_effect": "FAVORABLE BASE COMPARISON"},
-            "pod_2_margins": {"gross_margin_pct": gross_margin, "operating_margin_pct": op_margin, "operating_margin_yoy_change_bps": 85.0, "inflation_passthrough": "STRONG PRICING POWER"},
+            "pod_1_revenue": {"rev_yoy_pct": rev_yoy, "prior_qtr_rev_yoy_pct": prior_rev_yoy, "rev_acceleration_bps": rev_accel_bps, "status": "ACCELERATING" if rev_yoy >= 0 else "DECELERATING", "forward_base_effect": "FAVORABLE BASE COMPARISON"},
+            "pod_2_margins": {"gross_margin_pct": gross_margin, "operating_margin_pct": op_margin, "operating_margin_yoy_change_bps": op_margin_change_bps, "inflation_passthrough": "STRONG PRICING POWER"},
             "pod_3_capital_allocation": {"roe_pct": roe, "roa_pct": roa, "earnings_growth_yoy_pct": round((info.get("earningsGrowth", 0) or 0) * 100.0, 1)},
         }
 

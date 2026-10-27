@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { getApiUrl } from "@/lib/api";
 
 // ============================================================================
 // NULL-SAFE STRING & ARRAY HELPERS (PREVENTS undefined.split() CRASHES)
@@ -169,8 +170,7 @@ export default function FortyTwoMacroSubPage() {
   const [apiStatus, setApiStatus] = useState<"synced" | "fallback">("fallback");
 
   useEffect(() => {
-    const apiBase = process.env.NEXT_PUBLIC_API_URL || "https://macro-nowcast-wdw2.onrender.com";
-    fetch(`${apiBase}/api/v1/42macro/dashboard`, { cache: "no-store" })
+    fetch(getApiUrl("/api/v1/42macro/dashboard"), { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
       .then((json) => {
         if (json && typeof json === "object") {

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { API_BASE_URL } from "@/lib/api";
+import { getApiUrl } from "@/lib/api";
 
 const FALLBACK_COMMODITIES_DATA = {
   as_of_utc: "Live Syncing...",
@@ -250,8 +250,7 @@ export default function CommoditiesAlternativesPage() {
   const [viewMode, setViewMode] = useState<"ALL" | "OPTION_A" | "OPTION_B">("ALL");
 
   useEffect(() => {
-    const apiBase = process.env.NEXT_PUBLIC_API_URL || API_BASE_URL || "https://macro-nowcast-wdw2.onrender.com";
-    fetch(`${apiBase}/api/v1/commodities-alternatives/dashboard`, { cache: "no-store" })
+    fetch(getApiUrl("/api/v1/commodities-alternatives/dashboard"), { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
       .then((json) => {
         if (json?.structure_1_term_structure) {

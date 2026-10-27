@@ -22,8 +22,16 @@ export default function LiquidityAllocationPage() {
   const [horizonTab, setHorizonTab] = useState<"now" | "intermediate" | "long">("now");
   const [factorFilter, setFactorFilter] = useState<string>("ALL");
   const [quantSignals, setQuantSignals] = useState<any>(null);
+  const [liveAllocationData, setLiveAllocationData] = useState<any>(null);
 
   useEffect(() => {
+    fetch(getApiUrl("/api/v1/liquidity-allocation"))
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data) setLiveAllocationData(data);
+      })
+      .catch((e) => console.error("Error loading live liquidity allocation:", e));
+
     fetch(getApiUrl("/api/quant/signals?ticker=SPY"))
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
@@ -31,6 +39,14 @@ export default function LiquidityAllocationPage() {
       })
       .catch((e) => console.error("Error loading signals:", e));
   }, []);
+
+  const dynHorizons = liveAllocationData?.dynamic_horizons;
+  const activeDynHorizon =
+    horizonTab === "now"
+      ? dynHorizons?.now_0_6m
+      : horizonTab === "intermediate"
+      ? dynHorizons?.intermediate_6_12m
+      : dynHorizons?.long_view_12_36m;
 
   // Multi-Horizon Allocations
   const horizons = {
@@ -77,7 +93,7 @@ export default function LiquidityAllocationPage() {
   };
 
   // Dr. Mo 70-Factor Data
-  const drMoList = quantSignals?.portfolios?.dr_mo_model_signals || [
+  const defaultDrMoList = [
     { ticker: "XLK", vams_state: 1, signal: "MAX_LONG (+100%)", target_exposure_pct: 100 },
     { ticker: "XLE", vams_state: 1, signal: "MAX_LONG (+100%)", target_exposure_pct: 100 },
     { ticker: "XLF", vams_state: 1, signal: "MAX_LONG (+100%)", target_exposure_pct: 100 },
@@ -102,6 +118,17 @@ export default function LiquidityAllocationPage() {
     { ticker: "EWZ", vams_state: 1, signal: "HALF_LONG (+50%)", target_exposure_pct: 50 },
     { ticker: "FXI", vams_state: 0, signal: "FLAT (0%)", target_exposure_pct: 0 },
   ];
+
+  const drMoList =
+    (liveAllocationData?.dr_mo_matrix && liveAllocationData.dr_mo_matrix.length > 0)
+      ? liveAllocationData.dr_mo_matrix.map((item: any) => ({
+          ticker: item.ticker,
+          name: item.name,
+          vams_state: item.vams_state,
+          signal: item.proper_trade,
+          target_exposure_pct: item.target_exposure_pct ?? (item.vams_state > 0 ? 100 : item.vams_state < 0 ? -100 : 0),
+        }))
+      : quantSignals?.portfolios?.dr_mo_model_signals || defaultDrMoList;
 
   const filteredDrMo = drMoList.filter((item: any) => {
     if (factorFilter === "ALL") return true;
@@ -183,15 +210,63 @@ export default function LiquidityAllocationPage() {
           <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs font-mono">
             <div>
               <span className="text-cyan-400 font-bold uppercase block text-[11px]">Active Strategy Horizon:</span>
-              <span className="text-base font-bold text-slate-100">{horizons[horizonTab].name}</span>
+              <span className="text-base font-bold text-slate-100">
+                {activeDynHorizon?.title || horizons[horizonTab].name}
+              </span>
             </div>
-            <div className="text-slate-300">
-              <span className="text-slate-400">Core Focus:</span> {horizons[horizonTab].focus}
+            <div className="text-slate-300 max-w-xl">
+              <span className="text-slate-400 font-semibold">Regime Rationale:</span>{" "}
+              {activeDynHorizon?.regime_thesis || horizons[horizonTab].focus}
             </div>
-            <div className="px-2.5 py-1 rounded bg-slate-800 border border-slate-700 text-slate-300 font-semibold text-[11px]">
+            <div className="px-2.5 py-1 rounded bg-slate-800 border border-slate-700 text-slate-300 font-semibold text-[11px] shrink-0">
               {horizons[horizonTab].benchmark}
             </div>
           </div>
+
+          {activeDynHorizon && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 text-xs font-mono">
+              <div className="p-3 rounded-xl bg-emerald-950/20 border border-emerald-800/40 space-y-1">
+                <span className="text-[10px] font-bold text-emerald-400 uppercase block">Overweight Sectors &amp; Commodities</span>
+                <div className="flex flex-wrap gap-1 pt-1">
+                  {activeDynHorizon.sectors_long?.map((s: string, idx: number) => (
+                    <span key={idx} className="px-1.5 py-0.5 rounded bg-emerald-900/60 text-emerald-200 text-[10px] border border-emerald-700/50">
+                      {s}
+                    </span>
+                  ))}
+                </div>
+              </div>
+              <div className="p-3 rounded-xl bg-rose-950/20 border border-rose-800/40 space-y-1">
+                <span className="text-[10px] font-bold text-rose-400 uppercase block">Underweight / Avoid Sectors</span>
+                <div className="flex flex-wrap gap-1 pt-1">
+                  {activeDynHorizon.sectors_avoid?.map((s: string, idx: number) => (
+                    <span key={idx} className="px-1.5 py-0.5 rounded bg-rose-900/60 text-rose-200 text-[10px] border border-rose-700/50">
+                      {s}
+                    </span>
+                  ))}
+                </div>
+              </div>
+              <div className="p-3 rounded-xl bg-cyan-950/20 border border-cyan-800/40 space-y-1">
+                <span className="text-[10px] font-bold text-cyan-400 uppercase block">Country Quads Leadership</span>
+                <div className="flex flex-wrap gap-1 pt-1">
+                  {activeDynHorizon.countries_long?.map((c: string, idx: number) => (
+                    <span key={idx} className="px-1.5 py-0.5 rounded bg-cyan-900/60 text-cyan-200 text-[10px] border border-cyan-700/50">
+                      {c}
+                    </span>
+                  ))}
+                </div>
+              </div>
+              <div className="p-3 rounded-xl bg-indigo-950/20 border border-indigo-800/40 space-y-1">
+                <span className="text-[10px] font-bold text-indigo-400 uppercase block">Factors &amp; Sleeves</span>
+                <div className="flex flex-wrap gap-1 pt-1">
+                  {activeDynHorizon.factors_and_sleeves?.map((f: string, idx: number) => (
+                    <span key={idx} className="px-1.5 py-0.5 rounded bg-indigo-900/60 text-indigo-200 text-[10px] border border-indigo-700/50">
+                      {f}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Allocation Table */}
           <div className="overflow-x-auto rounded-xl border border-slate-800">

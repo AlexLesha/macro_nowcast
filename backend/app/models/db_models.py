@@ -1,4 +1,4 @@
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from typing import Optional, Dict, Any
 from sqlalchemy import (
     Column,
@@ -13,6 +13,10 @@ from sqlalchemy import (
 from app.db import Base
 
 
+def utc_now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
 class MacroSeries(Base):
     """Stores macroeconomic time series data from FRED, Treasury, and other agencies."""
     __tablename__ = "macro_series"
@@ -24,7 +28,7 @@ class MacroSeries(Base):
     yoy_roc = Column(Float, nullable=True, comment="Year-over-Year Rate of Change in %")
     mom_roc = Column(Float, nullable=True, comment="Month-over-Month Rate of Change in %")
     z_score_3y = Column(Float, nullable=True, comment="3-Year Rolling Z-Score")
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
 
     __table_args__ = (
         PrimaryKeyConstraint("series_id", "date", name="pk_macro_series"),
@@ -177,7 +181,7 @@ class IntelligenceDelta(Base):
     __tablename__ = "intelligence_deltas"
 
     id = Column(String(64), primary_key=True, nullable=False)
-    timestamp_utc = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    timestamp_utc = Column(DateTime, default=utc_now, nullable=False, index=True)
     framework_author = Column(String(128), nullable=False, index=True)  # Hedgeye, 42 Macro, Prometheus, etc.
     source_type = Column(String(64), nullable=False)                    # PODCAST, RESEARCH_NOTE, INTERVIEW
     source_title = Column(String(256), nullable=False)

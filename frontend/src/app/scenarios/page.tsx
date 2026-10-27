@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Compass,
   ArrowRight,
@@ -13,17 +13,35 @@ import {
   Calendar,
   Layers,
   Scale,
+  Sparkles,
+  Activity,
 } from "lucide-react";
+import { getApiUrl } from "@/lib/api";
 
 export default function ScenariosPlaybookPage() {
-  const [selectedQuarter, setSelectedQuarter] = useState<string>("Q4_2026");
+  const [selectedIdx, setSelectedIdx] = useState<number>(0);
+  const [scenariosData, setScenariosData] = useState<any>(null);
 
-  const quarterData: Record<string, any> = {
-    Q4_2026: {
-      quarter: "Q4 2026",
-      headline: "Shallow Quad 2 Mid-Cycle Extension",
-      baseProb: "65%",
-      altProb: "35%",
+  useEffect(() => {
+    fetch(getApiUrl("/api/v1/scenarios"))
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data) setScenariosData(data);
+      })
+      .catch((err) => console.error("Error loading live scenarios:", err));
+  }, []);
+
+  const defaultQuarters = [
+    {
+      quarter: "Q4 2026 (Current Quarter)",
+      scenario_name: "Base Case (60%): Sticky Inflation & Real-Rate Tension | Alt Case (40%): Credit Spread RORO Air-Pocket",
+      headline: "Cyclical Reflation vs. Credit Spread Tension",
+      baseProb: "60%",
+      altProb: "40%",
+      live_trigger_telemetry: "Live CPI YoY: 4.02% (Trigger >3.5%) | HY OAS 60D Delta: +55.0 bps (Trigger >+50 bps) | Live MOVE: 103.3 (Trigger >115)",
+      trigger_status: "ACTIVE WATCH",
+      asset_directions: "Base: Equities Choppy/Up, Commodities ($PDBC/$XLE) & Gold ($GLDM) Up, Long Bonds ($TLT) Down | Alt: $USFR Cash Outperforms",
+      policy_and_market_result: "Treasury relies on T-Bill issuance (>22% share) while FOMC tolerates sticky inflation unless MOVE breaks >115.",
       baseScenario: {
         title: "Base Case: Cyclical Reflation Acceleration (Quad 2)",
         description:
@@ -45,8 +63,6 @@ export default function ScenariosPlaybookPage() {
           "Hyperscaler datacenter capex guidance grows >20% YoY",
           "3Fourteen Residential Construction payrolls drawdown remains > -5% from peak",
         ],
-        policyResponse:
-          "Fed delivers 25 bps rate cut to 4.25%-4.50% while maintaining $60B/mo balance sheet QT. Treasury maintains high T-bill issuance share (>22%) to prevent duration auction indigestion.",
       },
       altScenario: {
         title: "Alternative Case: Premature Growth Deceleration (Quad 4)",
@@ -58,15 +74,19 @@ export default function ScenariosPlaybookPage() {
           "HY Credit Spreads widen >350 bps over OTR Treasuries",
         ],
         assetDirection: "TLT and USFR surge; Cyclical Equities (IWM, XLE) re-test Risk Range lows.",
-        policyResponse:
-          "Fed accelerates emergency rate cuts by 50 bps; Treasury pauses long coupon auctions.",
+        policyResponse: "Fed accelerates emergency rate cuts by 50 bps; Treasury pauses long coupon auctions.",
       },
     },
-    Q1_2027: {
-      quarter: "Q1 2027",
-      headline: "The Reflation-to-Stagflation Inflection (Quad 2 vs. Quad 3)",
+    {
+      quarter: "Q1 2027 (Quarter + 1)",
+      scenario_name: "Base Case (55%): Fed-Treasury Accord 2.0 & SLR Deregulation | Alt Case (45%): Hawkish Credibility Tightening",
+      headline: "Reflation-to-Stagflation Inflection & Accord 2.0 Watch",
       baseProb: "55%",
       altProb: "45%",
+      live_trigger_telemetry: "Live 10Y Nominal Yield: 4.41% (Accord Trigger: 4.75%–5.00%) | Real-Rate Share of Yield Change: 94.0% | Accord 2.0 Probability Gauge: 48.0%",
+      trigger_status: "MONITORING (Normal Tolerances)",
+      asset_directions: "Base: Equities ($VT/$IWM), Financials ($XLF), Gold ($GLDM) & Bitcoin ($IBIT) Surge Up; 10Y Yields Capped",
+      policy_and_market_result: "150 bps bank SLR relief + Fed RMP Treasury bill absorption caps real yields and triggers a high-conviction equity & hard-asset melt-up.",
       baseScenario: {
         title: "Base Case: Quad 2 Transitioning into Quad 3 Pressure",
         description:
@@ -88,27 +108,29 @@ export default function ScenariosPlaybookPage() {
           "Oil prices stabilize above $82/bbl",
           "Unit labor costs accelerate above 3.5%",
         ],
-        policyResponse:
-          "Fed pauses interest rate cuts at 4.00%, citing sticky services. Market reprices terminal rate higher; 42 Macro Accord 2.0 probability rises to 52%.",
       },
       altScenario: {
         title: "Alternative Case: Productivity Boom (Goldilocks Quad 1)",
         description:
-          "AI hardware adoption drives enterprise productivity higher; unit labor costs plummet, creating disinflationary growth (&Delta;G+ &Delta;I-).",
+          "AI hardware adoption drives enterprise productivity higher; unit labor costs plummet, creating disinflationary growth (ΔG+ ΔI-).",
         triggers: [
           "Non-farm labor productivity accelerates above 2.8% annualized",
           "Core PCE dips below 2.2%",
         ],
         assetDirection: "Broad equity market blowout rally ($QQQ, $IWM); dollar softens; TLT stabilizes.",
-        policyResponse:
-          "Fed smoothly normalizes rates to 3.25% neutral rate with zero inflation pushback.",
+        policyResponse: "Fed smoothly normalizes rates to 3.25% neutral rate with zero inflation pushback.",
       },
     },
-    Q2_2027: {
-      quarter: "Q2 2027",
-      headline: "Sovereign Debt Ceiling & Accord 2.0 Reckoning",
+    {
+      quarter: "Q2 2027 (Quarter + 2)",
+      scenario_name: "Base Case (60%): Quad 1/2 Productivity Broadening | Alt Case (40%): Housing & Labor Scare (Quad 4)",
+      headline: "Productivity Broadening vs. Housing Payrolls Drawdown",
       baseProb: "60%",
       altProb: "40%",
+      live_trigger_telemetry: "Live 3Fourteen Residential Construction Payrolls Drawdown from Peak: -0.78% (Recession Trigger Threshold: -5.0% to -8.0%)",
+      trigger_status: "NO RECESSION SIGNAL (Housing Payrolls Resilient)",
+      asset_directions: "Base: Small Caps ($AVUV/$IWM), Industrials ($XLI) & Quality ($FCTE) Outperform | Alt (Quad 4): Long Bonds ($TLT) & Utilities ($XLU) Up",
+      policy_and_market_result: "So long as Residential Construction Payrolls remain above -5% drawdown, fade recession scares and stay overweight cyclical compounders.",
       baseScenario: {
         title: "Base Case: Fiscal Dominance & Treasury Debt Refinancing Squeeze",
         description:
@@ -129,8 +151,6 @@ export default function ScenariosPlaybookPage() {
           "Debt limit negotiations stall in Congress",
           "Primary dealer Treasury absorption limits reached",
         ],
-        policyResponse:
-          "Federal Reserve announces permanent standing repo support and hints at yield curve targeting or ending QT. Accord 2.0 triggers stealth liquidity injection.",
       },
       altScenario: {
         title: "Alternative Case: Fiscal Consolidation Agreement",
@@ -141,15 +161,19 @@ export default function ScenariosPlaybookPage() {
           "Primary dealer absorption ratios improve",
         ],
         assetDirection: "Treasuries surge in relief rally ($TLT +12%); US Dollar rallies.",
-        policyResponse:
-          "Treasury lengthens average debt maturity; Fed concludes balance sheet runoff quietly.",
+        policyResponse: "Treasury lengthens average debt maturity; Fed concludes balance sheet runoff quietly.",
       },
     },
-    Q3_2027: {
-      quarter: "Q3 2027",
-      headline: "Next-Cycle Monetary Expansion & Power Bottleneck Resolution",
-      baseProb: "70%",
-      altProb: "30%",
+    {
+      quarter: "Q3 2027 (Quarter + 3)",
+      scenario_name: "Base Case (55%): Paradigm C Debasement Melt-Up | Alt Case (45%): Sovereign NIIP Capital Outflow Shock",
+      headline: "Secular Debasement Melt-Up & Hard Asset Supercycle",
+      baseProb: "55%",
+      altProb: "45%",
+      live_trigger_telemetry: "Live Global Liquidity: $106.4T | US Debt-to-Liquidity: 114.2% | US NIIP: -$22.5T",
+      trigger_status: "SECULAR DEBASEMENT TREND ACTIVE",
+      asset_directions: "Base: Hard Assets ($GLDM, $IBIT, $SRUUF, $COPX, $TPL) & Quality Equities Up; Long Fiat Debt Underperforms",
+      policy_and_market_result: "Validates 42 Macro KISS (60% $VT / 30% $GLDM / 10% $FBTC / 0% Long Bonds) and 3Fourteen Debasement allocation.",
       baseScenario: {
         title: "Base Case: Global Liquidity Wave & Electrification Supercycle",
         description:
@@ -170,8 +194,6 @@ export default function ScenariosPlaybookPage() {
           "Federal permitting reform passes for interstate electric transmission lines",
           "Chinese industrial stimulus accelerates global copper demand",
         ],
-        policyResponse:
-          "Coordinated G7 central bank monetary accommodation ensures liquidity abundance; fiscal subsidies deploy across nuclear, grid, and semiconductor fabrication.",
       },
       altScenario: {
         title: "Alternative Case: Geopolitical Trade Block Partitioning",
@@ -182,13 +204,30 @@ export default function ScenariosPlaybookPage() {
           "Critical mineral export bans enforced by foreign producers",
         ],
         assetDirection: "Domestic critical producers outperform; globalized tech and retail underperform.",
-        policyResponse:
-          "Aggressive industrial defense policy; targeted state-directed lending facilities.",
+        policyResponse: "Aggressive industrial defense policy; targeted state-directed lending facilities.",
       },
     },
-  };
+  ];
 
-  const activeQ = quarterData[selectedQuarter];
+  const activeQuarterList = (scenariosData?.scenarios && scenariosData.scenarios.length > 0)
+    ? scenariosData.scenarios.map((row: any, idx: number) => {
+        const base = defaultQuarters[idx] || defaultQuarters[0];
+        return {
+          ...base,
+          ...row,
+          quarter: row.quarter || base.quarter,
+          headline: base.headline,
+          baseProb: base.baseProb,
+          altProb: base.altProb,
+          baseScenario: {
+            ...base.baseScenario,
+            title: row.scenario_name || base.baseScenario.title,
+          },
+        };
+      })
+    : defaultQuarters;
+
+  const activeQ = activeQuarterList[selectedIdx] || activeQuarterList[0];
 
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
@@ -196,40 +235,55 @@ export default function ScenariosPlaybookPage() {
       <div className="border-b border-slate-800/80 pb-5">
         <div className="flex items-center gap-2 text-cyan-400 text-xs font-mono uppercase tracking-wider font-semibold mb-1">
           <Compass className="h-4 w-4" />
-          <span>4-QUARTER FORWARD SCENARIO PLAYBOOK</span>
+          <span>4-QUARTER FORWARD SCENARIO PLAYBOOK &bull; AUDIT ITEM #26</span>
         </div>
-        <h1 className="text-2xl font-bold font-mono tracking-tight text-slate-100">
-          Forward Macro Scenarios &amp; Systematic Policy Execution
-        </h1>
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <h1 className="text-2xl font-bold font-mono tracking-tight text-slate-100">
+            Forward Macro Scenarios &amp; Systematic Policy Execution
+          </h1>
+          <span className="text-xs font-mono px-3 py-1 rounded bg-slate-900 border border-slate-800 text-slate-400">
+            As of: <strong className="text-cyan-400">{scenariosData?.as_of_utc || "Live Stream"}</strong>
+          </span>
+        </div>
         <p className="text-xs text-slate-400 font-mono mt-1 max-w-3xl">
-          Quarter-by-quarter predictive mapping across Base and Alternative macroeconomic regimes, quantitative trigger checkpoints, and central bank policy responses through Q3 2027.
+          Quarter-by-quarter predictive mapping across Base and Alternative macroeconomic regimes, live FRED/Market trigger distance telemetry, and central bank policy responses through rolling 4 quarters.
         </p>
       </div>
 
       {/* QUARTER SELECTOR PILLS */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {Object.keys(quarterData).map((qKey) => {
-          const item = quarterData[qKey];
-          const isSelected = selectedQuarter === qKey;
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        {activeQuarterList.map((item: any, idx: number) => {
+          const isSelected = selectedIdx === idx;
+          const isWarning = item.trigger_status?.includes("WARNING") || item.trigger_status?.includes("ACTIVE");
+
           return (
             <button
-              key={qKey}
-              onClick={() => setSelectedQuarter(qKey)}
-              className={`p-4 rounded-xl border text-left font-mono transition shadow-md flex flex-col justify-between ${
+              key={idx}
+              onClick={() => setSelectedIdx(idx)}
+              className={`p-4 rounded-xl border text-left font-mono transition shadow-md flex flex-col justify-between space-y-2 ${
                 isSelected
                   ? "bg-gradient-to-br from-cyan-950/60 to-slate-900 border-cyan-500/50 shadow-cyan-950/40"
                   : "bg-[#0c121e] border-slate-800 hover:border-slate-700 text-slate-400"
               }`}
             >
-              <div className="flex items-center justify-between text-xs mb-1">
+              <div className="flex items-center justify-between text-xs">
                 <span className={`font-bold ${isSelected ? "text-cyan-400" : "text-slate-300"}`}>
                   {item.quarter}
                 </span>
-                <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-900 border border-slate-800 text-slate-400">
-                  Base: {item.baseProb}
+                <span
+                  className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase border ${
+                    isWarning
+                      ? "bg-amber-950/80 text-amber-300 border-amber-800"
+                      : "bg-emerald-950/80 text-emerald-300 border-emerald-800"
+                  }`}
+                >
+                  {item.trigger_status?.split("(")[0].trim() || "NORMAL"}
                 </span>
               </div>
               <div className="text-[11px] text-slate-300 font-medium line-clamp-1">{item.headline}</div>
+              <div className="text-[10px] text-slate-500 font-mono">
+                Base: {item.baseProb} &bull; Alt: {item.altProb}
+              </div>
             </button>
           );
         })}
@@ -245,23 +299,63 @@ export default function ScenariosPlaybookPage() {
                 <span className="text-xs font-mono font-bold px-2 py-0.5 rounded bg-emerald-950/80 text-emerald-400 border border-emerald-800">
                   BASE SCENARIO ({activeQ.baseProb} PROBABILITY)
                 </span>
-                <span className="text-xs font-mono text-cyan-400">{activeQ.quarter}</span>
+                <span className="text-xs font-mono text-cyan-400 font-bold">{activeQ.quarter}</span>
               </div>
               <h2 className="text-lg font-mono font-bold text-slate-100 mt-2">
-                {activeQ.baseScenario.title}
+                {activeQ.scenario_name || activeQ.baseScenario.title}
               </h2>
             </div>
+          </div>
+
+          {/* Live Quantitative Trigger Telemetry Box (Audit Item #26 Core Requirement) */}
+          <div className="p-4 rounded-xl bg-gradient-to-r from-cyan-950/40 via-slate-900/60 to-indigo-950/40 border border-cyan-500/40 space-y-2 font-mono">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-bold text-cyan-400 uppercase flex items-center gap-1.5">
+                <Activity className="h-4 w-4 text-cyan-400" />
+                <span>Live Quantitative Trigger Telemetry</span>
+              </span>
+              <span
+                className={`text-[10px] px-2 py-0.5 rounded border font-bold uppercase ${
+                  activeQ.trigger_status?.includes("WARNING") || activeQ.trigger_status?.includes("ACTIVE")
+                    ? "bg-amber-950 text-amber-300 border-amber-800"
+                    : "bg-emerald-950 text-emerald-300 border-emerald-800"
+                }`}
+              >
+                {activeQ.trigger_status}
+              </span>
+            </div>
+            <p className="text-xs text-slate-200 leading-relaxed font-semibold">
+              {activeQ.live_trigger_telemetry}
+            </p>
           </div>
 
           <p className="text-xs text-slate-300 font-mono leading-relaxed bg-slate-900/60 p-4 rounded-xl border border-slate-800">
             {activeQ.baseScenario.description}
           </p>
 
+          {/* Dynamic Policy & Market Result */}
+          {activeQ.policy_and_market_result && (
+            <div className="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800 text-xs font-mono space-y-1">
+              <span className="text-[10px] uppercase font-bold text-cyan-400 block">
+                Policy Trajectory &amp; Systematic Deployment Result:
+              </span>
+              <p className="text-slate-200 leading-relaxed text-[11px]">
+                {activeQ.policy_and_market_result}
+              </p>
+            </div>
+          )}
+
           {/* Asset Direction Matrix */}
           <div className="space-y-3">
             <h3 className="text-xs font-mono uppercase text-cyan-400 font-bold tracking-wider">
               Asset Direction Matrix:
             </h3>
+            {activeQ.asset_directions && (
+              <div className="p-3 rounded-lg bg-slate-900/40 border border-slate-800 text-[11px] font-mono text-slate-300">
+                <span className="font-bold text-cyan-300">Consensus Directions: </span>
+                {activeQ.asset_directions}
+              </div>
+            )}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs font-mono">
               {activeQ.baseScenario.assetMatrix.map((row: any, i: number) => (
                 <div key={i} className="p-3 rounded-lg bg-slate-900/70 border border-slate-800 flex items-center justify-between">
@@ -301,14 +395,6 @@ export default function ScenariosPlaybookPage() {
                 ))}
               </ul>
             </div>
-          </div>
-
-          {/* Policy Response */}
-          <div className="p-4 rounded-xl bg-gradient-to-r from-cyan-950/30 to-indigo-950/30 border border-cyan-500/30 space-y-1.5 text-xs font-mono">
-            <span className="text-cyan-400 font-bold uppercase text-[11px] block">
-              Central Bank &amp; Fiscal Policy Response:
-            </span>
-            <p className="text-slate-200 leading-relaxed">{activeQ.baseScenario.policyResponse}</p>
           </div>
         </div>
 

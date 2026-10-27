@@ -1,8 +1,9 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { getApiUrl } from "@/lib/api";
 
 interface HeaderProps {
   asOfDate?: string;
@@ -38,6 +39,16 @@ export default function Header({
 }: HeaderProps) {
   const pathname = usePathname();
   const displayDate = asOfDate || new Date().toISOString().slice(0, 10);
+  const [liveHeaderBadge, setLiveHeaderBadge] = useState<string>("GRID: REFLATION • US QUAD: Q2");
+
+  useEffect(() => {
+    fetch(getApiUrl("/api/v1/executive-summary"), { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((json) => {
+        if (json?.header_badge) setLiveHeaderBadge(json.header_badge);
+      })
+      .catch(() => {});
+  }, [isRefreshing]);
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-slate-800 bg-[#090D16]/95 backdrop-blur-md">
@@ -50,7 +61,7 @@ export default function Header({
               MacroPulse <span className="text-cyan-400">Alpha</span>
             </Link>
             <span className="hidden sm:inline-block px-2.5 py-0.5 rounded bg-blue-500/15 border border-blue-500/30 text-blue-300 font-mono text-[11px]">
-              GRID: REFLATION • US QUAD: Q2
+              {liveHeaderBadge}
             </span>
             <Link
               href="/stock-xray"

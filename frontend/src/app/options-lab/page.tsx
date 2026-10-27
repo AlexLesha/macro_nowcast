@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
-import { API_BASE_URL } from "@/lib/api";
+import { getApiUrl } from "@/lib/api";
 
 const SUPPORTED_TICKERS = ["SPY", "QQQ", "IWM", "NVDA", "IBIT", "GLD", "TLT", "USO", "XLK", "XLF", "XLE"];
 
@@ -145,14 +145,13 @@ export default function OptionsAndVolatilityLabPage() {
 
   const fetchDashboard = (tk: string, force = false) => {
     setLoading(true);
-    const apiBase = API_BASE_URL || "https://macro-nowcast-wdw2.onrender.com";
-    fetch(`${apiBase}/api/v1/options-lab/dashboard?ticker=${encodeURIComponent(tk)}&force=${force}`, {
+    fetch(getApiUrl(`/api/v1/options-lab/dashboard?ticker=${encodeURIComponent(tk)}&force=${force}`), {
       cache: "no-store",
     })
       .then((r) => {
         if (!r.ok) {
           // Attempt fallback route without v1 prefix
-          return fetch(`${apiBase}/api/options-lab/dashboard?ticker=${encodeURIComponent(tk)}&force=${force}`, { cache: "no-store" })
+          return fetch(getApiUrl(`/api/options-lab/dashboard?ticker=${encodeURIComponent(tk)}&force=${force}`), { cache: "no-store" })
             .then((r2) => (r2.ok ? r2.json() : Promise.reject(new Error(`HTTP ${r2.status}`))));
         }
         return r.json();

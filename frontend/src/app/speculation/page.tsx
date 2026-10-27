@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Sparkles,
   ArrowRight,
@@ -12,13 +12,23 @@ import {
   GitBranch,
   ShieldCheck,
 } from "lucide-react";
+import { getApiUrl } from "@/lib/api";
 
 export default function SpeculationMatrixPage() {
   const [selectedTheme, setSelectedTheme] = useState<string>("ALL");
+  const [specData, setSpecData] = useState<any>(null);
 
-  // The 14 High-Conviction Institutional Stocks
-  const speculationStocks = [
-    // Theme 1: AI Compute & Power Infrastructure
+  useEffect(() => {
+    fetch(getApiUrl("/api/v1/speculation"))
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data) setSpecData(data);
+      })
+      .catch((err) => console.error("Error loading speculation matrix:", err));
+  }, []);
+
+  // Baseline Fallback Stock Ideas
+  const defaultStocks = [
     {
       order: "1st Order",
       stock: "NVIDIA Corp",
@@ -32,158 +42,167 @@ export default function SpeculationMatrixPage() {
     },
     {
       order: "1st Order",
-      stock: "Broadcom Inc",
-      ticker: "AVGO",
-      industry: "Custom AI Accelerators & ASIC",
-      theme: "AI Datacenter Expansion",
-      asymmetry: "3.4 : 1",
-      horizon: "1–3 Months",
-      reasons:
-        "High-margin enterprise networking switches + custom ASIC co-design for Google & Meta. FCF margin exceeds 38% of sales with consistent share repurchase yield.",
-    },
-    {
-      order: "2nd Order",
-      stock: "Vistra Corp",
-      ticker: "VST",
-      industry: "Independent Power & Nuclear",
-      theme: "AI Datacenter Expansion",
+      stock: "Texas Pacific Land Corp",
+      ticker: "TPL",
+      industry: "Permian Oil & Gas Royalties",
+      theme: "Reflation & Energy Supply",
       asymmetry: "4.2 : 1",
       horizon: "3–6 Months",
       reasons:
-        "Hyperscalers require 24/7 baseload electricity. PJM capacity auction pricing up 800% + long-term power purchase contracts at premium pricing. VAMS Bullish Trend with 2.1x RVOL thrust.",
+        "Top 3Fourteen FCTE compounder; 90%+ FCF margin royalty exposure to Permian energy & water without capex inflation drag.",
     },
     {
-      order: "2nd Order",
-      stock: "Constellation Energy",
-      ticker: "CEG",
-      industry: "Clean Energy / Nuclear Baseload",
-      theme: "AI Datacenter Expansion",
-      asymmetry: "3.9 : 1",
-      horizon: "3–6 Months",
-      reasons:
-        "Largest US commercial nuclear operator. Historic 20-year Microsoft power contract for Crane Clean Energy Center restarts Three Mile Island capacity at high fixed spread.",
-    },
-    {
-      order: "2nd Order",
-      stock: "Vertiv Holdings",
-      ticker: "VRT",
-      industry: "Datacenter Liquid Cooling",
-      theme: "AI Datacenter Expansion",
+      order: "1st Order",
+      stock: "Cboe Global Markets",
+      ticker: "CBOE",
+      industry: "Derivatives & Options Exchanges",
+      theme: "Yield Curve Steepening",
       asymmetry: "3.6 : 1",
-      horizon: "2–4 Months",
+      horizon: "1–6 Months",
       reasons:
-        "Next-gen AI servers (GB200) consume 100kW+ per rack, requiring complete transition from air to liquid cooling. Vertiv controls ~40% global thermal management market share.",
+        "Structural toll-collector on 0DTE options volume, VIX hedging, and dispersion trading (FCTE + 42 Macro).",
+    },
+    {
+      order: "1st Order",
+      stock: "Lockheed Martin Corp",
+      ticker: "LMT",
+      industry: "Aerospace & Defense",
+      theme: "Sovereign Debt Dominance",
+      asymmetry: "3.7 : 1",
+      horizon: "3–12 Months",
+      reasons:
+        "Direct beneficiary of Fourth Turning geopolitical escalation & Paradigm C defense outlays.",
+    },
+    {
+      order: "1st Order",
+      stock: "Wheaton Precious Metals",
+      ticker: "WPM",
+      industry: "Precious Metals Streaming",
+      theme: "Sovereign Debt Dominance",
+      asymmetry: "4.5 : 1",
+      horizon: "3–12 Months",
+      reasons:
+        "Fixed-cost streaming leverage to sovereign gold accumulation (+1.85σ residual) without mine capex inflation.",
     },
     {
       order: "2nd Order",
       stock: "Arista Networks",
       ticker: "ANET",
-      industry: "AI Networking Infrastructure",
+      industry: "High-Speed AI Networking",
       theme: "AI Datacenter Expansion",
-      asymmetry: "3.2 : 1",
+      asymmetry: "3.4 : 1",
       horizon: "2–4 Months",
       reasons:
-        "Dominant supplier of 800G and 1.6T Ethernet switching connecting tens of thousands of GPUs without latency bottlenecks. Operating margins exceed 42%.",
+        "Solves the GPU cluster interconnect bottleneck via ultra-low-latency Ethernet switching (3Fourteen FCTE).",
     },
     {
-      order: "3rd Order",
-      stock: "United States Copper Index",
-      ticker: "CPER",
-      industry: "Industrial Commodities",
+      order: "2nd Order",
+      stock: "Monolithic Power Systems",
+      ticker: "MPWR",
+      industry: "AI Server Power Management",
       theme: "AI Datacenter Expansion",
       asymmetry: "3.5 : 1",
-      horizon: "3–9 Months",
+      horizon: "2–4 Months",
       reasons:
-        "Each 1GW datacenter requires ~50,000 tons of refined copper for substation transformers, busbars, and distribution cables. Collides with severe global mine supply deficit.",
+        "High-efficiency monolithic power chips required for high-density AI server racks (FCTE & RAA).",
     },
     {
-      order: "3rd Order",
-      stock: "Freeport-McMoRan",
-      ticker: "FCX",
-      industry: "Base Metals Mining & Smelting",
+      order: "2nd Order",
+      stock: "Lam Research Corp",
+      ticker: "LRCX",
+      industry: "Wafer Fab Equipment (WFE)",
       theme: "AI Datacenter Expansion",
-      asymmetry: "3.7 : 1",
-      horizon: "3–9 Months",
+      asymmetry: "3.2 : 1",
+      horizon: "3–6 Months",
       reasons:
-        "Tier-1 copper assets in Americas & Indonesia with low all-in sustaining costs. Operates as high-beta operating leverage proxy on physical copper price spikes.",
+        "2nd-order beneficiary of HBM memory packaging & domestic semiconductor reshoring.",
     },
     {
-      order: "3rd Order",
-      stock: "Quanta Services",
-      ticker: "PWR",
-      industry: "Grid Engineering & Construction (EPC)",
-      theme: "AI Datacenter Expansion",
+      order: "2nd Order",
+      stock: "The Williams Companies",
+      ticker: "WMB",
+      industry: "Natural Gas Midstream Pipelines",
+      theme: "Reflation & Energy Supply",
+      asymmetry: "3.9 : 1",
+      horizon: "3–6 Months",
+      reasons:
+        "24/7 natural gas pipeline toll-collector for AI hyperscale data centers & LNG export terminals.",
+    },
+    {
+      order: "2nd Order",
+      stock: "W.W. Grainger",
+      ticker: "GWW",
+      industry: "Industrial Distribution",
+      theme: "Yield Curve Steepening",
       asymmetry: "3.1 : 1",
       horizon: "6–12 Months",
       reasons:
-        "Regulated utilities cannot connect new nuclear and gas baseload without massive high-voltage transmission line rebuilds. Quanta holds $30B+ backlogs with multi-year visibility.",
+        "2nd-order beneficiary of Paradigm C domestic reshoring & nominal GDP pass-through (3Fourteen FCTE).",
     },
-
-    // Theme 2: Sovereign Fiscal Dominance & Debasement
     {
-      order: "1st Order",
-      stock: "SPDR Gold Trust",
-      ticker: "GLD",
-      industry: "Physical Precious Metals",
-      theme: "Sovereign Debt Dominance",
-      asymmetry: "4.5 : 1",
-      horizon: "1–12 Months",
+      order: "3rd Order",
+      stock: "JPMorgan Chase & Co.",
+      ticker: "JPM",
+      industry: "Money-Center Banking & Wealth",
+      theme: "Yield Curve Steepening",
+      asymmetry: "3.3 : 1",
+      horizon: "3–9 Months",
       reasons:
-        "US Debt-to-Liquidity ratio at 114% + foreign central banks shifting reserves out of Treasuries into physical bullion. Prometheus 1965 analog expected return +14.2%.",
+        "3rd-order beneficiary of Paradigm C bank SLR deregulation & K-shaped wealth management flows.",
     },
     {
-      order: "2nd Order",
-      stock: "VanEck Gold Miners",
-      ticker: "GDX",
-      industry: "Precious Metals Equity",
-      theme: "Sovereign Debt Dominance",
+      order: "3rd Order",
+      stock: "Constellation Energy",
+      ticker: "CEG",
+      industry: "Nuclear Baseload Power Generation",
+      theme: "AI Datacenter Expansion",
       asymmetry: "4.1 : 1",
-      horizon: "2–6 Months",
+      horizon: "3–6 Months",
       reasons:
-        "All-in sustaining costs stabilized at ~$1,350/oz while gold trades above $2,700/oz, generating record free cash flow yields and dividend acceleration for unhedged producers.",
-    },
-
-    // Theme 3: Yield Curve Steepening & Bank NIM
-    {
-      order: "1st Order",
-      stock: "ProShares UltraShort 20+ Year",
-      ticker: "TBT",
-      industry: "Fixed Income Inverse",
-      theme: "Yield Curve Steepening",
-      asymmetry: "2.8 : 1",
-      horizon: "1–3 Months",
-      reasons:
-        "Direct trade on duration repricing as Treasury bill issuance share is cut in favor of longer coupon auctions, expanding the 10Y/30Y term premium.",
+        "3rd-order AI power monetization via 20-year hyperscaler nuclear power purchase agreements (PPAs).",
     },
     {
-      order: "2nd Order",
-      stock: "SPDR S&P Regional Banking",
-      ticker: "KRE",
-      industry: "Regional Financial Institutions",
-      theme: "Yield Curve Steepening",
-      asymmetry: "3.0 : 1",
-      horizon: "2–4 Months",
-      reasons:
-        "Asset-liability spread recovery: Fed rate cuts reduce funding/deposit costs while intermediate lending yields remain sticky, boosting bank Net Interest Margins (NIM).",
-    },
-
-    // Theme 4: Commodity Reflation
-    {
-      order: "1st Order",
-      stock: "United States Oil Fund",
-      ticker: "USO",
-      industry: "Energy Commodities",
-      theme: "Reflation & Energy Supply",
+      order: "3rd Order",
+      stock: "Booking Holdings",
+      ticker: "BKNG",
+      industry: "Premium Experiential Travel",
+      theme: "Sovereign Debt Dominance",
       asymmetry: "3.2 : 1",
-      horizon: "1–3 Months",
+      horizon: "3–6 Months",
       reasons:
-        "Direct proxy on front-month crude oil. Quad 2 global economic acceleration + Red Sea and Middle East transit friction keeping global inventory draws elevated.",
+        "Captures Prometheus Kalecki-Levy top-decile household wealth & dissaving impulse.",
+    },
+    {
+      order: "3rd Order",
+      stock: "Palantir Technologies",
+      ticker: "PLTR",
+      industry: "Enterprise AI & Defense Software",
+      theme: "AI Datacenter Expansion",
+      asymmetry: "4.0 : 1",
+      horizon: "1–6 Months",
+      reasons:
+        "3rd-order corporate margin defense automating white-collar workflows & defense logistics.",
     },
   ];
 
   const themes = ["ALL", "AI Datacenter Expansion", "Sovereign Debt Dominance", "Yield Curve Steepening", "Reflation & Energy Supply"];
 
-  const filteredStocks = speculationStocks.filter((s) => {
+  const activeStocks = (specData?.speculation_rows && specData.speculation_rows.length > 0)
+    ? specData.speculation_rows.map((row: any) => {
+        const base = defaultStocks.find((s) => s.ticker === row.ticker);
+        return {
+          ...base,
+          ...row,
+          order: row.order || base?.order || "1st Order",
+          stock: row.stock || base?.stock || row.ticker,
+          theme: base?.theme || "AI Datacenter Expansion",
+          asymmetry: base?.asymmetry || "3.5 : 1",
+          reasons: row.reason || base?.reasons,
+        };
+      })
+    : defaultStocks;
+
+  const filteredStocks = activeStocks.filter((s: any) => {
     return selectedTheme === "ALL" || s.theme === selectedTheme;
   });
 
@@ -193,13 +212,18 @@ export default function SpeculationMatrixPage() {
       <div className="border-b border-slate-800/80 pb-5">
         <div className="flex items-center gap-2 text-cyan-400 text-xs font-mono uppercase tracking-wider font-semibold mb-1">
           <Sparkles className="h-4 w-4" />
-          <span>INSTITUTIONAL CAPITAL FLOW LOGIC</span>
+          <span>INSTITUTIONAL CAPITAL FLOW LOGIC &bull; AUDIT ITEM #25</span>
         </div>
-        <h1 className="text-2xl font-bold font-mono tracking-tight text-slate-100">
-          1st, 2nd &amp; 3rd Order Speculation Matrix
-        </h1>
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <h1 className="text-2xl font-bold font-mono tracking-tight text-slate-100">
+            1st, 2nd &amp; 3rd Order Speculation Matrix
+          </h1>
+          <span className="text-xs font-mono px-3 py-1 rounded bg-slate-900 border border-slate-800 text-slate-400">
+            As of: <strong className="text-cyan-400">{specData?.as_of_utc || "Live Stream"}</strong>
+          </span>
+        </div>
         <p className="text-xs text-slate-400 font-mono mt-1 max-w-3xl">
-          Mapping the sequential transmission of macro drivers into equity capital flows. As 1st order trades become crowded, 2nd and 3rd order infrastructure enablers capture asymmetric alpha.
+          Mapping the sequential transmission of macro drivers into equity capital flows. Enriched with live prices, 14D RSI, 52-week price range %, Dr. Mo VAMS states, and dynamic entry timing.
         </p>
       </div>
 
@@ -235,7 +259,7 @@ export default function SpeculationMatrixPage() {
               <span className="text-[10px] px-1.5 py-0.2 rounded bg-cyan-950 text-cyan-300">OBVIOUS CROWD</span>
             </div>
             <p className="text-slate-300 text-[11px] leading-relaxed">
-              Primary assets directly impacted by headline macro policy (e.g. NVDA GPU demand, GLD currency debasement, USO crude prices).
+              Primary assets directly impacted by headline macro policy (e.g. NVDA GPU compute, GLD currency debasement, TPL Permian energy royalties).
             </p>
             <div className="pt-1 text-[10px] text-slate-400 font-semibold">
               Valuation Multiples: <strong className="text-slate-200">Expanded / Peak</strong>
@@ -249,7 +273,7 @@ export default function SpeculationMatrixPage() {
               <span className="text-[10px] px-1.5 py-0.2 rounded bg-indigo-950 text-indigo-300">ALPHA ZONE</span>
             </div>
             <p className="text-slate-300 text-[11px] leading-relaxed">
-              Critical supply chain inputs and infrastructure required for 1st order themes to scale (e.g. VST/CEG nuclear power, VRT liquid cooling).
+              Critical supply chain inputs and infrastructure required for 1st order themes to scale (e.g. ANET networking, MPWR power management, WMB gas pipelines).
             </p>
             <div className="pt-1 text-[10px] text-slate-400 font-semibold">
               Valuation Multiples: <strong className="text-slate-200">Lagging Hyperscalers</strong>
@@ -263,7 +287,7 @@ export default function SpeculationMatrixPage() {
               <span className="text-[10px] px-1.5 py-0.2 rounded bg-emerald-950 text-emerald-300">ASYMMETRIC</span>
             </div>
             <p className="text-slate-300 text-[11px] leading-relaxed">
-              Second-derivative capital flows and bottleneck physical resources (e.g. CPER/FCX copper wiring, PWR grid EPC engineering).
+              Second-derivative capital flows and bottleneck physical resources (e.g. CEG nuclear power PPAs, JPM SLR relief, PLTR margin defense).
             </p>
             <div className="pt-1 text-[10px] text-slate-400 font-semibold">
               Valuation Multiples: <strong className="text-slate-200">Deep Cyclical Discount</strong>
@@ -281,22 +305,24 @@ export default function SpeculationMatrixPage() {
                 <th className="py-3.5 px-4">Order of Effect</th>
                 <th className="py-3.5 px-4">Stock</th>
                 <th className="py-3.5 px-4">Ticker</th>
+                <th className="py-3.5 px-4">Live Price / VAMS</th>
+                <th className="py-3.5 px-4 min-w-[240px]">Live Entry Timing &amp; 52W Range</th>
                 <th className="py-3.5 px-4">Industry</th>
-                <th className="py-3.5 px-4 min-w-[320px]">
-                  Reasons for Selection (Framework Synthesis &amp; Capital Flow Logic)
+                <th className="py-3.5 px-4 min-w-[280px]">
+                  Selection Logic &amp; Alpha Rationale
                 </th>
                 <th className="py-3.5 px-4 text-center">Asymmetry</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60">
-              {filteredStocks.map((item, idx) => {
-                const is1st = item.order === "1st Order";
-                const is2nd = item.order === "2nd Order";
+              {filteredStocks.map((item: any, idx: number) => {
+                const is1st = item.order?.includes("1st");
+                const is2nd = item.order?.includes("2nd");
 
                 return (
                   <tr key={idx} className="hover:bg-slate-900/40 transition">
                     {/* Order Badge */}
-                    <td className="py-3 px-4">
+                    <td className="py-3 px-4 whitespace-nowrap">
                       <span
                         className={`px-2 py-0.5 rounded font-bold text-[10px] uppercase ${
                           is1st
@@ -311,15 +337,66 @@ export default function SpeculationMatrixPage() {
                     </td>
 
                     {/* Stock Name */}
-                    <td className="py-3 px-4 font-bold text-slate-100">{item.stock}</td>
+                    <td className="py-3 px-4 font-bold text-slate-100 whitespace-nowrap">{item.stock}</td>
 
                     {/* Ticker */}
                     <td className="py-3 px-4">
                       <span className="font-bold text-cyan-400">${item.ticker}</span>
                     </td>
 
+                    {/* Live Price / VAMS */}
+                    <td className="py-3 px-4 whitespace-nowrap">
+                      {item.live_price ? (
+                        <div className="space-y-0.5">
+                          <span className="font-bold text-slate-100">${Number(item.live_price).toFixed(2)}</span>
+                          <span
+                            className={`block text-[10px] font-bold ${
+                              item.vams_status?.includes("+1") || item.vams_status?.includes("BULLISH")
+                                ? "text-emerald-400"
+                                : item.vams_status?.includes("-1") || item.vams_status?.includes("BEARISH")
+                                ? "text-rose-400"
+                                : "text-slate-400"
+                            }`}
+                          >
+                            {item.vams_status || "NEUTRAL (0)"}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-slate-500 text-[11px]">—</span>
+                      )}
+                    </td>
+
+                    {/* Live Entry Timing & 52W Range */}
+                    <td className="py-3 px-4">
+                      {item.live_entry_timing ? (
+                        <div className="space-y-1">
+                          <span
+                            className={`px-2 py-0.5 rounded text-[10px] font-semibold border inline-block ${
+                              item.live_entry_timing.includes("LOW-BASE") || item.live_entry_timing.includes("Priority Accumulate")
+                                ? "bg-emerald-950/80 text-emerald-300 border-emerald-800"
+                                : item.live_entry_timing.includes("EXTENDED")
+                                ? "bg-amber-950/80 text-amber-300 border-amber-800"
+                                : "bg-cyan-950/80 text-cyan-300 border-cyan-800"
+                            }`}
+                          >
+                            {item.live_entry_timing}
+                          </span>
+                          {item.range_52w_pct !== undefined && (
+                            <div className="w-28 bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                              <div
+                                className="bg-cyan-500 h-full rounded-full"
+                                style={{ width: `${Math.min(100, Math.max(0, item.range_52w_pct))}%` }}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-slate-500 text-[11px]">Tracking</span>
+                      )}
+                    </td>
+
                     {/* Industry */}
-                    <td className="py-3 px-4 text-slate-400 text-[11px]">{item.industry}</td>
+                    <td className="py-3 px-4 text-slate-400 text-[11px] whitespace-nowrap">{item.industry}</td>
 
                     {/* Reasons for Selection */}
                     <td className="py-3 px-4 text-slate-300 leading-relaxed text-[11px]">
@@ -327,7 +404,7 @@ export default function SpeculationMatrixPage() {
                     </td>
 
                     {/* Asymmetry */}
-                    <td className="py-3 px-4 text-center font-bold text-emerald-400">
+                    <td className="py-3 px-4 text-center font-bold text-emerald-400 whitespace-nowrap">
                       {item.asymmetry}
                     </td>
                   </tr>

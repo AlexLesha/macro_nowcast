@@ -75,11 +75,11 @@ class RefreshHealthTracker:
         self._last_probe_ts = now
         self.state["last_checked_utc"] = datetime.now(timezone.utc).isoformat()
 
-        api_key = os.getenv("GEMINI_API_KEY", "").strip()
+        api_key = os.getenv("GEMINI_API_KEY", "").strip() or os.getenv("OPENAI_OR_GEMINI_API_KEY", "").strip()
         if not api_key:
             try:
                 from app.config import settings
-                api_key = getattr(settings, "LLM_API_KEY", "") or ""
+                api_key = getattr(settings, "GEMINI_API_KEY", "") or getattr(settings, "LLM_API_KEY", "") or ""
             except Exception:
                 pass
 
