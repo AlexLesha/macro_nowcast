@@ -1,7 +1,7 @@
 # Antigravity IDE Specification: Commodities & Alternatives Institutional Sub-Page (`commodities_engine.py` & `/commodities-alternatives`)
 
 > **Copy-Paste Prompt for Antigravity IDE:**
-> *"Read `antigravity_commodities_alternatives_subpage_spec.md` and implement `backend/app/quant_engine/commodities_engine.py`, `/api/v1/commodities-alternatives/dashboard` in `backend/app/main.py`, and `frontend/src/app/commodities-alternatives/page.tsx`. Ensure `commodities_engine.py` pulls LIVE Bitcoin/Ethereum prices from CoinGecko (`/simple/price` using `CG-rnC4Mdv7RATeDMRnf3UmezQw` + keyless fallback) and LIVE commodity futures/ETF prices (`CL=F`, `GC=F`, `HG=F`, `NG=F`, `SRUUF`, `DBA`) and 14D RSI / 52W Range Position from `yfinance`, plus live EIA weekly inventories (`7z7gPfML8tRL67NqTNB6hTKRPWLKzf8jcwbnRQgT`), rather than returning static PDF snapshot prices."*
+> *"Read `antigravity_commodities_alternatives_subpage_spec.md` and implement `backend/app/quant_engine/commodities_engine.py`, `/api/v1/commodities-alternatives/dashboard` in `backend/app/main.py`, and `frontend/src/app/commodities-alternatives/page.tsx`. Ensure `commodities_engine.py` pulls LIVE Bitcoin/Ethereum prices from CoinGecko (`/simple/price` using `COINGECKO_API_KEY` + keyless fallback) and LIVE commodity futures/ETF prices (`CL=F`, `GC=F`, `HG=F`, `NG=F`, `SRUUF`, `DBA`) and 14D RSI / 52W Range Position from `yfinance`, plus live EIA weekly inventories (`EIA_API_KEY`), rather than returning static PDF snapshot prices."*
 
 ---
 
@@ -9,9 +9,9 @@
 
 All prices, 14-day RSIs, 52-week range percentiles, and roll yields in `commodities_engine.py` are computed dynamically from **live market feeds** on every dashboard load:
 
-1. **CoinGecko `/simple/price` & `/global` API** (`CG-rnC4Mdv7RATeDMRnf3UmezQw` + Keyless Fallback): Pulls live Bitcoin (`~$80,300+`) and Ethereum spot prices, dominance (`BTC.D`, `ETH.D`), and market cap, dynamically scaling Short-Term Holder (`<155d`) Realized Price (`155D SMA * 1.03`), US Spot ETF VWAP Cost Basis, and Miner Production Cost Floor.
+1. **CoinGecko `/simple/price` & `/global` API** (`COINGECKO_API_KEY` + Keyless Fallback): Pulls live Bitcoin (`~$80,300+`) and Ethereum spot prices, dominance (`BTC.D`, `ETH.D`), and market cap, dynamically scaling Short-Term Holder (`<155d`) Realized Price (`155D SMA * 1.03`), US Spot ETF VWAP Cost Basis, and Miner Production Cost Floor.
 2. **Live `yfinance` Futures & ETF Feed**: Pulls live spot and 3-month futures/ETF prices (`CL=F`, `BZ=F`, `GC=F`, `HG=F`, `NG=F`, `SRUUF`, `DBA`, `USO`, `UNG`, `GLDM`), live **14-Day RSI**, and live **52-Week Range Position %** so the Term-Structure & Pivot Scanner never mislabels a commodity sitting at 52-week highs as "washed-out/oversold".
-3. **Live EIA Open Data v2 API (`7z7gPfML8tRL67NqTNB6hTKRPWLKzf8jcwbnRQgT`)**: Pulls weekly US Commercial Crude Oil Stocks (`WCESTUS1`), Strategic Petroleum Reserve (`WCSSTUS1`), and Working Natural Gas Storage (`NW2_EPG0_SWO_R48_BCF`).
+3. **Live EIA Open Data v2 API (`EIA_API_KEY`)**: Pulls weekly US Commercial Crude Oil Stocks (`WCESTUS1`), Strategic Petroleum Reserve (`WCSSTUS1`), and Working Natural Gas Storage (`NW2_EPG0_SWO_R48_BCF`).
 
 ---
 
@@ -36,8 +36,8 @@ import yfinance as yf
 from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional
 
-COINGECKO_DEFAULT_DEMO_KEY = "CG-rnC4Mdv7RATeDMRnf3UmezQw"
-EIA_DEFAULT_API_KEY = "7z7gPfML8tRL67NqTNB6hTKRPWLKzf8jcwbnRQgT"
+COINGECKO_DEFAULT_DEMO_KEY = (os.getenv("COINGECKO_API_KEY") or "").strip()
+EIA_DEFAULT_API_KEY = (os.getenv("EIA_API_KEY") or "").strip()
 
 
 class CommoditiesAndAlternativesEngine:
@@ -926,7 +926,7 @@ export default function CommoditiesAlternativesPage() {
               Structure #2 — CrossBorder Capital (Michael Howell) Shadow Monetary Plumbing, Stablecoins, Cayman Basis & Sovereign Gold
             </h2>
             <p className="text-xs text-slate-400 mt-0.5">
-              Live CoinGecko Spot (`CG-rnC4Mdv7RATeDMRnf3UmezQw` + Keyless Fallback) • Dual Visual Representations (Option A & Option B)
+              Live CoinGecko Spot (via `COINGECKO_API_KEY` + Keyless Fallback) • Dual Visual Representations (Option A & Option B)
             </p>
           </div>
 

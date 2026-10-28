@@ -1,7 +1,7 @@
 # Antigravity IDE Specification: Commodities & Alternatives Institutional Sub-Page (`commodities_engine.py` & `/commodities-alternatives`)
 
 > **Copy-Paste Prompt for Antigravity IDE:**
-> *"Read `antigravity_commodities_alternatives_subpage_spec.md` and implement the Commodities & Alternatives Engine (`backend/app/quant_engine/commodities_engine.py`), wire `/api/v1/commodities-alternatives/dashboard` into `backend/app/main.py`, and build the interactive Sub-Page (`frontend/src/app/commodities-alternatives/page.tsx`) with `[8. Commodities & Alts]` in the navigation bar. Ensure every module includes at least 2 interactive graphical representation toggles (`Option A` / `Option B` / `Option C`), uses our registered CoinGecko Demo API key (`CG-rnC4Mdv7RATeDMRnf3UmezQw`) with automatic fallback to CoinGecko's Keyless Public API, and outputs an explicit, actionable trade direction, vehicle, and stock/ETF expression at the bottom of every facet."*
+> *"Read `antigravity_commodities_alternatives_subpage_spec.md` and implement the Commodities & Alternatives Engine (`backend/app/quant_engine/commodities_engine.py`), wire `/api/v1/commodities-alternatives/dashboard` into `backend/app/main.py`, and build the interactive Sub-Page (`frontend/src/app/commodities-alternatives/page.tsx`) with `[8. Commodities & Alts]` in the navigation bar. Ensure every module includes at least 2 interactive graphical representation toggles (`Option A` / `Option B` / `Option C`), uses our registered CoinGecko Demo API key (`COINGECKO_API_KEY`) with automatic fallback to CoinGecko's Keyless Public API, and outputs an explicit, actionable trade direction, vehicle, and stock/ETF expression at the bottom of every facet."*
 
 ---
 
@@ -25,12 +25,12 @@ The **Commodities & Alternatives Sub-Page (`/commodities-alternatives`)** integr
 
 ## 2. Free & Public Data Sources + CoinGecko Dual-Mode Configuration
 
-Set `COINGECKO_API_KEY="CG-rnC4Mdv7RATeDMRnf3UmezQw"` in your Render backend environment variables. The engine automatically uses your registered Demo key (`30 calls/min`, `10,000 calls/month`) and seamlessly falls back to CoinGecko's **Keyless Public API** (`https://api.coingecko.com/api/v3` and `https://api.geckoterminal.com/api/v2`) if the environment variable is unset or rate-limited.
+Set `COINGECKO_API_KEY` in your Render backend environment variables. The engine automatically uses your registered Demo key (`30 calls/min`, `10,000 calls/month`) and seamlessly falls back to CoinGecko's **Keyless Public API** (`https://api.coingecko.com/api/v3` and `https://api.geckoterminal.com/api/v2`) if the environment variable is unset or rate-limited.
 
 | Sub-Module | Indicators & Metrics | Free Public API / Endpoint | Key Requirement |
 | :--- | :--- | :--- | :--- |
 | **Structure #1: Term Structure & Carry** | Front vs. 3M/6M Futures (`CL=F`, `BZ=F`, `GC=F`, `SI=F`, `HG=F`, `NG=F`, `ZC=F`), Producer ETFs (`XLE`, `TPL`, `COPX`, `GNR`, `GDX`, `URA`), `SOFR`, CFTC Disaggregated COT | `yfinance`, **FRED** (`SOFR`), **CFTC Socrata API** (`https://publicreporting.cftc.gov/resource/72hh-3qpy.json`) | **None** (100% Free & Keyless) |
-| **Structure #2A & #2B: On-Chain & Stablecoins** | `BTC.D`, `ETH.D`, Global Crypto Market Cap, Category Flows, Trending DEX Pools, `USDT`/`USDC`/`DAI` Supply, Hashrate & Miner Ribbons, Coinbase vs. Binance Spot | **CoinGecko Demo + Keyless API** (`https://api.coingecko.com/api/v3`), **GeckoTerminal DEX API** (`https://api.geckoterminal.com/api/v2`), **DefiLlama Stablecoins** (`https://stablecoins.llama.fi/stablecoins`), **Mempool.space** (`https://mempool.space/api/v1/mining/hashrate/3y`), **Coinbase/Binance Spot REST** | **Registered Free Demo Key** (`CG-rnC4Mdv7RATeDMRnf3UmezQw`) + **Keyless Fallback** |
+| **Structure #2A & #2B: On-Chain & Stablecoins** | `BTC.D`, `ETH.D`, Global Crypto Market Cap, Category Flows, Trending DEX Pools, `USDT`/`USDC`/`DAI` Supply, Hashrate & Miner Ribbons, Coinbase vs. Binance Spot | **CoinGecko Demo + Keyless API** (`https://api.coingecko.com/api/v3`), **GeckoTerminal DEX API** (`https://api.geckoterminal.com/api/v2`), **DefiLlama Stablecoins** (`https://stablecoins.llama.fi/stablecoins`), **Mempool.space** (`https://mempool.space/api/v1/mining/hashrate/3y`), **Coinbase/Binance Spot REST** | **Registered Free Demo Key** (`COINGECKO_API_KEY`) + **Keyless Fallback** |
 | **Structure #2C: Cayman Basis Trade & Repo** | CFTC TFF Leveraged Funds Net Short % OI (2Y/5Y/10Y/30Y), Sponsored Repo Volume, `SOFR - IORB`, `^MOVE`, `QUAL/SPHB`, Foreign Official vs. Cayman TIC Holdings | **CFTC TFF API** (`https://publicreporting.cftc.gov/resource/gpe5-46if.json`), **OFR Short-Term Funding API** (`https://data.financialresearch.gov/v1/series/dataset?dataset=repo`), **FRED** (`SOFR`, `IORB`, `FDHBFIN`), **US Treasury TIC** | **None** (100% Free & Keyless) |
 | **Structure #2D: Sovereign Gold Residual** | Daily & 1H Gold (`GC=F`, `GLD`), 10Y TIPS Real Yield (`DFII10`), `DXY` (`DX-Y.NYB`), Foreign Official Treasury Share (`13%`) vs. Gold Reserve Share (`25%`) | `yfinance` (`GC=F` 1d and 1h bars), **FRED** (`DFII10`, `DGS10`, `GFDEBTN`, `FDHBFIN`) | **None** |
 | **Structure #3: Capex & Depletion Clock** | Sector Capex-to-DD&A (`XLE`, `COPX`, `GDX`, `URA` top constituents), Gold-to-Oil Ratio, Copper-to-Gold Ratio, US Commercial Crude + SPR Inventory Days | `yfinance` quarterly cashflow/income statements, **EIA Open Data API** / weekly petroleum status | **None / Free** |
@@ -59,7 +59,7 @@ import yfinance as yf
 from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional
 
-COINGECKO_DEFAULT_DEMO_KEY = "CG-rnC4Mdv7RATeDMRnf3UmezQw"
+COINGECKO_DEFAULT_DEMO_KEY = (os.getenv("COINGECKO_API_KEY") or "").strip()
 
 
 class CommoditiesAndAlternativesEngine:
@@ -71,7 +71,7 @@ class CommoditiesAndAlternativesEngine:
     @classmethod
     async def fetch_coingecko_and_onchain_live(cls) -> Dict[str, Any]:
         """
-        Queries CoinGecko API using the registered Demo API Key (CG-rnC4Mdv7RATeDMRnf3UmezQw)
+        Queries CoinGecko API using the registered Demo API Key (via COINGECKO_API_KEY)
         and automatically falls back to CoinGecko Keyless Public API + DefiLlama + Mempool.space.
         """
         cg_key = os.getenv("COINGECKO_API_KEY", COINGECKO_DEFAULT_DEMO_KEY).strip()

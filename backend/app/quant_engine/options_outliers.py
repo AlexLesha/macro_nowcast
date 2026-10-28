@@ -920,7 +920,7 @@ def compute_pivot_vs_continuation_scores(
     }
 
 
-COINGECKO_DEFAULT_DEMO_KEY = "CG-rnC4Mdv7RATeDMRnf3UmezQw"
+COINGECKO_DEFAULT_DEMO_KEY = (os.getenv("COINGECKO_API_KEY") or "").strip()
 
 CANDIDATE_UNIVERSE: List[Dict[str, Any]] = [
     # --- 1-3 months (Immediate Tactical Candidates) ---

@@ -22,8 +22,8 @@ except ImportError:
 
 logger = logging.getLogger("macropulse.commodities_engine")
 
-COINGECKO_DEFAULT_DEMO_KEY = "CG-rnC4Mdv7RATeDMRnf3UmezQw"
-EIA_DEFAULT_API_KEY = "7z7gPfML8tRL67NqTNB6hTKRPWLKzf8jcwbnRQgT"
+COINGECKO_DEFAULT_DEMO_KEY = (os.getenv("COINGECKO_API_KEY") or "").strip()
+EIA_DEFAULT_API_KEY = (os.getenv("EIA_API_KEY") or "").strip()
 
 
 def _calc_flow_z_3m(close_s: pd.Series, vol_s: pd.Series) -> float:

@@ -51,19 +51,19 @@ class Settings:
         "https://macro-nowcast-wdw2.onrender.com",
     ]
 
-    # 1. Registered Institutional & Cloud API Keys (with Environment Overrides)
-    FRED_API_KEY: str = (os.getenv("FRED_API_KEY") or "144fff836b3f5b3ae7d21fdc98642fab").strip()
-    FINNHUB_API_KEY: str = (os.getenv("FINNHUB_API_KEY") or "dbfjmm9r01qqd6ctiqkgdbfjmm9r01qqd6ctiql0").strip()
-    TIINGO_API_KEY: str = (os.getenv("TIINGO_API_KEY") or "1074014207d48cd4ad5b07794cd71abe8cf7c209").strip()
-    POLYGON_API_KEY: str = (os.getenv("POLYGON_API_KEY") or "WZnctVKofEtDx4eRc2ELykNaTLcXS6Pb").strip()
+    # 1. Registered Institutional & Cloud API Keys (Loaded from .env / Environment)
+    FRED_API_KEY: str = (os.getenv("FRED_API_KEY") or "").strip()
+    FINNHUB_API_KEY: str = (os.getenv("FINNHUB_API_KEY") or "").strip()
+    TIINGO_API_KEY: str = (os.getenv("TIINGO_API_KEY") or "").strip()
+    POLYGON_API_KEY: str = (os.getenv("POLYGON_API_KEY") or "").strip()
     GEMINI_API_KEY: str = (
         os.getenv("GEMINI_API_KEY")
         or os.getenv("OPENAI_OR_GEMINI_API_KEY")
-        or "AQ.Ab8RN6KpOYRoOXzIWZJDkiZBB44niBznua_J7jSiGU1xbf-wZA"
+        or ""
     ).strip()
     LLM_API_KEY: str = GEMINI_API_KEY
-    COINGECKO_API_KEY: str = (os.getenv("COINGECKO_API_KEY") or "CG-rnC4Mdv7RATeDMRnf3UmezQw").strip()
-    EIA_API_KEY: str = (os.getenv("EIA_API_KEY") or "7z7gPfML8tRL67NqTNB6hTKRPWLKzf8jcwbnRQgT").strip()
+    COINGECKO_API_KEY: str = (os.getenv("COINGECKO_API_KEY") or "").strip()
+    EIA_API_KEY: str = (os.getenv("EIA_API_KEY") or "").strip()
 
     DATABASE_URL: str = _resolved_db_url
     REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")

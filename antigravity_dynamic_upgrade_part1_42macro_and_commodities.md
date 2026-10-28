@@ -16,7 +16,7 @@ Why we split the 26-item upgrade into **3 modular specifications**:
 | **API Hub** | `backend/app/config.py` | Scattered/missing env keys | Centralizes all 7 user keys (`FRED`, `FINNHUB`, `TIINGO`, `POLYGON`, `GEMINI`, `COINGECKO`, `EIA`) + multi-tier price/macro fetcher (`Tiingo -> Polygon -> yfinance` & `FRED JSON -> FRED CSV`). |
 | **`#1`** | `main.py`, `forty_two_macro_engine.py` | Hardcoded `confirming_counts={G:18, R:30, I:19, D:2}`, `sample_drmo_inputs`, `"2026-06-03"`, static Executive Summary bullets | Live 1Y OHLCV batch download across all 42 Global Macro Risk Matrix markets & 56 Dr. Mo ETFs; computes live VAMS (`+1/0/-1`), 14D RSI, confirming market sums/shares, active regime, KISS weights, and dynamic Executive Summary narrative. |
 | **`#2`** | `forty_two_macro_engine.py` | Hardcoded 16-Indicator Positioning percentiles & 8-ETF Crowding scatter (`MGK +6.2σ`) | Live 67-ETF Crowding scanner computing 14D RSI + 63-day Dollar-Volume / Share-Count Flow Z-Score (`Tiingo` / `yfinance`), plus live 16-Indicator Positioning percentiles (`^VIX`, `^COR1M` proxy, CFTC Socrata COT % OI, FRED `BAMLC0A0CM`, `USEPUINDXD`). |
-| **`#3`** | `forty_two_macro_engine.py` | Hardcoded `nominal_gdp_yoy=5.4`, `jolts=+130 bps`, `ois_floor=3.73`, `ntm_supply=$12,234B` | Live FRED API (`144fff836b3f5b3ae7d21fdc98642fab`) observations for `GDP`, `ULCNFB`, `OPHNFB`, `JTS1000JOR`, `JTS1000HIR`, `EFFR`, `DGS2`, `DGS5`, `WSHOMCB` + live FiscalData API deficit/maturing debt. |
+| **`#3`** | `forty_two_macro_engine.py` | Hardcoded `nominal_gdp_yoy=5.4`, `jolts=+130 bps`, `ois_floor=3.73`, `ntm_supply=$12,234B` | Live FRED API (`FRED_API_KEY`) observations for `GDP`, `ULCNFB`, `OPHNFB`, `JTS1000JOR`, `JTS1000HIR`, `EFFR`, `DGS2`, `DGS5`, `WSHOMCB` + live FiscalData API deficit/maturing debt. |
 | **`#4`** | `forty_two_macro_engine.py`, `42-macro/page.tsx` | Missing `grid_economies`, `macro_weather`, `probable_ranges` (`XBT: 67,069`), & `four_horsemen` in API | Live 6-Cycle Macro Weather (3M vs 6M vs 12M impulse math), live Country GRID table, live Probable Ranges (with live CoinGecko BTC), and live Four Horsemen (`^VVIX/^VIX`, `SPHB/SPLV`, `IWM/OEF`, `IWD/IWF`, `MAGS/ACWI`). |
 | **`#5`** | `commodities_engine.py` | Synthetic `f3m_price = cl_p * 0.982`, static `cot_spec_pct_oi`, static `flow_z_3m`, `sofr=3.62` | Live FRED `SOFR`, live front-vs-deferred futures/ETF curve spreads (`CL=F` vs `BZ=F`/`USO`, `GC=F`, `HG=F`, `NG=F`), live CFTC Socrata COT % OI (`067651`, `088691`, `085692`, `023651`), and live 63D ETF Flow Z-scores. |
 | **`#6`** | `commodities_engine.py` (Mod 2A) | Static `etf_vwap = sth * 0.94`, `miner_floor = sth * 0.84`, `coinbase_premium = 14.5`, `perp_apr = 6.4` | Live 252D volume-weighted average price (VWAP) of `IBIT` scaled to BTC spot, live Mempool.space difficulty/hashrate miner cost floor, live Coinbase (`BTC-USD`) vs OKX/Kraken (`BTC-USDT`) spot basis (bps), and live OKX/Deribit perpetual funding rate APR. |
@@ -52,15 +52,17 @@ class Settings:
     VERSION: str = "3.0.0"
 
     # 1. Registered Institutional & Cloud API Keys (with Environment Overrides)
-    FRED_API_KEY: str = os.getenv("FRED_API_KEY", "144fff836b3f5b3ae7d21fdc98642fab").strip()
-    FINNHUB_API_KEY: str = os.getenv("FINNHUB_API_KEY", "dbfjmm9r01qqd6ctiqkgdbfjmm9r01qqd6ctiql0").strip()
-    TIINGO_API_KEY: str = os.getenv("TIINGO_API_KEY", "1074014207d48cd4ad5b07794cd71abe8cf7c209").strip()
-    POLYGON_API_KEY: str = os.getenv("POLYGON_API_KEY", "WZnctVKofEtDx4eRc2ELykNaTLcXS6Pb").strip()
-    GEMINI_API_KEY: str = os.getenv(
-        "GEMINI_API_KEY", "AQ.Ab8RN6KpOYRoOXzIWZJDkiZBB44niBznua_J7jSiGU1xbf-wZA"
+    FRED_API_KEY: str = (os.getenv("FRED_API_KEY") or "").strip()
+    FINNHUB_API_KEY: str = (os.getenv("FINNHUB_API_KEY") or "").strip()
+    TIINGO_API_KEY: str = (os.getenv("TIINGO_API_KEY") or "").strip()
+    POLYGON_API_KEY: str = (os.getenv("POLYGON_API_KEY") or "").strip()
+    GEMINI_API_KEY: str = (
+        os.getenv("GEMINI_API_KEY")
+        or os.getenv("OPENAI_OR_GEMINI_API_KEY")
+        or ""
     ).strip()
-    COINGECKO_API_KEY: str = os.getenv("COINGECKO_API_KEY", "CG-rnC4Mdv7RATeDMRnf3UmezQw").strip()
-    EIA_API_KEY: str = os.getenv("EIA_API_KEY", "7z7gPfML8tRL67NqTNB6hTKRPWLKzf8jcwbnRQgT").strip()
+    COINGECKO_API_KEY: str = (os.getenv("COINGECKO_API_KEY") or "").strip()
+    EIA_API_KEY: str = (os.getenv("EIA_API_KEY") or "").strip()
 
     DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./macropulse.db")
 
