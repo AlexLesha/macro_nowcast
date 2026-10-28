@@ -8,18 +8,19 @@ import { ExportModal } from "./ExportModal";
 import { getApiUrl } from "@/lib/api";
 
 const NAV_ITEMS_ROW_1 = [
-  { label: "1. Executive Summary", href: "/" },
-  { label: "2. Framework Synthesis", href: "/synthesis" },
-  { label: "3. Liquidity & Allocation", href: "/liquidity-allocation" },
-  { label: "4. Outliers", href: "/outliers" },
+  { label: "Summary", href: "/" },
+  { label: "Framework Synthesis", href: "/synthesis" },
+  { label: "Liquidity & Allocation", href: "/liquidity-allocation" },
+  { label: "Outliers", href: "/outliers" },
+  { label: "Stock Analysis", href: "/stock-analysis" },
 ];
 
 const NAV_ITEMS_ROW_2 = [
-  { label: "5. 1st/2nd/3rd Order Speculation", href: "/speculation" },
-  { label: "6. 4Q Scenarios & Policy", href: "/scenarios" },
-  { label: "7. 42 Macro Deep-Dive", href: "/42-macro" },
-  { label: "8. Commodities & Alts", href: "/commodities-alternatives" },
-  { label: "9. Options & Vol Lab", href: "/options-lab" },
+  { label: "Speculation", href: "/speculation" },
+  { label: "Policy Scenarios", href: "/scenarios" },
+  { label: "42 Macro Deep-Dive", href: "/42-macro" },
+  { label: "Commodities & Alts", href: "/commodities-alternatives" },
+  { label: "Options & Vol Lab", href: "/options-lab" },
 ];
 
 export const Navigation: React.FC = () => {
@@ -38,7 +39,7 @@ export const Navigation: React.FC = () => {
       .then((json) => {
         if (json?.header_badge) setLiveHeaderBadge(json.header_badge);
       })
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   const checkHealth = useCallback(async () => {
@@ -91,10 +92,10 @@ export const Navigation: React.FC = () => {
     backendStatus === "online"
       ? "Live API Synced"
       : backendStatus === "waking"
-      ? `Waking Engine (${elapsedSeconds}s)`
-      : backendStatus === "checking"
-      ? "Connecting..."
-      : "API Offline (Click to Retry)";
+        ? `Waking Engine (${elapsedSeconds}s)`
+        : backendStatus === "checking"
+          ? "Connecting..."
+          : "API Offline (Click to Retry)";
 
   return (
     <>
@@ -112,11 +113,10 @@ export const Navigation: React.FC = () => {
               </span>
               <Link
                 href="/stock-xray"
-                className={`hidden md:inline-flex items-center px-2 py-0.5 rounded border text-[11px] font-mono transition ${
-                  pathname === "/stock-xray"
+                className={`hidden md:inline-flex items-center px-2 py-0.5 rounded border text-[11px] font-mono transition ${pathname === "/stock-xray"
                     ? "bg-purple-600/30 border-purple-400 text-purple-300 font-semibold"
                     : "bg-slate-900/60 border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700"
-                }`}
+                  }`}
               >
                 Stock X-Ray
               </Link>
@@ -136,22 +136,20 @@ export const Navigation: React.FC = () => {
                     checkHealth();
                   }
                 }}
-                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded border transition ${
-                  apiOnline
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded border transition ${apiOnline
                     ? "bg-emerald-950/40 border-emerald-500/40 text-emerald-300"
                     : backendStatus === "waking" || backendStatus === "checking"
-                    ? "bg-amber-950/40 border-amber-500/40 text-amber-300"
-                    : "bg-rose-950/40 border-rose-500/40 text-rose-300 cursor-pointer"
-                }`}
+                      ? "bg-amber-950/40 border-amber-500/40 text-amber-300"
+                      : "bg-rose-950/40 border-rose-500/40 text-rose-300 cursor-pointer"
+                  }`}
               >
                 <span
-                  className={`h-2 w-2 rounded-full ${
-                    apiOnline
+                  className={`h-2 w-2 rounded-full ${apiOnline
                       ? "bg-emerald-400 animate-pulse shadow-[0_0_6px_#10b981]"
                       : backendStatus === "waking" || backendStatus === "checking"
-                      ? "bg-amber-400 animate-spin"
-                      : "bg-rose-500"
-                  }`}
+                        ? "bg-amber-400 animate-spin"
+                        : "bg-rose-500"
+                    }`}
                 />
                 {apiStatusLabel}
               </button>
@@ -176,7 +174,7 @@ export const Navigation: React.FC = () => {
 
           {/* 2-LINE MAIN NAVIGATION MENU (Aligned to full width of content table) */}
           <nav className="space-y-1.5 font-mono text-xs">
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5">
               {NAV_ITEMS_ROW_1.map((item) => {
                 const active = pathname === item.href;
                 return (
@@ -184,11 +182,10 @@ export const Navigation: React.FC = () => {
                     key={item.href}
                     id={`nav-link-${item.href.replace("/", "") || "summary"}`}
                     href={item.href}
-                    className={`px-3 py-1.5 rounded-md border text-center font-medium transition truncate ${
-                      active
+                    className={`px-3 py-1.5 rounded-md border text-center font-medium transition truncate ${active
                         ? "bg-blue-600/90 border-blue-400 text-white shadow-sm"
                         : "bg-[#111827] border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-white"
-                    }`}
+                      }`}
                   >
                     {item.label}
                   </Link>
@@ -203,11 +200,10 @@ export const Navigation: React.FC = () => {
                     key={item.href}
                     id={`nav-link-${item.href.replace("/", "")}`}
                     href={item.href}
-                    className={`px-3 py-1.5 rounded-md border text-center font-medium transition truncate ${
-                      active
+                    className={`px-3 py-1.5 rounded-md border text-center font-medium transition truncate ${active
                         ? "bg-blue-600/90 border-blue-400 text-white shadow-sm"
                         : "bg-[#111827] border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-white"
-                    }`}
+                      }`}
                   >
                     {item.label}
                   </Link>

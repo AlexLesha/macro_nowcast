@@ -1,6 +1,8 @@
 import os
 import logging
 from contextlib import asynccontextmanager
+from typing import Optional
+from pydantic import BaseModel
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
@@ -132,6 +134,38 @@ async def get_single_stock_xray(
         )
     except Exception as e:
         return {"status": "error", "ticker": ticker.upper(), "message": str(e)}
+
+
+class StockAnalyzeRequest(BaseModel):
+    ticker: str
+    regime: Optional[str] = "REFLATION"
+    quad: Optional[str] = "Quad 2"
+
+
+@app.get("/api/v1/stock/gemini-status")
+@app.get("/api/stock/gemini-status")
+async def get_gemini_api_status():
+    """Probes Gemini 2.5 Flash API health with zero token overhead."""
+    try:
+        from backend.app.quant_engine.stock_llm_analyzer import check_gemini_api_health
+    except ImportError:
+        from app.quant_engine.stock_llm_analyzer import check_gemini_api_health
+    return await check_gemini_api_health()
+
+
+@app.post("/api/v1/stock/analyze")
+@app.post("/api/stock/analyze")
+async def analyze_stock_endpoint(req: StockAnalyzeRequest):
+    """Runs the unified quantitative + Gemini 2.5 Flash forensic analysis for any ticker."""
+    try:
+        from backend.app.quant_engine.stock_llm_analyzer import StockLLMAnalyzer
+    except ImportError:
+        from app.quant_engine.stock_llm_analyzer import StockLLMAnalyzer
+    return await StockLLMAnalyzer.analyze_stock(
+        ticker=req.ticker,
+        regime=req.regime or "REFLATION",
+        quad=req.quad or "Quad 2"
+    )
 
 
 @app.get("/api/v1/commodities-alternatives/dashboard")
