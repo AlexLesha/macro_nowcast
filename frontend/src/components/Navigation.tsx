@@ -12,6 +12,7 @@ const NAV_ITEMS_ROW_1 = [
   { label: "Framework Synthesis", href: "/synthesis" },
   { label: "Liquidity & Allocation", href: "/liquidity-allocation" },
   { label: "Outliers", href: "/outliers" },
+  { label: "Stock Analysis", href: "/stock-analysis" },
   { label: "🔬 Sources Test", href: "/sources-test" },
 ];
 
@@ -68,7 +69,7 @@ export const Navigation: React.FC = () => {
       .then((json) => {
         if (json?.header_badge) setLiveHeaderBadge(json.header_badge);
       })
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   const checkHealth = useCallback(async () => {
