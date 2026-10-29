@@ -1357,4 +1357,17 @@ def get_macro_scenarios(db: Session = Depends(get_db)):
     })
 
 
+# ----------------------------------------------------
+# Multi-Source Financial Data Test Bench (/api/v1/stock/sources-test)
+# ----------------------------------------------------
+try:
+    from backend.app.api.endpoints.stock_sources_test import router as sources_test_router
+except ImportError:
+    from app.api.endpoints.stock_sources_test import router as sources_test_router
+
+api_router.include_router(sources_test_router, prefix="/v1/stock", tags=["stock-sources-test"])
+api_router.include_router(sources_test_router, prefix="/stock", tags=["stock-sources-test"])
+
+
+
 

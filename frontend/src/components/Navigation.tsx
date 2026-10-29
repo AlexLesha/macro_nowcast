@@ -12,7 +12,7 @@ const NAV_ITEMS_ROW_1 = [
   { label: "Framework Synthesis", href: "/synthesis" },
   { label: "Liquidity & Allocation", href: "/liquidity-allocation" },
   { label: "Outliers", href: "/outliers" },
-  { label: "Stock Analysis", href: "/stock-analysis" },
+  { label: "🔬 Sources Test", href: "/sources-test" },
 ];
 
 const NAV_ITEMS_ROW_2 = [
@@ -147,6 +147,15 @@ export const Navigation: React.FC = () => {
               <span className="hidden sm:inline-block px-2.5 py-0.5 rounded bg-blue-500/15 border border-blue-500/30 text-blue-300 font-mono text-[11px]">
                 {liveHeaderBadge}
               </span>
+              <Link
+                href="/stock-analysis"
+                className={`hidden md:inline-flex items-center px-2 py-0.5 rounded border text-[11px] font-mono transition ${pathname === "/stock-analysis"
+                  ? "bg-cyan-600/30 border-cyan-400 text-cyan-300 font-semibold"
+                  : "bg-slate-900/60 border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700"
+                  }`}
+              >
+                Stock Analysis
+              </Link>
               <Link
                 href="/stock-xray"
                 className={`hidden md:inline-flex items-center px-2 py-0.5 rounded border text-[11px] font-mono transition ${pathname === "/stock-xray"
