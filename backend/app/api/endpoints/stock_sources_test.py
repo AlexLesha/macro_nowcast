@@ -79,27 +79,30 @@ class YahooFinanceOptionBClient:
 
                 if not isinstance(chart_resp, Exception) and chart_resp.status_code == 200:
                     c_json = chart_resp.json()
-                    meta = c_json.get("chart", {}).get("result", [{}])[0].get("meta", {})
+                    chart_results = (c_json.get("chart") or {}).get("result") or []
+                    meta = (chart_results[0].get("meta") or {}) if chart_results else {}
                     live_price = meta.get("regularMarketPrice") or live_price
                     day_high = meta.get("regularMarketDayHigh") or live_price
                     day_low = meta.get("regularMarketDayLow") or live_price
-                    day_range = f"${day_low:.2f} - ${day_high:.2f}"
+                    day_range = f"${float(day_low):.2f} - ${float(day_high):.2f}"
 
                 # Step 3: Extract crumb using cookie session
-                crumb_resp = await client.get("https://query2.finance.yahoo.com/v1/test/getcrumb")
-                if crumb_resp.status_code == 200 and crumb_resp.text.strip():
-                    crumb = crumb_resp.text.strip()
-                    crumb_acquired = True
+                if not isinstance(cookie_resp, Exception):
+                    crumb_resp = await client.get("https://query2.finance.yahoo.com/v1/test/getcrumb")
+                    if crumb_resp.status_code == 200 and crumb_resp.text.strip() and "Too Many" not in crumb_resp.text:
+                        crumb = crumb_resp.text.strip()
+                        crumb_acquired = True
 
-                    # Step 4: Query quoteSummary with established crumb
-                    qs_url = (
-                        f"https://query2.finance.yahoo.com/v10/finance/quoteSummary/{clean_ticker}?"
-                        f"modules=price,summaryDetail,financialData,defaultKeyStatistics,incomeStatementHistoryQuarterly"
-                        f"&crumb={crumb}"
-                    )
-                    qs_resp = await client.get(qs_url)
-                    if qs_resp.status_code == 200:
-                        quote_summary_data = qs_resp.json().get("quoteSummary", {}).get("result", [{}])[0]
+                        # Step 4: Query quoteSummary with established crumb
+                        qs_url = (
+                            f"https://query2.finance.yahoo.com/v10/finance/quoteSummary/{clean_ticker}?"
+                            f"modules=price,summaryDetail,financialData,defaultKeyStatistics,incomeStatementHistoryQuarterly"
+                            f"&crumb={crumb}"
+                        )
+                        qs_resp = await client.get(qs_url)
+                        if qs_resp.status_code == 200:
+                            qs_results = (qs_resp.json().get("quoteSummary") or {}).get("result") or []
+                            quote_summary_data = qs_results[0] if qs_results else {}
 
                 latency = int((time.perf_counter() - t0) * 1000)
 
@@ -349,23 +352,23 @@ async def fetch_sec_edgar_source(ticker: str) -> Dict[str, Any]:
 
                 # 2. Parse Gross Profit
                 gp_facts = facts.get("GrossProfit", {}).get("units", {}).get("USD", [])
-                gp_by_frame = {f.get("frame"): f.get("val", 0) for f in gp_facts if "frame" in f}
+                gp_by_frame = {f.get("frame"): (f.get("val") or 0) for f in gp_facts if "frame" in f}
 
                 # 3. Parse Net Income
                 ni_facts = facts.get("NetIncomeLoss", {}).get("units", {}).get("USD", [])
-                ni_by_frame = {f.get("frame"): f.get("val", 0) for f in ni_facts if "frame" in f}
+                ni_by_frame = {f.get("frame"): (f.get("val") or 0) for f in ni_facts if "frame" in f}
 
                 # 4. Parse Operating Cash Flow
                 ocf_facts = facts.get("NetCashProvidedByUsedInOperatingActivities", {}).get("units", {}).get("USD", [])
-                ocf_by_frame = {f.get("frame"): f.get("val", 0) for f in ocf_facts if "frame" in f}
+                ocf_by_frame = {f.get("frame"): (f.get("val") or 0) for f in ocf_facts if "frame" in f}
 
                 history_12q = []
                 for q in quarterly_revs:
                     frame = q.get("frame", "")
-                    rev_val_m = round(q.get("val", 0) / 1e6, 1)
-                    gp_val_m = round(gp_by_frame.get(frame, 0) / 1e6, 1)
-                    ni_val_m = round(ni_by_frame.get(frame, 0) / 1e6, 1)
-                    ocf_val_m = round(ocf_by_frame.get(frame, 0) / 1e6, 1)
+                    rev_val_m = round(float(q.get("val") or 0) / 1e6, 1)
+                    gp_val_m = round(float(gp_by_frame.get(frame) or 0) / 1e6, 1)
+                    ni_val_m = round(float(ni_by_frame.get(frame) or 0) / 1e6, 1)
+                    ocf_val_m = round(float(ocf_by_frame.get(frame) or 0) / 1e6, 1)
 
                     gm_pct = round((gp_val_m / max(1.0, rev_val_m)) * 100.0, 1) if rev_val_m > 0 else 0.0
                     period_str = frame.replace("CY", "Q") if "Q" in frame else frame[-4:]
@@ -412,6 +415,17 @@ async def fetch_sec_edgar_source(ticker: str) -> Dict[str, Any]:
                     },
                     "historical_12q": history_12q,
                 }
+            return {
+                "source_id": "sec_edgar",
+                "source_name": "1. US SEC EDGAR (Official 10-Q/XBRL)",
+                "status": f"HTTP_{resp.status_code}",
+                "latency_ms": latency,
+                "rate_limit_policy": "10 requests / sec (Free, Unmetered Official Gov API)",
+                "latest_quarter_reported": "UNAVAILABLE",
+                "error_detail": f"SEC EDGAR returned HTTP {resp.status_code} from cloud datacenter IP.",
+                "header_strip": {},
+                "historical_12q": [],
+            }
     except Exception as e:
         latency = int((time.perf_counter() - t0) * 1000)
         return {
@@ -449,10 +463,10 @@ async def fetch_finnhub_source(ticker: str) -> Dict[str, Any]:
             p_data = profile_resp.json() if profile_resp.status_code == 200 else {}
             m_data = metric_resp.json().get("metric", {}) if metric_resp.status_code == 200 else {}
 
-            live_price = q_data.get("c") or q_data.get("pc") or 24.99
-            high_day = q_data.get("h", live_price)
-            low_day = q_data.get("l", live_price)
-            change_pct = q_data.get("dp", 0.0)
+            live_price = float(q_data.get("c") or q_data.get("pc") or 24.99)
+            high_day = float(q_data.get("h") or live_price)
+            low_day = float(q_data.get("l") or live_price)
+            change_pct = float(q_data.get("dp") or 0.0)
 
             mcap_m = p_data.get("marketCapitalization") or (live_price * 132.3)
             mcap_bn = round(float(mcap_m) / 1000.0, 2)
@@ -472,15 +486,15 @@ async def fetch_finnhub_source(ticker: str) -> Dict[str, Any]:
                 "latest_quarter_reported": "Q3 '26 (Metrics TTM)",
                 "data_scope": "Live Quote & Profile are Real-Time. Full 12-quarter statements are gated on Free Tier.",
                 "header_strip": {
-                    "company_name": p_data.get("name", ticker),
+                    "company_name": p_data.get("name") or ticker,
                     "live_price": round(float(live_price), 2),
-                    "day_range": f"${low_day} - ${high_day} ({change_pct:+.2f}%)",
+                    "day_range": f"${low_day:.2f} - ${high_day:.2f} ({change_pct:+.2f}%)",
                     "market_cap_bn": mcap_bn,
                     "enterprise_value_bn": round(mcap_bn + (debt_m - cash_m) / 1e3, 2),
-                    "gics_sector": p_data.get("finnhubIndustry", "Semiconductors"),
+                    "gics_sector": p_data.get("finnhubIndustry") or "Semiconductors",
                     "gics_industry": "Solar MLPE & Clean Energy",
-                    "beta": round(float(m_data.get("beta", 1.58)), 2),
-                    "short_interest_pct_float": round(float(m_data.get("shortInterestPercentFloat", 11.8)), 1),
+                    "beta": round(float(m_data.get("beta") or 1.58), 2),
+                    "short_interest_pct_float": round(float(m_data.get("shortInterestPercentFloat") or 11.8), 1),
                     "institutional_ownership_pct": 88.2,
                     "total_cash_bn": round(cash_m / 1e3, 2),
                     "total_debt_bn": round(debt_m / 1e3, 2),
@@ -530,42 +544,69 @@ async def fetch_fmp_source(ticker: str) -> Dict[str, Any]:
             "historical_12q": [],
         }
 
-    url = f"https://financialmodelingprep.com/api/v3/income-statement/{ticker}?period=quarter&limit=12&apikey={FMP_KEY}"
+    url = f"https://financialmodelingprep.com/stable/income-statement?symbol={ticker}&period=quarter&limit=12&apikey={FMP_KEY}"
     try:
         async with httpx.AsyncClient(timeout=8.0) as client:
             resp = await client.get(url)
             latency = int((time.perf_counter() - t0) * 1000)
             if resp.status_code == 200:
                 results = resp.json()
-                history_12q = []
-                for q in reversed(results):
-                    rev = round(q.get("revenue", 0) / 1e6, 1)
-                    gp = round(q.get("grossProfit", 0) / 1e6, 1)
-                    ni = round(q.get("netIncome", 0) / 1e6, 1)
-                    history_12q.append({
-                        "period": q.get("period", "Q") + " '" + str(q.get("calendarYear", 2026))[-2:],
-                        "revenue_m": rev,
-                        "gaap_gross_margin_pct": round((gp / max(1.0, rev)) * 100.0, 1),
-                        "gaap_net_income_m": ni,
-                        "operating_cash_flow_m": 0.0,
-                        "free_cash_flow_m": 0.0,
-                        "fcf_conversion_pct": None,
-                        "cash_and_equivalents_m": 1480.0,
-                        "total_debt_m": 1315.0,
-                        "net_cash_m": 165.0,
-                        "ebit_interest_coverage": 4.0,
-                        "roic_pct": 3.5,
-                    })
+                if isinstance(results, list) and results:
+                    history_12q = []
+                    for q in reversed(results):
+                        if not isinstance(q, dict):
+                            continue
+                        rev = round(float(q.get("revenue") or 0) / 1e6, 1)
+                        gp = round(float(q.get("grossProfit") or 0) / 1e6, 1)
+                        ni = round(float(q.get("netIncome") or 0) / 1e6, 1)
+                        cal_yr = str(q.get("calendarYear") or q.get("fiscalYear") or "2026")[-2:]
+                        history_12q.append({
+                            "period": f"{q.get('period', 'Q')} '{cal_yr}",
+                            "revenue_m": rev,
+                            "gaap_gross_margin_pct": round((gp / max(1.0, rev)) * 100.0, 1) if rev > 0 else 0.0,
+                            "gaap_net_income_m": ni,
+                            "operating_cash_flow_m": 0.0,
+                            "free_cash_flow_m": 0.0,
+                            "fcf_conversion_pct": None,
+                            "cash_and_equivalents_m": 1480.0,
+                            "total_debt_m": 1315.0,
+                            "net_cash_m": 165.0,
+                            "ebit_interest_coverage": 4.0,
+                            "roic_pct": 3.5,
+                        })
+                    return {
+                        "source_id": "fmp",
+                        "source_name": "4. Financial Modeling Prep (FMP)",
+                        "status": "ONLINE",
+                        "latency_ms": latency,
+                        "rate_limit_policy": "250 requests / day",
+                        "latest_quarter_reported": history_12q[-1]["period"] if history_12q else "Q3 '26",
+                        "header_strip": {},
+                        "historical_12q": history_12q,
+                    }
+                err_msg = results.get("Error Message") if isinstance(results, dict) else "Empty response from FMP"
                 return {
                     "source_id": "fmp",
                     "source_name": "4. Financial Modeling Prep (FMP)",
-                    "status": "ONLINE",
+                    "status": "GATED_OR_EMPTY",
                     "latency_ms": latency,
-                    "rate_limit_policy": "250 requests / day",
-                    "latest_quarter_reported": history_12q[-1]["period"] if history_12q else "Q3 '26",
+                    "rate_limit_policy": "250 requests / day (Free Tier)",
+                    "latest_quarter_reported": "N/A",
+                    "error_detail": str(err_msg),
                     "header_strip": {},
-                    "historical_12q": history_12q,
+                    "historical_12q": [],
                 }
+            return {
+                "source_id": "fmp",
+                "source_name": "4. Financial Modeling Prep (FMP)",
+                "status": f"HTTP_{resp.status_code}_GATED",
+                "latency_ms": latency,
+                "rate_limit_policy": "250 requests / day (Free Tier)",
+                "latest_quarter_reported": "N/A",
+                "error_detail": f"FMP API returned HTTP {resp.status_code} (endpoint or symbol gated on current plan).",
+                "header_strip": {},
+                "historical_12q": [],
+            }
     except Exception as e:
         latency = int((time.perf_counter() - t0) * 1000)
         return {
@@ -594,16 +635,32 @@ async def fetch_yfinance_source(ticker: str) -> Dict[str, Any]:
 @router.get("/sources-test")
 async def get_multi_source_comparison(ticker: str = Query("ENPH", description="Stock Ticker")):
     clean_ticker = ticker.strip().upper()
-    tasks = [
-        fetch_sec_edgar_source(clean_ticker),
-        fetch_finnhub_source(clean_ticker),
-        fetch_polygon_source(clean_ticker),
-        fetch_fmp_source(clean_ticker),
-        fetch_yfinance_source(clean_ticker),
+    source_meta = [
+        ("sec_edgar", "1. US SEC EDGAR (Official 10-Q/XBRL)", fetch_sec_edgar_source(clean_ticker)),
+        ("finnhub", "2. Finnhub Basic Financials & Quote API", fetch_finnhub_source(clean_ticker)),
+        ("polygon", "3. Polygon.io v1 Financials", fetch_polygon_source(clean_ticker)),
+        ("fmp", "4. Financial Modeling Prep (FMP)", fetch_fmp_source(clean_ticker)),
+        ("yfinance", "5. Yahoo Finance (Option B Crumb Session)", fetch_yfinance_source(clean_ticker)),
     ]
-    results = await asyncio.gather(*tasks)
+    raw_results = await asyncio.gather(*(m[2] for m in source_meta), return_exceptions=True)
+    sources_dict: Dict[str, Any] = {}
+    for (sid, sname, _), res in zip(source_meta, raw_results):
+        if isinstance(res, dict) and "source_id" in res:
+            sources_dict[res["source_id"]] = res
+        else:
+            sources_dict[sid] = {
+                "source_id": sid,
+                "source_name": sname,
+                "status": "ERROR",
+                "latency_ms": 0,
+                "rate_limit_policy": "N/A",
+                "latest_quarter_reported": "UNAVAILABLE",
+                "error_detail": str(res) if isinstance(res, Exception) else "Unexpected empty response from source fetcher.",
+                "header_strip": {},
+                "historical_12q": [],
+            }
     return {
         "ticker": clean_ticker,
         "as_of_utc": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
-        "sources": {r["source_id"]: r for r in results},
+        "sources": sources_dict,
     }

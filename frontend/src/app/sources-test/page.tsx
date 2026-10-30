@@ -42,12 +42,14 @@ export default function SourcesTestPage() {
   const [activeTicker, setActiveTicker] = useState<string>("ENPH");
   const [loading, setLoading] = useState<boolean>(false);
   const [data, setData] = useState<any>(null);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [selectedSource, setSelectedSource] = useState<string>("ALL");
   const [chartViewMode, setChartViewMode] = useState<"BOTH" | "CHARTS_ONLY" | "TABLE_ONLY">("BOTH");
 
   const fetchSources = async (sym: string) => {
     const cleanSym = sym.trim().toUpperCase();
     setLoading(true);
+    setFetchError(null);
     setActiveTicker(cleanSym);
     try {
       const url = getApiUrl(`/api/v1/stock/sources-test?ticker=${encodeURIComponent(cleanSym)}`);
@@ -58,9 +60,12 @@ export default function SourcesTestPage() {
       if (res.ok) {
         const json = await res.json();
         setData(json);
+      } else {
+        setFetchError(`Backend returned HTTP ${res.status} (${res.statusText || "Internal Server Error"}) from ${API_BASE_URL}`);
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error("Error fetching multi-source data:", e);
+      setFetchError(`Unable to reach backend at ${API_BASE_URL}: ${e?.message || "Failed to fetch"}`);
     } finally {
       setLoading(false);
     }
@@ -194,6 +199,21 @@ export default function SourcesTestPage() {
         </section>
 
         {/* COMPARISON SECTIONS FOR EACH SOURCE */}
+        {fetchError && (
+          <div className="rounded-xl border border-rose-500/40 bg-rose-950/30 p-4 text-xs font-mono text-rose-200 flex items-center justify-between gap-4">
+            <div>
+              <strong className="text-rose-400 uppercase mr-2">Backend Connection / HTTP Error:</strong>
+              {fetchError}
+            </div>
+            <button
+              type="button"
+              onClick={() => fetchSources(activeTicker)}
+              className="px-3 py-1.5 rounded bg-rose-600/80 hover:bg-rose-500 text-white font-semibold shrink-0"
+            >
+              Retry Request
+            </button>
+          </div>
+        )}
         <div className="space-y-8">
           {displayedKeys.map((key) => {
             const src = sourcesMap[key];
