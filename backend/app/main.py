@@ -168,6 +168,27 @@ async def analyze_stock_endpoint(req: StockAnalyzeRequest):
     )
 
 
+@app.get("/api/v1/stock/analyze")
+@app.get("/api/stock/analyze")
+@app.get("/api/v1/stock/analysis/{ticker}")
+@app.get("/api/stock/analysis/{ticker}")
+async def analyze_stock_get_endpoint(
+    ticker: str = "ENPH",
+    regime: str = "REFLATION",
+    quad: str = "Quad 2",
+):
+    """GET endpoint for unified quantitative + SEC EDGAR XBRL + Gemini 2.5 Flash forensic analysis."""
+    try:
+        from backend.app.quant_engine.stock_llm_analyzer import StockLLMAnalyzer
+    except ImportError:
+        from app.quant_engine.stock_llm_analyzer import StockLLMAnalyzer
+    return await StockLLMAnalyzer.analyze_stock(
+        ticker=ticker,
+        regime=regime,
+        quad=quad,
+    )
+
+
 @app.get("/api/v1/commodities-alternatives/dashboard")
 @app.get("/api/commodities-alternatives/dashboard")
 async def get_commodities_alternatives_dashboard():

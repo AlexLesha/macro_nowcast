@@ -12,6 +12,7 @@ Architecture:
 6. Live Gemini 2.5 Flash qualitative synthesis merged with deterministic SEC EDGAR / Quant fallback.
 """
 
+import asyncio
 import hashlib
 import json
 import logging
@@ -945,9 +946,21 @@ async def fetch_finnhub_metrics(
     base = _build_deterministic_peer_baseline(ticker, industry)
 
     finnhub_key = os.getenv("FINNHUB_API_KEY", "").strip()
-    if finnhub_key and ticker not in ("ENPH", "CAT", "NVDA"):
+    if finnhub_key:
         try:
             async with httpx.AsyncClient(timeout=4.5) as client:
+                r_quote = await client.get(
+                    f"https://finnhub.io/api/v1/quote?symbol={ticker}&token={finnhub_key}"
+                )
+                if r_quote.status_code == 200:
+                    q_json = r_quote.json() or {}
+                    live_c = float(q_json.get("c") or 0.0)
+                    live_dp = q_json.get("dp")
+                    if live_c > 0:
+                        base["price"] = round(live_c, 2)
+                    if live_dp is not None:
+                        base["price_change_1d_pct"] = round(float(live_dp), 2)
+
                 r = await client.get(
                     f"https://finnhub.io/api/v1/stock/metric?symbol={ticker}&metric=all&token={finnhub_key}"
                 )
@@ -961,7 +974,10 @@ async def fetch_finnhub_metrics(
                         opm_live = m.get("operatingMarginTTM")
                         rev_yoy_live = m.get("revenueGrowthTTMYoy")
                         beta_live = m.get("beta")
+                        mcap_live = m.get("marketCapitalization")
 
+                        if mcap_live and float(mcap_live) > 0:
+                            base["market_cap_bn"] = round(float(mcap_live) / 1000.0, 2)
                         if pe_live and float(pe_live) > 0:
                             base["pe"] = round(float(pe_live), 1)
                         if ev_ebitda_live and 0 < float(ev_ebitda_live) < 120:
@@ -1342,11 +1358,38 @@ class StockLLMAnalyzer:
         except ImportError:
             from app.quant_engine.stock_analyzer import SingleStockXRayEngine
 
-        edgar_12q = await asyncio.to_thread(SingleStockXRayEngine.fetch_sec_edgar_12q_financials, ticker)
+        edgar_12q: Dict[str, Any] = {}
+        try:
+            edgar_12q = await asyncio.to_thread(SingleStockXRayEngine.fetch_sec_edgar_12q_financials, ticker)
+        except Exception as e:
+            logger.warning(f"SEC EDGAR 12Q extraction fallback note for {ticker}: {e}")
+
         edgar_quarters_desc = edgar_12q.get("quarters", [])
         hist_12q = await fetch_polygon_12q_financials(ticker)
         financial_walk_12q = edgar_quarters_desc if edgar_quarters_desc else list(reversed(hist_12q))
         pod2_unit_economics = SingleStockXRayEngine._compute_pod2_unit_economics_from_12q(financial_walk_12q)
+
+        # Ground target_metrics in Audited SEC EDGAR 10-Q/10-K facts whenever available
+        if edgar_quarters_desc:
+            q0 = edgar_quarters_desc[0]
+            if q0.get("cash_and_equivalents_m", 0) > 0 or q0.get("total_debt_m", 0) > 0:
+                target_metrics["cash_m"] = float(q0.get("cash_and_equivalents_m", target_metrics.get("cash_m", 1645.0)))
+                target_metrics["debt_m"] = float(q0.get("total_debt_m", target_metrics.get("debt_m", 1320.0)))
+                target_metrics["net_cash_m"] = round(target_metrics["cash_m"] - target_metrics["debt_m"], 1)
+            if q0.get("gross_margin_pct") is not None:
+                target_metrics["gross_margin"] = float(q0["gross_margin_pct"])
+            if q0.get("operating_margin_pct") is not None:
+                target_metrics["operating_margin"] = float(q0["operating_margin_pct"])
+            if q0.get("roic_pct") is not None:
+                target_metrics["roic"] = float(q0["roic_pct"])
+            if q0.get("ebit_interest_coverage") is not None:
+                target_metrics["interest_coverage"] = float(q0["ebit_interest_coverage"])
+            if q0.get("net_debt_to_ebitda") is not None:
+                target_metrics["net_debt_ebitda"] = float(q0["net_debt_to_ebitda"])
+            if pod2_unit_economics.get("rev_growth_yoy_pct") is not None:
+                target_metrics["rev_growth_yoy"] = float(pod2_unit_economics["rev_growth_yoy_pct"])
+            if edgar_12q.get("entity_name"):
+                target_metrics["name"] = edgar_12q["entity_name"]
 
         # 4. Fetch or Load Cached 5-Peer Scorecard for the Resolved GICS Industry (7-Day TTL)
         peers = await get_cached_or_fetch_peer_valuations(ticker, industry)
