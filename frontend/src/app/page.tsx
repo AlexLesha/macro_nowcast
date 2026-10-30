@@ -92,27 +92,89 @@ export default function UnifiedNowcastDashboard() {
     fetchDashboardData();
   }, []);
 
-  // Baseline values
-  const monthlyQuad = regime?.us_monthly_quad || "QUAD_2";
-  const quarterlyQuad = regime?.us_quarterly_quad || "QUAD_2";
-  const gridRegime = quantSignals?.market_grid?.prevailing_regime || regime?.grid_regime || "REFLATION";
-  const gridShares = quantSignals?.market_grid?.regime_percentage_shares || {
-    goldilocks_pct: 26.4,
-    reflation_pct: 33.2,
-    inflation_pct: 28.0,
-    deflation_pct: 12.3,
-  };
+  // Baseline values synchronized across Executive Summary, Regime Snapshot, and 42 Macro Live Engine
+  const rawMonthlyQuad = String(
+    execData?.kpi_1_us_quad?.active_quad || regime?.us_monthly_quad || "QUAD_3"
+  )
+    .toUpperCase()
+    .replace("QUAD ", "QUAD_");
+  const monthlyQuad = rawMonthlyQuad;
+  const quarterlyQuad = String(
+    regime?.us_quarterly_quad || execData?.kpi_1_us_quad?.active_quad || "QUAD_3"
+  )
+    .toUpperCase()
+    .replace("QUAD ", "QUAD_");
 
-  const netLiquidityBn = liquidity?.net_liquidity_usd_bn || regime?.net_liquidity_usd_bn || 6150.4;
-  const netLiq4wImpulse = liquidity?.rates_of_change?.roc_4w_pct || 1.8;
+  const quadDeltaLabel =
+    monthlyQuad === "QUAD_1"
+      ? "ΔG+ ΔI-"
+      : monthlyQuad === "QUAD_2"
+        ? "ΔG+ ΔI+"
+        : monthlyQuad === "QUAD_3"
+          ? "ΔG- ΔI+"
+          : "ΔG- ΔI-";
 
-  // KISS weights
-  const kissAlloc = quantSignals?.portfolios?.kiss_model || {
-    spy_equities_pct: 48.0,
-    gld_gold_pct: 24.0,
-    ibit_bitcoin_pct: 8.0,
-    usfr_tbil_cash_pct: 20.0,
-  };
+  const quadDeltaColor =
+    monthlyQuad === "QUAD_1" || monthlyQuad === "QUAD_2"
+      ? "text-emerald-400"
+      : monthlyQuad === "QUAD_3"
+        ? "text-amber-400"
+        : "text-rose-400";
+
+  const gridRegime =
+    execData?.kpi_2_grid_regime?.primary_regime ||
+    quantSignals?.market_grid?.prevailing_regime ||
+    regime?.grid_regime ||
+    "DEFLATION";
+
+  const execConfirmingShares = execData?.kpi_2_grid_regime?.confirming_shares_pct;
+  const quantShares = quantSignals?.market_grid?.regime_shares;
+  const gridShares = execConfirmingShares
+    ? {
+      goldilocks_pct: Number(execConfirmingShares.GOLDILOCKS ?? 14.6),
+      reflation_pct: Number(execConfirmingShares.REFLATION ?? 16.7),
+      inflation_pct: Number(execConfirmingShares.INFLATION ?? 31.2),
+      deflation_pct: Number(execConfirmingShares.DEFLATION ?? 37.5),
+    }
+    : quantShares
+      ? {
+        goldilocks_pct: Number(((quantShares.GOLDILOCKS ?? 0.146) * 100).toFixed(1)),
+        reflation_pct: Number(((quantShares.REFLATION ?? 0.167) * 100).toFixed(1)),
+        inflation_pct: Number(((quantShares.INFLATION ?? 0.312) * 100).toFixed(1)),
+        deflation_pct: Number(((quantShares.DEFLATION ?? 0.375) * 100).toFixed(1)),
+      }
+      : {
+        goldilocks_pct: 14.6,
+        reflation_pct: 16.7,
+        inflation_pct: 31.2,
+        deflation_pct: 37.5,
+      };
+
+  const netLiquidityBn =
+    execData?.kpi_4_us_net_liquidity?.net_liquidity_usd_bn ??
+    liquidity?.net_liquidity_usd_bn ??
+    regime?.net_liquidity_usd_bn ??
+    6150.4;
+  const netLiq4wImpulse =
+    execData?.kpi_4_us_net_liquidity?.rates_of_change?.roc_4w_pct ??
+    liquidity?.rates_of_change?.roc_4w_pct ??
+    1.8;
+
+  // KISS weights synchronized with live 42 Macro KISS Portfolio
+  const liveKissExp = execData?.card_a_kiss_portfolio?.actual_exposures_pct;
+  const kissAlloc = liveKissExp
+    ? {
+        spy_equities_pct: Number(liveKissExp.VT ?? liveKissExp.SPY ?? 0),
+        gld_gold_pct: Number(liveKissExp.GLDM ?? liveKissExp.GLD ?? 0),
+        ibit_bitcoin_pct: Number(liveKissExp.FBTC ?? liveKissExp.IBIT ?? 0),
+        usfr_tbil_cash_pct: Number(liveKissExp.USFR ?? 100),
+      }
+    : quantSignals?.portfolios?.kiss_model || {
+        spy_equities_pct: 0.0,
+        gld_gold_pct: 0.0,
+        ibit_bitcoin_pct: 0.0,
+        usfr_tbil_cash_pct: 100.0,
+      };
 
   // Option Overlay
   const kspyOverlay = quantSignals?.risk_ranges?.kspy_overlay_regime || "PUT_SPREAD_COLLAR";
@@ -142,7 +204,7 @@ export default function UnifiedNowcastDashboard() {
             </div>
             <div className="text-xs font-mono text-slate-400 flex items-center justify-between pt-1">
               <span>Quarterly: <strong>{quarterlyQuad.replace("_", " ")}</strong></span>
-              <span className="text-emerald-400 font-semibold">&Delta;G+ &Delta;I+</span>
+              <span className={`${quadDeltaColor} font-semibold`}>{quadDeltaLabel}</span>
             </div>
           </div>
 
@@ -153,7 +215,14 @@ export default function UnifiedNowcastDashboard() {
                 <BarChart3 className="h-4 w-4" />
                 <span>42 MACRO GRID</span>
               </span>
-              <span className="text-xs font-bold font-mono text-emerald-400">{gridRegime}</span>
+              <span
+                className={`text-xs font-bold font-mono ${gridRegime.includes("DEFLATION") || gridRegime.includes("INFLATION")
+                    ? "text-amber-400"
+                    : "text-emerald-400"
+                  }`}
+              >
+                {gridRegime}
+              </span>
             </div>
             <div className="w-full bg-slate-900 rounded-full h-2.5 flex overflow-hidden border border-slate-800">
               <div
@@ -178,9 +247,10 @@ export default function UnifiedNowcastDashboard() {
               />
             </div>
             <div className="flex items-center justify-between text-[10px] font-mono text-slate-400">
-              <span>Refl: {gridShares.reflation_pct}%</span>
               <span>Gold: {gridShares.goldilocks_pct}%</span>
+              <span>Refl: {gridShares.reflation_pct}%</span>
               <span>Infl: {gridShares.inflation_pct}%</span>
+              <span>Defl: {gridShares.deflation_pct}%</span>
             </div>
           </div>
 

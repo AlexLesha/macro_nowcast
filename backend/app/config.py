@@ -161,40 +161,42 @@ def fetch_fred_series_live(series_id: str, limit: int = 400, ttl_sec: int = 900)
     return pd.Series(dtype=float, name=series_id)
 
 
-def fetch_tiingo_single_ticker(ticker: str, start_date: str = "2024-01-01") -> pd.DataFrame:
-    """Fetches daily OHLCV from Tiingo REST API using TIINGO_API_KEY when yfinance is rate-limited."""
-    if not settings.TIINGO_API_KEY or ticker.startswith("^") or "=" in ticker:
-        return pd.DataFrame()
-    clean_tk = ticker.replace(".", "-")
-    url = f"https://api.tiingo.com/tiingo/daily/{clean_tk}/prices?startDate={start_date}&token={settings.TIINGO_API_KEY}"
+def fetch_massive_stock_financials(ticker: str) -> List[Dict[str, Any]]:
+    """
+    Unified individual stock financial details fetcher:
+      Data Scope: https://api.massive.com/stocks/financials/v1/income-statements
+      (revenue, operating_income, cost_of_revenue, diluted_earnings_per_share)
+      with automatic SEC EDGAR XBRL fallback (`SingleStockXRayEngine.fetch_sec_edgar_xbrl_facts`).
+    Replaces legacy Finnhub, Polygon, and Tiingo single-stock financial calls.
+    """
     try:
-        with httpx.Client(timeout=5.0) as client:
-            r = client.get(url, headers={"Content-Type": "application/json"})
-            if r.status_code == 200:
-                data = r.json()
-                if isinstance(data, list) and data:
-                    df = pd.DataFrame(data)
-                    df["date"] = pd.to_datetime(df["date"]).dt.tz_localize(None)
-                    df = df.set_index("date").sort_index()
-                    df["Close"] = df.get("adjClose", df.get("close"))
-                    df["Volume"] = df.get("adjVolume", df.get("volume", 0))
-                    return df[["Close", "Volume"]]
+        try:
+            from backend.app.quant_engine.stock_analyzer import SingleStockXRayEngine
+        except ImportError:
+            from app.quant_engine.stock_analyzer import SingleStockXRayEngine
+        return SingleStockXRayEngine.fetch_massive_income_statements(ticker, limit=12)
     except Exception:
-        pass
-    return pd.DataFrame()
+        return []
+
+
+def fetch_tiingo_single_ticker(ticker: str, start_date: str = "2024-01-01") -> pd.DataFrame:
+    """Routes single-ticker failover through Massive REST (`https://api.massive.com/v2/aggs/...`) instead of legacy Tiingo."""
+    return fetch_polygon_single_ticker(ticker, start_date=start_date)
 
 
 def fetch_polygon_single_ticker(ticker: str, start_date: str = "2024-01-01") -> pd.DataFrame:
-    """Fetches daily aggregate bars from Polygon.io using POLYGON_API_KEY as secondary failover."""
-    if not settings.POLYGON_API_KEY or ticker.startswith("^") or "=" in ticker:
+    """Fetches daily aggregate bars from Massive REST API (`https://api.massive.com/v2/aggs/...`) with Bearer authentication."""
+    bearer_key = (settings.MASSIVE_API_KEY or settings.POLYGON_API_KEY or "").strip()
+    if not bearer_key or ticker.startswith("^") or "=" in ticker:
         return pd.DataFrame()
     end_date = pd.Timestamp.utcnow().strftime("%Y-%m-%d")
     url = (
-        f"https://api.polygon.io/v2/aggs/ticker/{ticker}/range/1/day/{start_date}/{end_date}"
-        f"?adjusted=true&sort=asc&limit=500&apiKey={settings.POLYGON_API_KEY}"
+        f"https://api.massive.com/v2/aggs/ticker/{ticker}/range/1/day/{start_date}/{end_date}"
+        f"?adjusted=true&sort=asc&limit=500"
     )
+    headers = {"Authorization": f"Bearer {bearer_key}", "Accept": "application/json"}
     try:
-        with httpx.Client(timeout=5.0) as client:
+        with httpx.Client(headers=headers, timeout=5.0) as client:
             r = client.get(url)
             if r.status_code == 200:
                 results = r.json().get("results", [])

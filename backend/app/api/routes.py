@@ -338,17 +338,43 @@ def get_1965_similarity(db: Session = Depends(get_db)):
     growth = get_growth_nowcast(db)
     inflation = get_inflation_nowcast(db)
 
-    # 10Y and 2Y yields
+    try:
+        from app.config import fetch_fred_series_live
+    except ImportError:
+        from backend.app.config import fetch_fred_series_live
+
+    # 10Y and 2Y yields (DB first, then live FRED)
     dgs10 = db.query(MacroSeries).filter_by(series_id="DGS10").order_by(desc(MacroSeries.date)).first()
     dgs2 = db.query(MacroSeries).filter_by(series_id="DGS2").order_by(desc(MacroSeries.date)).first()
     dfii10 = db.query(MacroSeries).filter_by(series_id="DFII10").order_by(desc(MacroSeries.date)).first()
     hy_spread = db.query(MacroSeries).filter_by(series_id="BAMLH0A0HYM2").order_by(desc(MacroSeries.date)).first()
     oil = db.query(MacroSeries).filter_by(series_id="DCOILBRENTEU").order_by(desc(MacroSeries.date)).first()
 
-    spread_bps = ((dgs10.value - dgs2.value) * 100.0) if (dgs10 and dgs2 and dgs10.value and dgs2.value) else 22.0
-    real_y = dfii10.value if (dfii10 and dfii10.value) else 1.88
-    hy_oas = hy_spread.value if (hy_spread and hy_spread.value) else 3.25
-    oil_roc = oil.yoy_roc if (oil and oil.yoy_roc is not None) else 4.2
+    dgs10_v = float(dgs10.value) if (dgs10 and dgs10.value is not None) else None
+    if dgs10_v is None:
+        s10 = fetch_fred_series_live("DGS10", limit=5)
+        dgs10_v = float(s10.iloc[-1]) if not s10.empty else 4.42
+
+    dgs2_v = float(dgs2.value) if (dgs2 and dgs2.value is not None) else None
+    if dgs2_v is None:
+        s2 = fetch_fred_series_live("DGS2", limit=5)
+        dgs2_v = float(s2.iloc[-1]) if not s2.empty else 3.78
+
+    real_y = float(dfii10.value) if (dfii10 and dfii10.value is not None) else None
+    if real_y is None:
+        s_real = fetch_fred_series_live("DFII10", limit=5)
+        real_y = float(s_real.iloc[-1]) if not s_real.empty else 2.08
+
+    hy_oas = float(hy_spread.value) if (hy_spread and hy_spread.value is not None) else None
+    if hy_oas is None:
+        s_hy = fetch_fred_series_live("BAMLH0A0HYM2", limit=5)
+        hy_oas = float(s_hy.iloc[-1]) if not s_hy.empty else 3.15
+
+    oil_roc = float(oil.yoy_roc) if (oil and oil.yoy_roc is not None) else None
+    if oil_roc is None:
+        oil_roc = float(inflation.get("three_fourteen_vectors", {}).get("energy_vector", {}).get("roc_yoy", 3.8))
+
+    spread_bps = round((dgs10_v - dgs2_v) * 100.0, 1)
 
     state_vec = {
         "growth_yoy": growth["real_gdp_yoy"],
@@ -480,36 +506,90 @@ def get_full_liquidity_suite(db: Session = Depends(get_db)):
 # ----------------------------------------------------
 # Regime Nowcast & Net Liquidity Calculation
 # ----------------------------------------------------
+def _compute_live_regime_fields() -> Dict[str, Any]:
+    """Computes live US Quad (15-country RoC engine) and live 42 Macro GRID regime."""
+    us_quad = "QUAD_3"
+    g_roc = -0.54
+    i_roc = 0.74
+    try:
+        from app.quant_engine.macro_nowcast import compute_live_15_country_quads
+        countries = compute_live_15_country_quads()
+        us_row = next((c for c in countries if c.get("ticker") == "SPY"), None)
+        if us_row:
+            us_quad = str(us_row.get("active_quad", "QUAD_3")).upper().replace("QUAD ", "QUAD_")
+            g_roc = round(float(us_row.get("g_roc_bps", -54)) / 100.0, 2)
+            i_roc = round(float(us_row.get("i_roc_bps", 74)) / 100.0, 2)
+    except Exception as e:
+        logger.debug(f"Live US Quad fallback: {e}")
+
+    grid_regime = "DEFLATION"
+    kiss_weights = {"USFR": 1.0, "VT": 0.0, "GLDM": 0.0, "FBTC": 0.0}
+    try:
+        from app.quant_engine.forty_two_macro_engine import FortyTwoMacroLiveBuilder
+        ftm = FortyTwoMacroLiveBuilder.build_live_42macro_dashboard()
+        grid_regime = ftm.get("global_macro_risk_matrix", {}).get("primary_regime", "DEFLATION")
+        exp_pct = ftm.get("kiss_and_drmo", {}).get("kiss_portfolio", {}).get("actual_exposures_pct", {})
+        if exp_pct:
+            kiss_weights = {k: round(float(v) / 100.0, 4) for k, v in exp_pct.items()}
+    except Exception as e:
+        logger.debug(f"Live 42Macro GRID fallback: {e}")
+
+    probs = {"QUAD_1": 0.12, "QUAD_2": 0.15, "QUAD_3": 0.15, "QUAD_4": 0.15}
+    probs[us_quad] = 0.58
+    tot = sum(probs.values())
+    return {
+        "us_monthly_quad": us_quad,
+        "us_quarterly_quad": us_quad,
+        "quad_1_prob": round(probs["QUAD_1"] / tot, 2),
+        "quad_2_prob": round(probs["QUAD_2"] / tot, 2),
+        "quad_3_prob": round(probs["QUAD_3"] / tot, 2),
+        "quad_4_prob": round(probs["QUAD_4"] / tot, 2),
+        "grid_regime": grid_regime,
+        "grid_scores_json": json.dumps({"growth_roc": g_roc, "inflation_roc": i_roc, "liquidity_roc": -0.35}),
+        "kiss_weights_json": json.dumps(kiss_weights),
+    }
+
+
 @api_router.get("/regime/current", response_model=Optional[RegimeSnapshotItem])
 def get_current_regime(db: Session = Depends(get_db)):
     """Returns the latest macro regime snapshot, quad probabilities, and Fed Net Liquidity."""
+    live_fields = _compute_live_regime_fields()
     snapshot = (
         db.query(RegimeSnapshot)
         .order_by(desc(RegimeSnapshot.date))
         .first()
     )
     if not snapshot:
-        # Build initial baseline snapshot if none exists
         today = date.today()
         snapshot = RegimeSnapshot(
             date=today,
-            us_monthly_quad="QUAD_2",
-            us_quarterly_quad="QUAD_2",
-            quad_1_prob=0.18,
-            quad_2_prob=0.55,
-            quad_3_prob=0.12,
-            quad_4_prob=0.15,
-            grid_regime="REFLATION_EXPANSION",
-            grid_scores_json=json.dumps({"growth_roc": 1.42, "inflation_roc": 0.35, "liquidity_roc": 0.88}),
-            prometheus_similarity_json=json.dumps({"analog_period": "2019-Q3", "similarity_score": 0.84}),
+            us_monthly_quad=live_fields["us_monthly_quad"],
+            us_quarterly_quad=live_fields["us_quarterly_quad"],
+            quad_1_prob=live_fields["quad_1_prob"],
+            quad_2_prob=live_fields["quad_2_prob"],
+            quad_3_prob=live_fields["quad_3_prob"],
+            quad_4_prob=live_fields["quad_4_prob"],
+            grid_regime=live_fields["grid_regime"],
+            grid_scores_json=live_fields["grid_scores_json"],
+            prometheus_similarity_json=json.dumps({"analog_period": "2024-Q4 / 2019-Q3", "similarity_score": 0.84}),
             net_liquidity_usd_bn=6150.4,
             global_liquidity_usd_tn=106.2,
             debt_to_liquidity_pct=560.2,
-            kiss_weights_json=json.dumps({
-                "SPY": 0.35, "QQQ": 0.20, "GLD": 0.15, "TLT": 0.10, "USO": 0.10, "BIL": 0.10
-            }),
+            kiss_weights_json=live_fields["kiss_weights_json"],
         )
         db.add(snapshot)
+        db.commit()
+    else:
+        # Keep stored snapshot synchronized with live US Quad and 42 Macro GRID regime
+        snapshot.us_monthly_quad = live_fields["us_monthly_quad"]
+        snapshot.us_quarterly_quad = live_fields["us_quarterly_quad"]
+        snapshot.quad_1_prob = live_fields["quad_1_prob"]
+        snapshot.quad_2_prob = live_fields["quad_2_prob"]
+        snapshot.quad_3_prob = live_fields["quad_3_prob"]
+        snapshot.quad_4_prob = live_fields["quad_4_prob"]
+        snapshot.grid_regime = live_fields["grid_regime"]
+        snapshot.grid_scores_json = live_fields["grid_scores_json"]
+        snapshot.kiss_weights_json = live_fields["kiss_weights_json"]
         db.commit()
 
     return snapshot.to_dict()
@@ -519,6 +599,7 @@ def get_current_regime(db: Session = Depends(get_db)):
 def compute_regime_snapshot(db: Session = Depends(get_db)):
     """Computes Fed Net Liquidity (WALCL - WTREGEN - RRPONTSYD) and updates RegimeSnapshot."""
     today = date.today()
+    live_fields = _compute_live_regime_fields()
 
     # Query latest Fed balance sheet items
     walcl = db.query(MacroSeries).filter_by(series_id="WALCL").order_by(desc(MacroSeries.date)).first()
@@ -528,14 +609,12 @@ def compute_regime_snapshot(db: Session = Depends(get_db)):
     rrp = db.query(MacroSeries).filter_by(series_id="RRPONTSYD").order_by(desc(MacroSeries.date)).first()
 
     # Fed Net Liquidity formula: WALCL (Total Assets) - WTREGEN (TGA) - RRPONTSYD (Reverse Repo)
-    # WALCL is in Millions on FRED, TGA is in Millions on FRED (or Billions on DTS), RRP is in Billions
     walcl_val = (walcl.value / 1000.0) if (walcl and walcl.value) else 6850.0  # In Billions
     tga_val = (tga.value / 1000.0 if tga and tga.value > 2000 else tga.value) if (tga and tga.value) else 750.0
     rrp_val = (rrp.value / 1000.0 if rrp and rrp.value > 2000 else rrp.value) if (rrp and rrp.value) else 250.0
 
     net_liq = walcl_val - tga_val - rrp_val
 
-    # Determine Quad regime probability
     snapshot = db.query(RegimeSnapshot).filter_by(date=today).first()
     if not snapshot:
         snapshot = RegimeSnapshot(date=today)
@@ -543,16 +622,15 @@ def compute_regime_snapshot(db: Session = Depends(get_db)):
 
     snapshot.net_liquidity_usd_bn = round(net_liq, 2)
     snapshot.global_liquidity_usd_tn = 106.4
-    snapshot.us_monthly_quad = "QUAD_2"
-    snapshot.us_quarterly_quad = "QUAD_2"
-    snapshot.quad_1_prob = 0.20
-    snapshot.quad_2_prob = 0.58
-    snapshot.quad_3_prob = 0.10
-    snapshot.quad_4_prob = 0.12
-    snapshot.grid_regime = "REFLATION"
-    snapshot.kiss_weights_json = json.dumps({
-        "SPY": 0.35, "QQQ": 0.20, "GLD": 0.15, "TLT": 0.10, "USO": 0.10, "BIL": 0.10
-    })
+    snapshot.us_monthly_quad = live_fields["us_monthly_quad"]
+    snapshot.us_quarterly_quad = live_fields["us_quarterly_quad"]
+    snapshot.quad_1_prob = live_fields["quad_1_prob"]
+    snapshot.quad_2_prob = live_fields["quad_2_prob"]
+    snapshot.quad_3_prob = live_fields["quad_3_prob"]
+    snapshot.quad_4_prob = live_fields["quad_4_prob"]
+    snapshot.grid_regime = live_fields["grid_regime"]
+    snapshot.grid_scores_json = live_fields["grid_scores_json"]
+    snapshot.kiss_weights_json = live_fields["kiss_weights_json"]
 
     db.commit()
     return snapshot.to_dict()
@@ -632,14 +710,38 @@ def get_quant_signals(ticker: str = "SPY", db: Session = Depends(get_db)):
         dummy_df = pd.DataFrame({"close": prices, "volume": 5e7}, index=dates)
         risk_ranges = compute_hedgeye_risk_ranges(dummy_df, ticker=ticker)
 
-    grid = compute_42_market_grid_regime({ticker: vams["vams_state"], "SPY": 1, "GLD": 1, "TLT": -1})
-    kiss_dr_mo = compute_kiss_and_dr_mo_portfolios(grid["prevailing_regime"], {ticker: vams["vams_state"], "SPY": 1, "GLD": 1, "IBIT": 1})
+    vams_map = {ticker: vams["vams_state"]}
+    ftm_matrix = None
+    try:
+        from app.quant_engine.forty_two_macro_engine import FortyTwoMacroLiveBuilder
+        ftm = FortyTwoMacroLiveBuilder.build_live_42macro_dashboard()
+        ftm_matrix = ftm.get("global_macro_risk_matrix")
+        for row in ftm.get("kiss_and_drmo", {}).get("dr_mo_matrix", []):
+            if row.get("ticker"):
+                vams_map[row["ticker"]] = int(row.get("vams_state", 0))
+    except Exception as e:
+        logger.debug(f"Live 42Macro VAMS map fallback: {e}")
+
+    grid = compute_42_market_grid_regime(vams_map)
+    if ftm_matrix:
+        shares_pct = ftm_matrix.get("confirming_shares_pct", {})
+        grid["prevailing_regime"] = ftm_matrix.get("primary_regime", grid["prevailing_regime"])
+        grid["regime_shares"] = {
+            "GOLDILOCKS": round(float(shares_pct.get("GOLDILOCKS", 14.6)) / 100.0, 3),
+            "REFLATION": round(float(shares_pct.get("REFLATION", 16.7)) / 100.0, 3),
+            "INFLATION": round(float(shares_pct.get("INFLATION", 31.2)) / 100.0, 3),
+            "DEFLATION": round(float(shares_pct.get("DEFLATION", 37.5)) / 100.0, 3),
+        }
+        grid["cacri_pct"] = ftm_matrix.get("cacri_pct", grid.get("cacri_pct", 68.7))
+
+    kiss_dr_mo = compute_kiss_and_dr_mo_portfolios(grid["prevailing_regime"], vams_map)
     fcte_screen = compute_pod_123_and_fcte_quality_screen()
 
     return _sanitize_floats({
         "vams": vams,
         "risk_ranges": risk_ranges,
         "market_grid": grid,
+        "grid_regime": grid,
         "portfolios": kiss_dr_mo,
         "fcte_screen": fcte_screen,
     })

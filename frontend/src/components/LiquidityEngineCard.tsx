@@ -260,7 +260,10 @@ export const LiquidityEngineCard: React.FC = () => {
                     <span className="text-slate-400">Extremely Overleveraged vs Domestic Base</span>
                   </div>
                   <div className="h-2 w-full bg-slate-900 rounded-full overflow-hidden flex border border-slate-800">
-                    <div style={{ width: "95%" }} className="bg-rose-500" />
+                    <div
+                      style={{ width: `${Math.min(100, Math.round((globalDebt.debt_to_domestic_liquidity_ratios.united_states_pct / 150) * 100))}%` }}
+                      className="bg-rose-500"
+                    />
                   </div>
                 </div>
 
@@ -270,7 +273,10 @@ export const LiquidityEngineCard: React.FC = () => {
                     <span className="font-bold text-emerald-400">Japan: {globalDebt.debt_to_domestic_liquidity_ratios.japan_pct}%</span>
                   </div>
                   <div className="h-2 w-full bg-slate-900 rounded-full overflow-hidden flex border border-slate-800">
-                    <div style={{ width: "61%" }} className="bg-emerald-500" />
+                    <div
+                      style={{ width: `${Math.min(100, Math.round((globalDebt.debt_to_domestic_liquidity_ratios.eurozone_pct / 150) * 100))}%` }}
+                      className="bg-emerald-500"
+                    />
                   </div>
                 </div>
 
@@ -280,7 +286,10 @@ export const LiquidityEngineCard: React.FC = () => {
                     <span className="text-slate-400">High Domestic Liquid Cushion</span>
                   </div>
                   <div className="h-2 w-full bg-slate-900 rounded-full overflow-hidden flex border border-slate-800">
-                    <div style={{ width: "31%" }} className="bg-cyan-500" />
+                    <div
+                      style={{ width: `${Math.min(100, Math.round((globalDebt.debt_to_domestic_liquidity_ratios.china_pct / 150) * 100))}%` }}
+                      className="bg-cyan-500"
+                    />
                   </div>
                 </div>
               </div>

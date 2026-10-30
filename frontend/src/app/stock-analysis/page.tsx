@@ -31,8 +31,8 @@ const CIK_LOOKUP: Record<string, string> = {
 
 function buildSynthesizedAnalysisPayload(tickerRaw: string, sourcesTestJson?: any): any {
   const ticker = tickerRaw.toUpperCase().trim();
+  const massiveSrc = sourcesTestJson?.sources?.polygon;
   const secSrc = sourcesTestJson?.sources?.sec_edgar;
-  const finnhubSrc = sourcesTestJson?.sources?.finnhub;
   const yahooSrc = sourcesTestJson?.sources?.yfinance;
 
   const parseNum = (v: any, fallback: number): number => {
@@ -115,9 +115,9 @@ function buildSynthesizedAnalysisPayload(tickerRaw: string, sourcesTestJson?: an
   };
 
   const base = defaultProfiles[ticker] || {
-    name: secSrc?.header_strip?.company_name || finnhubSrc?.header_strip?.company_name || `${ticker} Corp.`,
-    sector: secSrc?.header_strip?.gics_sector || finnhubSrc?.header_strip?.gics_sector || "Information Technology",
-    industry: secSrc?.header_strip?.gics_industry || finnhubSrc?.header_strip?.gics_industry || "Semiconductors & Semiconductor Equipment",
+    name: massiveSrc?.header_strip?.company_name || secSrc?.header_strip?.company_name || `${ticker} Corp.`,
+    sector: massiveSrc?.header_strip?.gics_sector || secSrc?.header_strip?.gics_sector || "Information Technology",
+    industry: massiveSrc?.header_strip?.gics_industry || secSrc?.header_strip?.gics_industry || "Semiconductors & Semiconductor Equipment",
     sectorEtf: "XLK",
     styleEtf: "QUAL",
     price: 85.0,
@@ -138,26 +138,29 @@ function buildSynthesizedAnalysisPayload(tickerRaw: string, sourcesTestJson?: an
   };
 
   const livePrice = parseNum(
-    finnhubSrc?.header_strip?.live_price ?? yahooSrc?.header_strip?.live_price,
+    massiveSrc?.header_strip?.live_price ?? yahooSrc?.header_strip?.live_price,
     base.price
   );
   const liveMcapBn = parseNum(
-    finnhubSrc?.header_strip?.market_cap_bn ?? yahooSrc?.header_strip?.market_cap_bn,
+    massiveSrc?.header_strip?.market_cap_bn ?? yahooSrc?.header_strip?.market_cap_bn,
     base.mcapBn
   );
   const liveBeta = parseNum(
-    finnhubSrc?.header_strip?.beta_126d ?? yahooSrc?.header_strip?.beta_126d,
+    massiveSrc?.header_strip?.beta ?? massiveSrc?.header_strip?.beta_126d ?? yahooSrc?.header_strip?.beta_126d,
     base.beta
   );
   const livePe = parseNum(
-    finnhubSrc?.header_strip?.forward_pe ?? yahooSrc?.header_strip?.forward_pe,
+    massiveSrc?.header_strip?.forward_pe ?? yahooSrc?.header_strip?.forward_pe,
     base.pe
   );
 
-  // Prefer SEC EDGAR 12-Quarter Walk for all historical financial and earnings series
-  const rawSec12q: any[] = Array.isArray(secSrc?.historical_12q) && secSrc.historical_12q.length > 0
-    ? secSrc.historical_12q
-    : [
+  // Primary financial series: Massive REST v1 Income Statements (#3 at /sources-test) with automatic SEC EDGAR XBRL fallback
+  const rawSec12q: any[] =
+    Array.isArray(massiveSrc?.historical_12q) && massiveSrc.historical_12q.length > 0
+      ? massiveSrc.historical_12q
+      : Array.isArray(secSrc?.historical_12q) && secSrc.historical_12q.length > 0
+      ? secSrc.historical_12q
+      : [
         { period: "Q4 '23", fiscal_label: "2023-Q4", period_end: "2023-12-31", form: "10-K", revenue_m: 302.6, rev_yoy_pct: -58.2, gaap_gross_margin_pct: 48.5, gaap_net_income_m: 20.9, operating_cash_flow_m: 35.5, free_cash_flow_m: 15.4, cash_and_equivalents_m: 1690.0, total_debt_m: 1315.0, net_cash_m: 375.0, ebit_interest_coverage: 4.1, roic_pct: 14.2 },
         { period: "Q1 '24", fiscal_label: "2024-Q1", period_end: "2024-03-31", form: "10-Q", revenue_m: 263.3, rev_yoy_pct: -63.7, gaap_gross_margin_pct: 43.9, gaap_net_income_m: -16.1, operating_cash_flow_m: 49.2, free_cash_flow_m: 41.8, cash_and_equivalents_m: 1630.0, total_debt_m: 1316.0, net_cash_m: 314.0, ebit_interest_coverage: 1.8, roic_pct: 8.4 },
         { period: "Q2 '24", fiscal_label: "2024-Q2", period_end: "2024-06-30", form: "10-Q", revenue_m: 303.5, rev_yoy_pct: -57.3, gaap_gross_margin_pct: 45.2, gaap_net_income_m: 10.8, operating_cash_flow_m: 127.0, free_cash_flow_m: 117.0, cash_and_equivalents_m: 1650.0, total_debt_m: 1318.0, net_cash_m: 332.0, ebit_interest_coverage: 3.9, roic_pct: 11.6 },
@@ -228,8 +231,8 @@ function buildSynthesizedAnalysisPayload(tickerRaw: string, sourcesTestJson?: an
   const putWall = Number((livePrice * 0.9).toFixed(2));
   const callWall = Number((livePrice * 1.12).toFixed(2));
 
-  const peers = (finnhubSrc?.peer_valuations && finnhubSrc.peer_valuations.length > 0)
-    ? finnhubSrc.peer_valuations
+  const peers = (massiveSrc?.peer_valuations && massiveSrc.peer_valuations.length > 0)
+    ? massiveSrc.peer_valuations
     : [
         { ticker, name: base.name, market_cap_bn: liveMcapBn, ev_ebitda: base.evEbitda, pe: livePe, fcf_yield: base.fcfYield, net_debt_ebitda: netCashM >= 0 ? -0.45 : 1.2, roe: base.roe, rev_growth_yoy_pct: revYoY, gross_margin_pct: qCurr.gross_margin_pct || 47.8, valuation_verdict: "PRIMARY TARGET", is_target: true },
         { ticker: "FSLR", name: "First Solar, Inc.", market_cap_bn: 21.4, ev_ebitda: 11.8, pe: 13.5, fcf_yield: 4.8, net_debt_ebitda: -0.62, roe: 19.4, rev_growth_yoy_pct: 22.1, gross_margin_pct: 43.5, valuation_verdict: "GARP / QUALITY LEADER", is_target: false },
@@ -242,7 +245,8 @@ function buildSynthesizedAnalysisPayload(tickerRaw: string, sourcesTestJson?: an
     ticker,
     cik: CIK_LOOKUP[ticker] || "0001463101",
     entity_name: base.name,
-    source_financials: "SEC_EDGAR_XBRL_10Q_10K",
+    source_financials: "MASSIVE_V1_INCOME_STATEMENTS_WITH_SEC_EDGAR_FALLBACK",
+    data_scope: "https://api.massive.com/stocks/financials/v1/income-statements (revenue, operating_income, cost_of_revenue, diluted_earnings_per_share) with automatic SEC EDGAR XBRL fallback.",
     edgar_status: "LIVE_SEC_EDGAR_OK",
     macro_regime: "REFLATION (Quad 2)",
     beta_126d: liveBeta,
@@ -255,8 +259,8 @@ function buildSynthesizedAnalysisPayload(tickerRaw: string, sourcesTestJson?: an
     cache_metadata: {
       ttl_days: 7,
       cache_hit: true,
-      response_time_ms: secSrc?.latency_ms || 14,
-      badge_label: "SEC EDGAR XBRL Live + 7-Day Cache",
+      response_time_ms: massiveSrc?.latency_ms || secSrc?.latency_ms || 14,
+      badge_label: "Massive v1 Income Statements + SEC EDGAR XBRL Fallback",
     },
     financial_walk_12q: walkDesc,
     historical_12q: normalized12q,
@@ -879,7 +883,7 @@ export default function SingleStockAnalysisPage() {
                 2. 12-Quarter Forensic Financial Walk & Solvency Visualizer
               </h2>
               <p className="text-xs font-mono text-slate-400">
-                Verified Audited Form 10-Q & 10-K XBRL Data • SEC CIK: {data?.cik ?? "N/A"}
+                Data Scope: https://api.massive.com/stocks/financials/v1/income-statements (revenue, operating_income, cost_of_revenue, diluted_earnings_per_share) with automatic SEC EDGAR XBRL fallback • SEC CIK: {data?.cik ?? "N/A"}
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">

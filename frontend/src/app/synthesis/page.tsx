@@ -137,6 +137,7 @@ export default function FrameworkSynthesisPage() {
       dispute:
         "Prometheus isolates persistent sticky services inflation (3.4% YoY) as a threat to aggressive Fed rate cuts, while 3Fourteen highlights that goods disinflation and shelter rent decay curve will compress headline CPI.",
       unifiedResolution:
+        synthesisData?.live_resolution_rules?.inflation_barbell_resolution ||
         "Unified Engine Resolution: Capital flow barbell. Allocate to assets that profit from stubborn services pricing power (Hedgeye Pod 1/2 secular compounders with >15% FCF margins like NVDA and VST) paired with hard commodities ($GLD, $CPER) that absorb persistent monetary debasement.",
       status: "RESOLVED & SYSTEMATIZED",
       statusColor: "text-emerald-400 bg-emerald-950/60 border-emerald-800",

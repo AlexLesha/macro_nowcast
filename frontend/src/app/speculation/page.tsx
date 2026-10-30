@@ -195,8 +195,8 @@ export default function SpeculationMatrixPage() {
           ...row,
           order: row.order || base?.order || "1st Order",
           stock: row.stock || base?.stock || row.ticker,
-          theme: base?.theme || "AI Datacenter Expansion",
-          asymmetry: base?.asymmetry || "3.5 : 1",
+          theme: row.theme || base?.theme || "AI Datacenter Expansion",
+          asymmetry: row.asymmetry || base?.asymmetry || "3.5 : 1",
           reasons: row.reason || base?.reasons,
         };
       })

@@ -962,7 +962,7 @@ export default function StockXRayPage() {
               2. 12-Quarter Forensic Financial Walk & Solvency Visualizer
             </h2>
             <p className="text-xs font-mono text-slate-400">
-              Verified Audited Form 10-Q & 10-K XBRL Data • SEC CIK: {data?.cik ?? "N/A"}
+              Data Scope: https://api.massive.com/stocks/financials/v1/income-statements (revenue, operating_income, cost_of_revenue, diluted_earnings_per_share) with automatic SEC EDGAR XBRL fallback • SEC CIK: {data?.cik ?? "N/A"}
             </p>
           </div>
           <span className="text-[11px] font-mono px-2 py-0.5 rounded border border-emerald-500/40 text-emerald-400 bg-emerald-950/30">

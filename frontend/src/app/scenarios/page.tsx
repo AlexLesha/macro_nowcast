@@ -216,13 +216,18 @@ export default function ScenariosPlaybookPage() {
           ...base,
           ...row,
           quarter: row.quarter || base.quarter,
-          headline: base.headline,
-          baseProb: base.baseProb,
-          altProb: base.altProb,
-          baseScenario: {
-            ...base.baseScenario,
-            title: row.scenario_name || base.baseScenario.title,
-          },
+          headline: row.headline || base.headline,
+          baseProb: row.baseProb || base.baseProb,
+          altProb: row.altProb || base.altProb,
+          baseScenario: row.baseScenario
+            ? { ...base.baseScenario, ...row.baseScenario }
+            : {
+                ...base.baseScenario,
+                title: row.scenario_name || base.baseScenario.title,
+              },
+          altScenario: row.altScenario
+            ? { ...base.altScenario, ...row.altScenario }
+            : base.altScenario,
         };
       })
     : defaultQuarters;

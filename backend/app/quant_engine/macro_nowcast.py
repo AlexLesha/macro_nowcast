@@ -57,18 +57,29 @@ def compute_growth_nowcast(
     elif isinstance(df_macro, dict):
         series_map = {k.upper(): float(v) for k, v in df_macro.items() if v is not None}
 
-    # Baseline RoC estimates if series not yet loaded into DB
-    pce_roc = series_map.get("PCEC96", 2.65)
-    income_roc = series_map.get("W875RX1", series_map.get("CES2023610001", 2.10))
+    def _live_fred_yoy(series_id: str, periods_per_year: int = 12, default_val: float = 2.0) -> float:
+        if series_id in series_map:
+            return series_map[series_id]
+        s = fetch_fred_series_live(series_id, limit=periods_per_year + 4)
+        if len(s) >= periods_per_year + 1:
+            curr_v = float(s.iloc[-1])
+            prev_v = float(s.iloc[-(periods_per_year + 1)])
+            if abs(prev_v) > 1e-6:
+                return round(((curr_v / prev_v) - 1.0) * 100.0, 2)
+        return default_val
+
+    # Live FRED RoC calculations when not pre-populated in DB
+    pce_roc = _live_fred_yoy("PCEC96", 12, 2.65)
+    income_roc = _live_fred_yoy("W875RX1", 12, 2.10)
     # Inverted Initial Claims RoC: claims falling is positive growth momentum
-    claims_raw_roc = series_map.get("ICSA", -4.2)
-    inv_claims_roc = -1.0 * claims_raw_roc
+    claims_raw_roc = _live_fred_yoy("ICSA", 52, -4.2)
+    inv_claims_roc = round(-1.0 * claims_raw_roc, 2)
     # Industrial Production + Equipment Capex
-    ip_roc = series_map.get("INDPRO", series_map.get("Y033RC1Q027SBEA", 1.45))
+    ip_roc = _live_fred_yoy("INDPRO", 12, 1.45)
     # Housing Payrolls + Permits
-    housing_payroll_roc = series_map.get("CES2023610001", 1.80)
-    permits_roc = series_map.get("UNDCONTSA", 0.95)
-    housing_composite_roc = 0.6 * housing_payroll_roc + 0.4 * permits_roc
+    housing_payroll_roc = _live_fred_yoy("CES2023610001", 12, 1.80)
+    permits_roc = _live_fred_yoy("UNDCONTSA", 12, 0.95)
+    housing_composite_roc = round(0.6 * housing_payroll_roc + 0.4 * permits_roc, 2)
 
     # Prometheus Weighted Composite Signal
     w_pce = 0.30
@@ -92,16 +103,25 @@ def compute_growth_nowcast(
     real_gdp_nowcast = max(-4.0, min(7.5, real_gdp_nowcast))
 
     # Nominal GDP Nowcast: Real GDP + GDP Price Index deflator (~2.4%)
-    gdp_deflator_proxy = series_map.get("CPIAUCSL", 2.6) * 0.85
+    cpi_yoy_live = _live_fred_yoy("CPIAUCSL", 12, 2.6)
+    gdp_deflator_proxy = cpi_yoy_live * 0.85
     nominal_gdp_nowcast = round(real_gdp_nowcast + gdp_deflator_proxy, 2)
 
     # ----------------------------------------------------
     # Kalecki-Levy Household Profit Impulse
     # ----------------------------------------------------
     # Tracks whether household savings rate is contracting while real income outpaces PCE outlays
-    savings_rate = series_map.get("PSAVERT", 4.4)
-    # Savings rate delta (MoM/YoY change)
-    savings_rate_delta = series_map.get("PSAVERT_MOM", -0.3)
+    if "PSAVERT" in series_map:
+        savings_rate = series_map["PSAVERT"]
+        savings_rate_delta = series_map.get("PSAVERT_MOM", -0.3)
+    else:
+        psav_s = fetch_fred_series_live("PSAVERT", limit=6)
+        if len(psav_s) >= 2:
+            savings_rate = round(float(psav_s.iloc[-1]), 2)
+            savings_rate_delta = round(float(psav_s.iloc[-1]) - float(psav_s.iloc[-2]), 2)
+        else:
+            savings_rate = 4.4
+            savings_rate_delta = -0.3
     income_outlay_spread = income_roc - pce_roc
 
     # Impulse formula: positive when savings drawdown supports consumption and income spreads widen
@@ -121,12 +141,15 @@ def compute_growth_nowcast(
     # ----------------------------------------------------
     # Flags if Residential Construction Payrolls (CES2023610001) draws down > 5% from cycle peak
     if not history_ces:
-        # Default cycle peak and current level from recent BLS data
+        ces_s = fetch_fred_series_live("CES2023610001", limit=36)
+        if not ces_s.empty:
+            history_ces = [float(x) for x in ces_s.dropna().tolist()]
+    if not history_ces:
         peak_level = 948.5
         current_level = series_map.get("CES2023610001_VAL", 941.2)
     else:
-        peak_level = max(history_ces)
-        current_level = history_ces[-1]
+        peak_level = round(float(max(history_ces)), 1)
+        current_level = round(float(history_ces[-1]), 1)
 
     drawdown_pct = round(((current_level - peak_level) / peak_level) * 100.0, 2)
     housing_alert_active = drawdown_pct <= -5.0
@@ -215,13 +238,27 @@ def compute_inflation_nowcast(
     elif isinstance(df_macro, dict):
         series_map = {k.upper(): float(v) for k, v in df_macro.items() if v is not None}
 
+    def _live_inf_yoy(series_id: str, periods_per_year: int = 12, is_already_rate: bool = False, default_val: float = 3.0) -> float:
+        if series_id in series_map:
+            return series_map[series_id]
+        s = fetch_fred_series_live(series_id, limit=periods_per_year + 4)
+        if not s.empty:
+            if is_already_rate:
+                return round(float(s.iloc[-1]), 2)
+            if len(s) >= periods_per_year + 1:
+                curr_v = float(s.iloc[-1])
+                prev_v = float(s.iloc[-(periods_per_year + 1)])
+                if abs(prev_v) > 1e-6:
+                    return round(((curr_v / prev_v) - 1.0) * 100.0, 2)
+        return default_val
+
     # Vector 1: Energy & Fuel (Oil YoY RoC & Prompt Momentum)
-    oil_roc = series_map.get("DCOILBRENTEU", 3.8)
+    oil_roc = _live_inf_yoy("DCOILBRENTEU", 252, False, 3.8)
     # Energy is ~7.5% weight in CPI basket; 10% oil move produces ~0.35% headline pass-through
     energy_contribution = round(oil_roc * 0.038, 2)
 
     # Vector 2: Shelter & Housing Rent (Lagged official shelter with market decay)
-    shelter_cpi_roc = series_map.get("CUSR0000SAH1", 4.90)
+    shelter_cpi_roc = _live_inf_yoy("CUSR0000SAH1", 12, False, 4.90)
     # Market rents (Zillow/CoreLogic) lead shelter CPI by 9-12 months
     # Decay factor models the transmission delay
     shelter_decay_rate = -0.15 # monthly deceleration rate
@@ -230,8 +267,8 @@ def compute_inflation_nowcast(
     shelter_contribution = round(projected_shelter_roc * 0.36, 2)
 
     # Vector 3: Atlanta Fed Wage Growth / Sticky Labor Services
-    sticky_cpi_roc = series_map.get("CORESTICKM159SFRBATL", 3.45)
-    wage_growth_roc = series_map.get("CES2023610001", 3.90)
+    sticky_cpi_roc = _live_inf_yoy("CORESTICKM159SFRBATL", 12, True, 3.45)
+    wage_growth_roc = _live_inf_yoy("CES0500000003", 12, False, 3.90)
     supercore_labor_pressure = round(0.5 * sticky_cpi_roc + 0.5 * wage_growth_roc, 2)
     # Non-shelter core services weight ~ 35% in CPI
     wage_contribution = round(supercore_labor_pressure * 0.35, 2)
@@ -432,24 +469,60 @@ def compute_quads_and_base_effects(
     
     Locks current 3-month momentum onto known 12-month historical base effects.
     """
-    # 1. Parse growth & inflation momentum
-    if isinstance(growth_series, (pd.Series, list)):
+    # 1. Compute 15 Global Country ETFs Quad Matrix first so US live RoC impulses are available
+    country_matrix = []
+    us_live_dg: Optional[float] = None
+    us_live_di: Optional[float] = None
+    try:
+        live_countries = compute_live_15_country_quads()
+        for item in live_countries:
+            dg_val = round(item["g_roc_bps"] / 100.0, 2)
+            di_val = round(item["i_roc_bps"] / 100.0, 2)
+            if item["ticker"] == "SPY":
+                us_live_dg = dg_val
+                us_live_di = di_val
+            country_matrix.append({
+                "ticker": item["ticker"],
+                "country": item["country"],
+                "quad": item["active_quad"],
+                "modifier": "STANDARD",
+                "growth_roc": dg_val,
+                "inflation_roc": di_val,
+                "g_yoy_pct": item["g_yoy_pct"],
+                "i_yoy_pct": item["i_yoy_pct"],
+                "ret_3m_pct": item.get("ret_3m_pct", 0.0),
+            })
+    except Exception as e:
+        logger.warning(f"Error computing live 15 country quads: {e}")
+        for item in GLOBAL_15_COUNTRY_ETFS:
+            q_label, q_mod, _ = classify_quad(item["growth_roc"] - 3.0, item["inflation_roc"] - 2.5)
+            country_matrix.append({
+                "ticker": item["ticker"],
+                "country": item["country"],
+                "quad": q_label,
+                "modifier": q_mod,
+                "growth_roc": item["growth_roc"],
+                "inflation_roc": item["inflation_roc"],
+            })
+
+    # 2. Parse growth & inflation momentum (use live US RoC when a scalar level is passed)
+    if isinstance(growth_series, (pd.Series, list)) and len(growth_series) >= 2:
         g_vals = list(growth_series)
-        current_g = float(g_vals[-1]) if g_vals else 2.3
-        prev_g = float(g_vals[-2]) if len(g_vals) >= 2 else current_g - 0.2
+        current_g = float(g_vals[-1])
+        prev_g = float(g_vals[-2])
         delta_g = current_g - prev_g
     else:
-        current_g = float(growth_series)
-        delta_g = 0.25 # Acceleration default
+        current_g = float(growth_series.iloc[-1]) if isinstance(growth_series, pd.Series) and len(growth_series) > 0 else (float(growth_series[-1]) if isinstance(growth_series, list) and growth_series else float(growth_series))
+        delta_g = us_live_dg if us_live_dg is not None else -0.54
 
-    if isinstance(inflation_series, (pd.Series, list)):
+    if isinstance(inflation_series, (pd.Series, list)) and len(inflation_series) >= 2:
         i_vals = list(inflation_series)
-        current_i = float(i_vals[-1]) if i_vals else 2.7
-        prev_i = float(i_vals[-2]) if len(i_vals) >= 2 else current_i - 0.1
+        current_i = float(i_vals[-1])
+        prev_i = float(i_vals[-2])
         delta_i = current_i - prev_i
     else:
-        current_i = float(inflation_series)
-        delta_i = 0.15 # Acceleration default
+        current_i = float(inflation_series.iloc[-1]) if isinstance(inflation_series, pd.Series) and len(inflation_series) > 0 else (float(inflation_series[-1]) if isinstance(inflation_series, list) and inflation_series else float(inflation_series))
+        delta_i = us_live_di if us_live_di is not None else 0.74
 
     # Current Monthly Quad
     monthly_quad, monthly_mod, monthly_theme = classify_quad(delta_g, delta_i)
@@ -485,50 +558,18 @@ def compute_quads_and_base_effects(
             "inflation_roc_delta": round(di, 2),
         })
 
-    # Probability distribution across the 4 Quads
-    prob_q2 = 0.55 if monthly_quad == "QUAD_2" else 0.25
-    prob_q1 = 0.25 if monthly_quad == "QUAD_1" else (0.30 if quarters_forward[1]["quad"] == "QUAD_1" else 0.20)
-    prob_q3 = 0.10
-    prob_q4 = 0.10
-    total_p = prob_q1 + prob_q2 + prob_q3 + prob_q4
+    # Dynamic probability distribution across the 4 Quads based on active & next quarter Quads
+    probs_raw = {"QUAD_1": 0.10, "QUAD_2": 0.10, "QUAD_3": 0.10, "QUAD_4": 0.10}
+    probs_raw[monthly_quad] = probs_raw.get(monthly_quad, 0.10) + 0.45
+    next_q_quad = quarters_forward[1]["quad"] if len(quarters_forward) > 1 else monthly_quad
+    probs_raw[next_q_quad] = probs_raw.get(next_q_quad, 0.10) + 0.15
+    total_p = sum(probs_raw.values())
     quad_probs = {
-        "quad_1_prob": round(prob_q1 / total_p, 3),
-        "quad_2_prob": round(prob_q2 / total_p, 3),
-        "quad_3_prob": round(prob_q3 / total_p, 3),
-        "quad_4_prob": round(prob_q4 / total_p, 3),
+        "quad_1_prob": round(probs_raw["QUAD_1"] / total_p, 3),
+        "quad_2_prob": round(probs_raw["QUAD_2"] / total_p, 3),
+        "quad_3_prob": round(probs_raw["QUAD_3"] / total_p, 3),
+        "quad_4_prob": round(probs_raw["QUAD_4"] / total_p, 3),
     }
-
-    # ----------------------------------------------------
-    # 15 Global Country ETFs Quad Matrix (100% Dynamic)
-    # ----------------------------------------------------
-    country_matrix = []
-    try:
-        live_countries = compute_live_15_country_quads()
-        for item in live_countries:
-            country_matrix.append({
-                "ticker": item["ticker"],
-                "country": item["country"],
-                "quad": item["active_quad"],
-                "modifier": "STANDARD",
-                "growth_roc": round(item["g_roc_bps"] / 100.0, 2),
-                "inflation_roc": round(item["i_roc_bps"] / 100.0, 2),
-                "g_yoy_pct": item["g_yoy_pct"],
-                "i_yoy_pct": item["i_yoy_pct"],
-                "ret_3m_pct": item.get("ret_3m_pct", 0.0),
-            })
-    except Exception as e:
-        logger.warning(f"Error computing live 15 country quads: {e}")
-        for item in GLOBAL_15_COUNTRY_ETFS:
-            q_label, q_mod, _ = classify_quad(item["growth_roc"] - 1.8, item["inflation_roc"] - 2.5)
-            country_matrix.append({
-                "ticker": item["ticker"],
-                "country": item["country"],
-                "quad": q_label,
-                "modifier": q_mod,
-                "growth_roc": item["growth_roc"],
-                "inflation_roc": item["inflation_roc"],
-            })
-
 
     return {
         "monthly_quad": {

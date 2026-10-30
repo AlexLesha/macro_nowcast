@@ -124,9 +124,23 @@ class LiquidityEngine:
             for idx, row in df.tail(26).iterrows()
         ]
 
-        # Asset Cross-Market Sensitivity & Gap Analysis (SPY & IBIT)
+        # Asset Cross-Market Sensitivity & Gap Analysis (SPY & IBIT) using live spot prices
         spy_liq_implied = round(520.0 + (curr_nl - 5500.0) * 0.18, 2)
         ibit_liq_implied = round(34.0 + (curr_nl - 5500.0) * 0.025, 2)
+
+        spy_spot = spy_liq_implied
+        ibit_spot = ibit_liq_implied
+        try:
+            spot_df, _ = fetch_ohlcv_Slot_with_failover(["SPY", "IBIT"], period="5d")
+            if "SPY" in spot_df.columns and not spot_df["SPY"].dropna().empty:
+                spy_spot = round(float(spot_df["SPY"].dropna().iloc[-1]), 2)
+            if "IBIT" in spot_df.columns and not spot_df["IBIT"].dropna().empty:
+                ibit_spot = round(float(spot_df["IBIT"].dropna().iloc[-1]), 2)
+        except Exception as e:
+            logger.debug(f"Live SPY/IBIT spot fetch for liquidity gap fallback: {e}")
+
+        spy_gap_pct = round(((spy_spot - spy_liq_implied) / max(1.0, spy_liq_implied)) * 100.0, 2)
+        ibit_gap_pct = round(((ibit_spot - ibit_liq_implied) / max(1.0, ibit_liq_implied)) * 100.0, 2)
 
         res = {
             "net_liquidity_usd_bn": curr_nl,
@@ -152,13 +166,17 @@ class LiquidityEngine:
             "history_26w": history_chart,
             "cross_asset_spreads": {
                 "spy": {
+                    "spot_price": spy_spot,
                     "liquidity_implied_fair_value": spy_liq_implied,
-                    "status": "FAIR",
+                    "valuation_gap_pct": spy_gap_pct,
+                    "status": "EXTENDED_ABOVE_LIQUIDITY" if spy_gap_pct > 5.0 else "DISCOUNT_TO_LIQUIDITY" if spy_gap_pct < -5.0 else "FAIR",
                 },
                 "ibit_bitcoin": {
+                    "spot_price": ibit_spot,
                     "liquidity_implied_fair_value": ibit_liq_implied,
+                    "valuation_gap_pct": ibit_gap_pct,
                     "liquidity_beta": 3.85,
-                    "status": "FAIR",
+                    "status": "EXTENDED_ABOVE_LIQUIDITY" if ibit_gap_pct > 10.0 else "DISCOUNT_TO_LIQUIDITY" if ibit_gap_pct < -10.0 else "FAIR",
                 },
             },
         }
@@ -188,9 +206,14 @@ class LiquidityEngine:
         ecb_usd_tn = round((float(ecb_s.iloc[-1]) / 1e6) * eur_usd, 2) if not ecb_s.empty else 6.95
         boj_usd_tn = round((float(boj_s.iloc[-1]) * 1e8 / max(1.0, jpy_usd)) / 1e12, 2) if not boj_s.empty else 5.05
         fed_usd_tn = round(us_net_liq.get("fed_assets_walcl_bn", 6810.0) / 1000.0, 2)
+        pboc_usd_tn = 6.45
 
-        cb_total_tn = round(fed_usd_tn + ecb_usd_tn + boj_usd_tn + 6.45, 2)  # + PBoC/BoE
-        broad_m2_tn = round((us_m2_bn / 1000.0) + 16.8 + 8.4 + 42.5 + 3.9, 2)
+        cb_total_tn = round(fed_usd_tn + ecb_usd_tn + boj_usd_tn + pboc_usd_tn, 2)
+        us_m2_tn = round(us_m2_bn / 1000.0, 2)
+        euro_m2_tn = round(15.6 * eur_usd, 2)
+        japan_m2_tn = round(1250.0 / max(1.0, jpy_usd), 2)
+        china_m2_tn = 42.5
+        broad_m2_tn = round(us_m2_tn + euro_m2_tn + japan_m2_tn + china_m2_tn + 3.9, 2)
         fx_res_tn = 12.35
         global_liq_tn = round(cb_total_tn + broad_m2_tn + fx_res_tn, 2)
 
@@ -200,7 +223,20 @@ class LiquidityEngine:
         res = {
             "global_liquidity_usd_tn": global_liq_tn,
             "central_bank_assets_tn": cb_total_tn,
+            "central_bank_breakdown_tn": {
+                "fed_united_states": fed_usd_tn,
+                "ecb_eurozone": ecb_usd_tn,
+                "boj_japan": boj_usd_tn,
+                "pboc_china": pboc_usd_tn,
+            },
             "global_broad_m2_tn": broad_m2_tn,
+            "global_m2_usd_tn": broad_m2_tn,
+            "m2_breakdown_tn": {
+                "united_states": us_m2_tn,
+                "china": china_m2_tn,
+                "eurozone": euro_m2_tn,
+                "japan": japan_m2_tn,
+            },
             "global_fx_reserves_ex_gold_tn": fx_res_tn,
             "us_public_debt_bn": round(us_debt_bn, 1),
             "us_m2_bn": round(us_m2_bn, 1),
@@ -216,17 +252,44 @@ class LiquidityEngine:
                 "eurozone_pct": 61.4,
                 "japan_pct": 61.2,
                 "china_pct": 31.5,
-                "benchmark_interpretation": "42 Macro Benchmark: US ~114% is structurally fragile compared to Eurozone (61%), Japan (61%), and China (31%).",
+                "benchmark_interpretation": f"42 Macro Benchmark: US {us_debt_to_liq_pct}% is structurally fragile compared to Eurozone (61.4%), Japan (61.2%), and China (31.5%).",
             },
             "us_niip_deficit_usd_tn": us_niip_tn,
             "us_net_international_investment_position": {
                 "net_iip_usd_tn": us_niip_tn,
                 "series_id": "IIPUSNETIQ",
                 "stress_state": "CRITICAL_EXTERNAL_DEFICIT" if us_niip_tn < -20.0 else "BALANCED",
-                "macro_implication": "US Net International Investment Position deficit exceeds -$24T. Heavy reliance on foreign capital absorption.",
+                "macro_implication": f"US Net International Investment Position deficit sits at ${us_niip_tn}T. Heavy reliance on foreign capital absorption.",
             },
         }
         return _sanitize_floats(res)
+
+    @classmethod
+    def _fetch_live_tbill_share_pct(cls) -> float:
+        """Queries live US Treasury FiscalData API (MSPD Table 1) for T-Bill share of Total Marketable Debt."""
+        try:
+            url = "https://api.fiscaldata.treasury.gov/services/api/fiscal_service/v1/debt/mspd/mspd_table_1?sort=-record_date&page[size]=12"
+            with httpx.Client(timeout=6.0) as client:
+                r = client.get(url)
+                if r.status_code == 200:
+                    rows = r.json().get("data", [])
+                    bills_amt = None
+                    mkt_amt = None
+                    for row in rows:
+                        sec_class = str(row.get("security_class_desc", "")).strip().lower()
+                        amt_raw = row.get("total_mil_amt") or row.get("debt_held_public_mil_amt")
+                        if not amt_raw:
+                            continue
+                        val = float(amt_raw)
+                        if "bills" in sec_class and bills_amt is None:
+                            bills_amt = val
+                        elif "total marketable" in sec_class and mkt_amt is None:
+                            mkt_amt = val
+                    if bills_amt and mkt_amt and mkt_amt > 0:
+                        return round((bills_amt / mkt_amt) * 100.0, 1)
+        except Exception as e:
+            logger.debug(f"FiscalData T-Bill share fallback: {e}")
+        return 22.4
 
     @classmethod
     def compute_bond_stress_and_accord_trigger_live(cls) -> Dict[str, Any]:
@@ -241,6 +304,7 @@ class LiquidityEngine:
         effr = fetch_fred_series_live("EFFR", limit=30)
         dgs2 = fetch_fred_series_live("DGS2", limit=30)
         hy_oas = fetch_fred_series_live("BAMLH0A0HYM2", limit=90)
+        cpi_s = fetch_fred_series_live("CPIAUCSL", limit=15)
 
         curr_10y = float(dgs10.iloc[-1]) if not dgs10.empty else 4.42
         prior_10y = float(dgs10.iloc[-60]) if len(dgs10) >= 60 else (float(dgs10.iloc[0]) if not dgs10.empty else 4.05)
@@ -264,23 +328,39 @@ class LiquidityEngine:
         hy_curr = float(hy_oas.iloc[-1]) if not hy_oas.empty else 3.15
         hy_60d_change_bps = round((hy_curr - float(hy_oas.iloc[-60])) * 100.0, 1) if len(hy_oas) >= 60 else 0.0
 
+        cpi_yoy = round(((float(cpi_s.iloc[-1]) / float(cpi_s.iloc[-13])) - 1.0) * 100.0, 2) if len(cpi_s) >= 13 else 2.93
+        fv_model = compute_3fourteen_fair_value_model(
+            nominal_10y_yield=round(curr_10y, 2),
+            two_year_yield=round(dgs2_val, 2),
+            core_pce_yoy=round(cpi_yoy * 0.88, 2),
+            real_gdp_yoy=2.40,
+            fed_funds_rate=round(effr_val, 2),
+        )
+
         # Live MOVE & VIX
         close_v, _ = fetch_ohlcv_Slot_with_failover(["^MOVE", "^VIX"], period="1y")
         move_val = round(float(close_v["^MOVE"].dropna().iloc[-1]), 1) if "^MOVE" in close_v.columns and not close_v["^MOVE"].dropna().empty else 73.2
         vix_val = round(float(close_v["^VIX"].dropna().iloc[-1]), 1) if "^VIX" in close_v.columns and not close_v["^VIX"].dropna().empty else 16.5
+        move_vix_ratio = round(move_val / max(1.0, vix_val), 2)
 
-        accord_prob = round(
-            min(
-                95.0,
-                max(
-                    15.0,
-                    (35.0 if curr_10y >= 4.35 else 15.0)
-                    + (25.0 if real_rate_share_pct >= 75.0 else 10.0)
-                    + (20.0 if move_val >= 95.0 else 5.0)
-                    + (15.0 if hy_60d_change_bps >= 25.0 else 5.0),
-                ),
-            ),
-            1,
+        tbill_share = cls._fetch_live_tbill_share_pct()
+
+        real_rate_score = round(min(35.0, max(5.0, (real_rate_share_pct / 100.0) * 35.0)), 1)
+        credit_stress_score = round(min(35.0, max(5.0, 10.0 + (hy_60d_change_bps / 50.0) * 25.0)), 1)
+        tbill_score = round(min(30.0, max(5.0, ((tbill_share - 15.0) / 10.0) * 25.0)), 1)
+        accord_prob = round(min(95.0, max(15.0, real_rate_score + credit_stress_score + tbill_score)), 1)
+
+        accord_status_str = (
+            "ELEVATED ACCORD 2.0 PRESSURE (Real Rates Driving Yields)"
+            if accord_prob >= 55.0
+            else "CONTAINED (Yields Below Acute Intervention Threshold)"
+        )
+
+        co_signer_sig = "BULLISH_EQUITY_CO_SIGN" if move_val < 95.0 else "BOND_VOL_WARNING"
+        co_signer_desc = (
+            f"Bond volatility (^MOVE {move_val}) is contained relative to ^VIX ({vix_val}), supporting risk-asset dips."
+            if move_val < 95.0
+            else f"Elevated Treasury volatility (^MOVE {move_val}) warns of rate-driven valuation pressure."
         )
 
         res = {
@@ -295,15 +375,44 @@ class LiquidityEngine:
             "market_priced_fed_cuts_bps": priced_cuts_bps,
             "hy_oas_pct": round(hy_curr, 2),
             "hy_oas_60d_change_bps": hy_60d_change_bps,
-            "tbill_issuance_share_pct": 22.4,
+            "tbill_issuance_share_pct": tbill_share,
             "move_index": move_val,
             "vix_index": vix_val,
             "accord_2_0_probability_pct": accord_prob,
-            "accord_status": (
-                "ELEVATED ACCORD 2.0 PRESSURE (Real Rates Driving Yields)"
-                if accord_prob >= 55.0
-                else "CONTAINED (Yields Below Acute Intervention Threshold)"
-            ),
+            "accord_status": accord_status_str,
+            "yield_decomposition": {
+                "nominal_10y_pct": round(curr_10y, 2),
+                "real_tips_10y_pct": round(curr_real, 2),
+                "breakeven_inflation_10y_pct": round(curr_be, 2),
+                "real_rate_share_pct": real_rate_share_pct,
+                "rule_interpretation": (
+                    f"{real_rate_share_pct}% of the 60D 10Y yield move ({delta_10y_bps:+.1f} bps) is driven by real TIPS yields ({delta_real_bps:+.1f} bps)."
+                ),
+            },
+            "fair_value_model": {
+                "actual_2y_pct": round(dgs2_val, 2),
+                "fair_value_2y_pct": fv_model["two_year"]["fair_value_yield_pct"],
+                "actual_10y_pct": round(curr_10y, 2),
+                "fair_value_10y_pct": fv_model["ten_year"]["fair_value_yield_pct"],
+            },
+            "move_vix_co_signer": {
+                "move_index": move_val,
+                "vix_index": vix_val,
+                "move_vix_ratio": move_vix_ratio,
+                "co_signer_signal": co_signer_sig,
+                "co_signer_description": co_signer_desc,
+            },
+            "fed_treasury_accord_gauge": {
+                "probability_pct": accord_prob,
+                "state": accord_status_str,
+                "tbill_issuance_share_pct": tbill_share,
+                "tbac_recommended_limit_pct": 20.0,
+                "sub_scores": {
+                    "real_rate_surge_score": real_rate_score,
+                    "credit_spread_stress_score": credit_stress_score,
+                    "tbill_share_score": tbill_score,
+                },
+            },
         }
         return _sanitize_floats(res)
 

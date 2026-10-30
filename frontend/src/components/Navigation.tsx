@@ -31,7 +31,7 @@ export const Navigation: React.FC = () => {
   const [displayDate, setDisplayDate] = useState<string>("");
   const [isRefreshModalOpen, setIsRefreshModalOpen] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
-  const [liveHeaderBadge, setLiveHeaderBadge] = useState<string>("GRID: REFLATION • US QUAD: Q2");
+  const [liveHeaderBadge, setLiveHeaderBadge] = useState<string>("GRID: DEFLATION • US QUAD: Q3");
   const [fontScale, setFontScale] = useState<number>(100);
 
   useEffect(() => {

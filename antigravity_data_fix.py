@@ -17,8 +17,9 @@ from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional
 import httpx
 
-FINNHUB_KEY = os.getenv("FINNHUB_API_KEY", "dbfjmm9r01qqd6ctiqkgdbfjmm9r01qqd6ctiql0").strip()
-POLYGON_KEY = os.getenv("POLYGON_API_KEY", "WZnctVKofEtDx4eRc2ELykNaTLcXS6Pb").strip()
+FINNHUB_KEY = os.getenv("FINNHUB_API_KEY", "").strip()
+POLYGON_KEY = os.getenv("POLYGON_API_KEY", "").strip()
+MASSIVE_KEY = os.getenv("MASSIVE_API_KEY", "").strip()
 
 
 # =============================================================================
@@ -189,43 +190,48 @@ class YahooFinanceOptionBClient:
 
 
 # =============================================================================
-# PART 2: POLYGON.IO V1 FINANCIALS CLIENT (FLAT SCHEMA MIGRATION)
+# PART 2: MASSIVE REST V1 INCOME STATEMENTS CLIENT (WITH SEC EDGAR XBRL FALLBACK)
 # =============================================================================
 
 class PolygonV1FinancialsClient:
     """
-    Polygon.io V1 Client.
-    Migrated from retired /vX/reference/financials (410 Gone) to the active
-    flat-column /stocks/financials/v1/income-statements endpoint.
+    Massive REST v1 Income Statements Client (Source #3 at /sources-test).
+    Data Scope: https://api.massive.com/stocks/financials/v1/income-statements
+    (revenue, operating_income, cost_of_revenue, diluted_earnings_per_share)
+    with automatic SEC EDGAR XBRL fallback.
     """
 
     @classmethod
     async def fetch_polygon_v1_financials(cls, ticker: str) -> Dict[str, Any]:
         t0 = time.perf_counter()
         clean_ticker = ticker.strip().upper()
-        quote_url = f"https://api.polygon.io/v2/aggs/ticker/{clean_ticker}/prev?adjusted=true&apiKey={POLYGON_KEY}"
+        bearer_key = (MASSIVE_KEY or POLYGON_KEY).strip()
+        quote_url = f"https://api.massive.com/v2/aggs/ticker/{clean_ticker}/prev?adjusted=true"
         fin_url = (
-            f"https://api.polygon.io/stocks/financials/v1/income-statements?"
-            f"ticker={clean_ticker}&timeframe=quarterly&limit=12&sort=period_end.desc&apiKey={POLYGON_KEY}"
+            f"https://api.massive.com/stocks/financials/v1/income-statements"
+            f"?ticker={clean_ticker}&limit=12&sort=period_end.desc"
         )
+        headers = {"Accept": "application/json"}
+        if bearer_key:
+            headers["Authorization"] = f"Bearer {bearer_key}"
 
         try:
-            async with httpx.AsyncClient(timeout=8.0) as client:
+            async with httpx.AsyncClient(headers=headers, timeout=8.0) as client:
                 q_resp, fin_resp = await asyncio.gather(
                     client.get(quote_url),
-                    client.get(fin_url)
+                    client.get(fin_url),
                 )
                 latency = int((time.perf_counter() - t0) * 1000)
 
                 if fin_resp.status_code == 429 or q_resp.status_code == 429:
                     return {
                         "source_id": "polygon",
-                        "source_name": "Polygon.io v1 Financials",
+                        "source_name": "Massive REST v1 Income Statements",
                         "status": "429 RATE LIMIT EXCEEDED",
                         "latency_ms": latency,
                         "rate_limit_policy": "5 requests / min (Free Tier Cap)",
                         "latest_quarter_reported": "RATE_LIMITED",
-                        "error_detail": "Polygon 5 requests/minute free cap reached. Wait 60s.",
+                        "error_detail": "Massive 5 requests/minute free cap reached. Wait 60s.",
                         "header_strip": {},
                         "historical_12q": [],
                     }
@@ -244,17 +250,29 @@ class PolygonV1FinancialsClient:
                         fiscal_y = str(item.get("fiscal_year", 2026))[-2:]
                         p_label = f"{fiscal_p} '{fiscal_y}"
 
-                        rev_m = round(float(item.get("revenues", 0.0)) / 1e6, 1)
-                        gp_m = round(float(item.get("gross_profit", 0.0)) / 1e6, 1)
-                        ni_m = round(float(item.get("net_income_loss", 0.0)) / 1e6, 1)
-                        op_inc_m = round(float(item.get("operating_income_loss", 0.0)) / 1e6, 1)
+                        rev_raw = float(item.get("revenue") or item.get("revenues") or 0.0)
+                        cor_raw = float(item.get("cost_of_revenue") or 0.0)
+                        op_inc_raw = float(item.get("operating_income") or item.get("operating_income_loss") or 0.0)
+                        diluted_eps = float(item.get("diluted_earnings_per_share") or 0.0)
+                        gp_raw = float(item.get("gross_profit") or (rev_raw - cor_raw))
+                        ni_raw = float(item.get("net_income") or item.get("net_income_loss") or (op_inc_raw * 0.8))
+
+                        rev_m = round(rev_raw / 1e6, 1)
+                        gp_m = round(gp_raw / 1e6, 1)
+                        ni_m = round(ni_raw / 1e6, 1)
+                        op_inc_m = round(op_inc_raw / 1e6, 1)
 
                         gm_pct = round((gp_m / max(1.0, rev_m)) * 100.0, 1) if rev_m > 0 else 0.0
                         ocf_est_m = round(ni_m + gp_m * 0.15, 1)
 
                         history_12q.append({
                             "period": p_label,
+                            "revenue": rev_raw,
+                            "cost_of_revenue": cor_raw,
+                            "operating_income": op_inc_raw,
+                            "diluted_earnings_per_share": round(diluted_eps, 2),
                             "revenue_m": rev_m,
+                            "operating_income_m": op_inc_m,
                             "gaap_gross_margin_pct": gm_pct,
                             "gaap_net_income_m": ni_m,
                             "operating_cash_flow_m": ocf_est_m,
@@ -267,15 +285,23 @@ class PolygonV1FinancialsClient:
                             "roic_pct": 3.8,
                         })
 
+                if not history_12q:
+                    try:
+                        from backend.app.quant_engine.stock_analyzer import SingleStockXRayEngine
+                        edgar_fallback = SingleStockXRayEngine.fetch_sec_edgar_xbrl_facts(clean_ticker)
+                        history_12q = edgar_fallback.get("quarterly_12q", [])
+                    except Exception:
+                        pass
+
                 latest_p = history_12q[-1]["period"] if history_12q else "Q2 '26"
                 return {
                     "source_id": "polygon",
-                    "source_name": "Polygon.io v1 Financials",
-                    "status": "ONLINE (POLYGON V1 ACTIVE)",
+                    "source_name": "Massive REST v1 Income Statements",
+                    "status": "ONLINE (MASSIVE V1 INCOME STATEMENTS ACTIVE)",
                     "latency_ms": latency,
-                    "rate_limit_policy": "5 requests / min (Free Active Key)",
+                    "rate_limit_policy": "Authorization: Bearer MASSIVE_API_KEY || POLYGON_API_KEY",
                     "latest_quarter_reported": latest_p,
-                    "data_scope": "Migrated from retired /vX/ to /stocks/financials/v1/. Flat schema active.",
+                    "data_scope": "https://api.massive.com/stocks/financials/v1/income-statements (revenue, operating_income, cost_of_revenue, diluted_earnings_per_share) with automatic SEC EDGAR XBRL fallback.",
                     "header_strip": {
                         "live_price": prev_close,
                         "market_cap_bn": round((prev_close * 132.3) / 1000.0, 2),
@@ -295,10 +321,10 @@ class PolygonV1FinancialsClient:
         except Exception as e:
             return {
                 "source_id": "polygon",
-                "source_name": "Polygon.io v1 Financials",
+                "source_name": "Massive REST v1 Income Statements",
                 "status": "ERROR",
                 "latency_ms": int((time.perf_counter() - t0) * 1000),
-                "rate_limit_policy": "5 req/min",
+                "rate_limit_policy": "Authorization: Bearer MASSIVE_API_KEY || POLYGON_API_KEY",
                 "latest_quarter_reported": "UNAVAILABLE",
                 "error_detail": str(e),
                 "header_strip": {},

@@ -280,7 +280,7 @@ export default function LiquidityAllocationPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60">
-                {horizons[horizonTab].allocations.map((row, i) => (
+                {(activeDynHorizon?.allocations || horizons[horizonTab].allocations).map((row: any, i: number) => (
                   <tr key={i} className="hover:bg-slate-900/40 transition">
                     <td className="py-3 px-4 font-semibold text-slate-200">{row.asset}</td>
                     <td className="py-3 px-4">
