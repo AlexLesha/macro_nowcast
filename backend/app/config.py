@@ -56,6 +56,11 @@ class Settings:
     FINNHUB_API_KEY: str = (os.getenv("FINNHUB_API_KEY") or "").strip()
     TIINGO_API_KEY: str = (os.getenv("TIINGO_API_KEY") or "").strip()
     POLYGON_API_KEY: str = (os.getenv("POLYGON_API_KEY") or "").strip()
+    MASSIVE_API_KEY: str = (
+        os.getenv("MASSIVE_API_KEY")
+        or os.getenv("POLYGON_API_KEY")
+        or ""
+    ).strip()
     GEMINI_API_KEY: str = (
         os.getenv("GEMINI_API_KEY")
         or os.getenv("OPENAI_OR_GEMINI_API_KEY")

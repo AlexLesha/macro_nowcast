@@ -1358,6 +1358,41 @@ def get_macro_scenarios(db: Session = Depends(get_db)):
 
 
 # ----------------------------------------------------
+# Single-Stock Macro-Fundamental X-Ray & Audited SEC EDGAR 12Q
+# ----------------------------------------------------
+@api_router.get("/v1/stock/xray/{ticker}")
+@api_router.get("/stock/xray/{ticker}")
+def get_single_stock_xray(ticker: str, regime: str = "REFLATION", quad: str = "Quad 2"):
+    try:
+        from backend.app.quant_engine.stock_analyzer import SingleStockXRayEngine
+    except ImportError:
+        from app.quant_engine.stock_analyzer import SingleStockXRayEngine
+    return _sanitize_floats(SingleStockXRayEngine.analyze_ticker(ticker, active_market_regime=regime, active_economic_quad=quad))
+
+
+@api_router.get("/v1/stock/edgar-12q/{ticker}")
+@api_router.get("/stock/edgar-12q/{ticker}")
+def get_stock_edgar_12q(ticker: str):
+    """Direct audited 12-quarter SEC EDGAR XBRL Company Facts + Pod 2 Unit Economics endpoint."""
+    try:
+        from backend.app.quant_engine.stock_analyzer import SingleStockXRayEngine
+    except ImportError:
+        from app.quant_engine.stock_analyzer import SingleStockXRayEngine
+    edgar_12q = SingleStockXRayEngine.fetch_sec_edgar_12q_financials(ticker)
+    quarters = edgar_12q.get("quarters", [])
+    pod2 = SingleStockXRayEngine._compute_pod2_unit_economics_from_12q(quarters)
+    return _sanitize_floats({
+        "ticker": ticker.strip().upper(),
+        "cik": edgar_12q.get("cik"),
+        "entity_name": edgar_12q.get("entity_name"),
+        "source_financials": "SEC_EDGAR_XBRL_10Q_10K",
+        "edgar_status": edgar_12q.get("status"),
+        "financial_walk_12q": quarters,
+        "pod2_unit_economics": pod2,
+    })
+
+
+# ----------------------------------------------------
 # Multi-Source Financial Data Test Bench (/api/v1/stock/sources-test)
 # ----------------------------------------------------
 try:
