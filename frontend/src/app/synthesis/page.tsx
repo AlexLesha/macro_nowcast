@@ -307,10 +307,15 @@ export default function FrameworkSynthesisPage() {
                 </div>
               </div>
 
-              <div className="pt-2 border-t border-slate-800/60">
-                <span className={`text-xs font-mono px-2 py-0.5 rounded border block text-center ${fw.badgeColor || "border-cyan-500/50 text-cyan-400 bg-cyan-950/40"}`}>
+              <div className="pt-2 border-t border-slate-800/60 flex items-center justify-between gap-2">
+                <span className={`text-xs font-mono px-2 py-0.5 rounded border ${fw.badgeColor || "border-cyan-500/50 text-cyan-400 bg-cyan-950/40"}`}>
                   {fw.badgeLabel || "SYNTHESIZED IN ALPHA ENGINE"}
                 </span>
+                {fw.lastScraped && (
+                  <span className="text-xs font-mono text-slate-500">
+                    {fw.lastScraped}
+                  </span>
+                )}
               </div>
             </div>
           );

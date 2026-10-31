@@ -59,12 +59,12 @@ class ScenarioTrigger(BaseModel):
     expected_market_impact: str = Field(description="Asset direction or rotation that follows")
 
 class UnifiedRefreshBatchOutput(BaseModel):
-    refresh_timestamp_utc: str
-    authors: List[AuthorIntelligence]
-    consolidated_affected_tickers: List[str] = Field(description="Deduplicated master list of all bullish, bearish, and referenced tickers across all authors")
+    refresh_timestamp_utc: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    authors: List[AuthorIntelligence] = Field(default_factory=list)
+    consolidated_affected_tickers: List[str] = Field(default_factory=list, description="Deduplicated master list of all bullish, bearish, and referenced tickers across all authors")
     speculative_stock_ideas: List[SpeculationIdea] = Field(default_factory=list, description="All individual stock ideas mapped into 1st, 2nd, or 3rd order effects")
     forward_scenario_updates: List[ScenarioTrigger] = Field(default_factory=list, description="Forward quarter catalysts or policy signals identified")
-    what_changed_summary_markdown: str = Field(description="3 to 5 crisp bullet points summarizing major author stance shifts since last refresh")
+    what_changed_summary_markdown: str = Field(default="Autonomous refresh synchronized across institutional models.", description="3 to 5 crisp bullet points summarizing major author stance shifts since last refresh")
 
 # =====================================================================
 # SYNTHESIZER RUNNER (CHUNK 6 SPEC)
@@ -103,13 +103,20 @@ Raw Commentary & Ingested Media:
                 health_tracker.record_groq_run(True, tokens_used=self.gateway.last_tokens_used)
 
             if isinstance(parsed_dict, UnifiedRefreshBatchOutput):
-                return parsed_dict
+                batch = parsed_dict
             elif isinstance(parsed_dict, dict):
-                return UnifiedRefreshBatchOutput(**parsed_dict)
+                batch = UnifiedRefreshBatchOutput(**parsed_dict)
             elif isinstance(parsed_dict, str):
-                return UnifiedRefreshBatchOutput(**json.loads(parsed_dict))
+                batch = UnifiedRefreshBatchOutput(**json.loads(parsed_dict))
             else:
                 raise ValueError(f"Unexpected completion data type: {type(parsed_dict)}")
+
+            if not batch.consolidated_affected_tickers:
+                all_tickers = []
+                for a in batch.authors:
+                    all_tickers.extend(a.bullish_tickers + a.bearish_tickers)
+                batch.consolidated_affected_tickers = list(dict.fromkeys(all_tickers))
+            return batch
         except Exception as e:
             health_tracker.record_groq_run(False, error_msg=str(e))
             logger.error(f"Synthesis fallback triggered: {e}")

@@ -799,10 +799,16 @@ except ImportError:
 
 @api_router.post("/v1/refresh/trigger")
 @api_router.post("/refresh/trigger")
-def trigger_refresh_pipeline():
-    """Triggers the autonomous refresh pipeline across media scrapers, quant engines, and LLM synthesis."""
+async def trigger_refresh_pipeline(background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+    """Triggers the full 4-stage pipeline across media scrapers, quant engines, and LLM synthesis in background."""
+    from app.refresh_pipeline.orchestrator import RefreshPipelineOrchestrator
+    background_tasks.add_task(RefreshPipelineOrchestrator.run_full_refresh)
     result = refresh_orchestrator.trigger()
-    return result
+    return {
+        **result,
+        "message": "Full 4-Stage Refresh Pipeline initiated in background.",
+        "timestamp_utc": datetime.now(timezone.utc).isoformat()
+    }
 
 
 @api_router.get("/v1/refresh/stream")
@@ -1254,16 +1260,25 @@ def get_synthesis_dashboard(db: Session = Depends(get_db)):
     from app.models.db_models import MacroSeries
 
     # 1. Macro & Quad Telemetry
+    latest_snapshot = db.query(RegimeSnapshot).order_by(desc(RegimeSnapshot.date)).first()
     growth = get_growth_nowcast(db)
     inflation = get_inflation_nowcast(db)
     quads = compute_quads_and_base_effects(
         growth_series=growth.get("real_gdp_yoy", 2.1),
         inflation_series=inflation.get("headline_cpi_nowcast_yoy", 2.6)
     )
-    current_quad = quads.get("current_quad", "Quad 3")
+    current_quad = (
+        latest_snapshot.us_monthly_quad
+        if (latest_snapshot and latest_snapshot.us_monthly_quad)
+        else quads.get("current_quad", "Quad 3")
+    )
     fwd_list = quads.get("forward_4q_quad_count", [])
     fwd_quad_raw = fwd_list[1].get("quad") if len(fwd_list) > 1 else "QUAD_3"
-    forward_quad = quads.get("forward_1q_quad") or (fwd_quad_raw.replace("QUAD_", "Quad ") if isinstance(fwd_quad_raw, str) else "Quad 3")
+    forward_quad = (
+        latest_snapshot.us_quarterly_quad
+        if (latest_snapshot and latest_snapshot.us_quarterly_quad)
+        else (quads.get("forward_1q_quad") or (fwd_quad_raw.replace("QUAD_", "Quad ") if isinstance(fwd_quad_raw, str) else "Quad 3"))
+    )
 
     # 2. Liquidity & Bond Engine
     us_liq = get_us_net_liquidity(db)
@@ -1280,11 +1295,19 @@ def get_synthesis_dashboard(db: Session = Depends(get_db)):
         matrix_42 = FortyTwoMacroEngine.compute_global_macro_risk_matrix(
             {"GOLDILOCKS": 18, "REFLATION": 30, "INFLATION": 19, "DEFLATION": 2}
         )
-        regime_42 = matrix_42.get("active_regime_label", "REFLATION")
+        regime_42 = (
+            latest_snapshot.grid_regime
+            if (latest_snapshot and latest_snapshot.grid_regime)
+            else matrix_42.get("active_regime_label", "REFLATION")
+        )
         cacri_pct = matrix_42.get("cacri_pct", 30.4)
     except Exception:
         matrix_42 = {}
-        regime_42 = "REFLATION"
+        regime_42 = (
+            latest_snapshot.grid_regime
+            if (latest_snapshot and latest_snapshot.grid_regime)
+            else "REFLATION"
+        )
         cacri_pct = 30.4
 
     # 4. 3Fourteen FCTE Core Holdings
@@ -1299,92 +1322,147 @@ def get_synthesis_dashboard(db: Session = Depends(get_db)):
         top_fcte_tickers = ["NVDA", "VRT", "CEG", "ANET", "TPL"]
 
     # 5. Build Dynamic Framework Cards
-    frameworks = [
+    author_cards_meta = [
         {
             "id": "km",
-            "author": "Keith McCullough",
+            "name": "Keith McCullough",
             "firm": "Hedgeye Risk Management",
             "badgeColor": "border-cyan-500/50 text-cyan-400 bg-cyan-950/40",
             "avatarGradient": "from-cyan-600 to-blue-700",
-            "statedRegime": f"{current_quad} (Forward: {forward_quad})",
-            "growthCall": f"Real GDP tracking {growth.get('real_gdp_nowcast_annualized', 2.1)}% YoY (ΔG {'+' if growth.get('growth_momentum_z', 0) >= 0 else '-'})",
-            "growthDetail": f"Sequential second derivative ({growth.get('growth_momentum_z', 0):+.2f}σ). Base effects project {forward_quad}.",
-            "inflationCall": f"Headline CPI Nowcast: {inflation.get('headline_cpi_nowcast_yoy', 2.78)}%",
-            "inflationDetail": f"Core PCE tracking {inflation.get('core_pce_nowcast_yoy', 2.85)}%. Sticky services momentum persisting.",
-            "liquidityView": f"Fed Net Liquidity at ${us_liq.get('net_liquidity_usd_bn', 6120):,.0f}B",
-            "liquidityDetail": f"TGA at ${us_liq.get('tga_usd_bn', 780):,.0f}B. TBAC debt issuance skew monitoring long-end yield auctions.",
+            "defaultStatedRegime": f"{current_quad} (Forward: {forward_quad})",
+            "defaultGrowthCall": f"Real GDP tracking {growth.get('real_gdp_nowcast_annualized', 2.1)}% YoY (ΔG {'+' if growth.get('growth_momentum_z', 0) >= 0 else '-'})",
+            "defaultGrowthDetail": f"Sequential second derivative ({growth.get('growth_momentum_z', 0):+.2f}σ). Base effects project {forward_quad}.",
+            "defaultInflationCall": f"Headline CPI Nowcast: {inflation.get('headline_cpi_nowcast_yoy', 2.78)}%",
+            "defaultInflationDetail": f"Core PCE tracking {inflation.get('core_pce_nowcast_yoy', 2.85)}%. Sticky services momentum persisting.",
+            "defaultLiquidityView": f"Fed Net Liquidity at ${us_liq.get('net_liquidity_usd_bn', 6120):,.0f}B",
+            "defaultLiquidityDetail": f"TGA at ${us_liq.get('tga_usd_bn', 780):,.0f}B. TBAC debt issuance skew monitoring long-end yield auctions.",
             "bondStance": "Confirmed Bearish Trend ($TLT)" if rate_10y >= 4.0 else "Neutral Duration Range",
             "bondDetail": f"10Y Treasury yield at {rate_10y}%. Long bond trading below risk range pivot.",
-            "bullishTickers": ["$PDBC", "$GLD", "$XLE", "$SMH", "$USFR"],
-            "bearishTickers": ["$TLT", "$EWG", "$EPOL", "$XLP"],
-            "quote": "Signal to Quad: Respect the machine's 0DTE flows. Long Quad inflation hedges until Trend breaks.",
-            "badgeLabel": "LIVE QUANT TELEMETRY",
-            "url": "https://app.hedgeye.com"
+            "defaultBullish": ["$PDBC", "$GLD", "$XLE", "$SMH", "$USFR"],
+            "defaultBearish": ["$TLT", "$EWG", "$EPOL", "$XLP"],
+            "defaultQuote": "Signal to Quad: Respect the machine's 0DTE flows. Long Quad inflation hedges until Trend breaks.",
+            "defaultUrl": "https://app.hedgeye.com"
         },
         {
             "id": "dd",
-            "author": "Darius Dale",
+            "name": "Darius Dale",
             "firm": "42 Macro",
             "badgeColor": "border-emerald-500/50 text-emerald-400 bg-emerald-950/40",
             "avatarGradient": "from-emerald-600 to-teal-700",
-            "statedRegime": f"{regime_42} (Signal: {matrix_42.get('strength_of_signal_pct', 83)}%)",
-            "growthCall": f"42-Market Grid confirms {regime_42} leadership",
-            "growthDetail": f"CACRI at {cacri_pct}% ({matrix_42.get('cacri_zone', 'NORMAL')}). Risk-On probability at {matrix_42.get('probability_risk_on_pct', 70)}%.",
-            "inflationCall": "Real Yield Dominance (94% Rule)",
-            "inflationDetail": f"Real 10Y TIPS yields ({bond_stress.get('yield_decomposition', {}).get('real_tips_10y_pct', 1.88)}%) driving asset repricing.",
-            "liquidityView": f"US Debt-to-Liquidity at {glob_liq.get('debt_to_liquidity_pct', 114) or 114:.0f}%",
-            "liquidityDetail": f"Fiscal dominance intact. Global M2 tracking ${glob_liq.get('global_liquidity_usd_tn', 106.4) or 106.4:.1f}T.",
+            "defaultStatedRegime": f"{regime_42} (Signal: {matrix_42.get('strength_of_signal_pct', 83)}%)",
+            "defaultGrowthCall": f"42-Market Grid confirms {regime_42} leadership",
+            "defaultGrowthDetail": f"CACRI at {cacri_pct}% ({matrix_42.get('cacri_zone', 'NORMAL')}). Risk-On probability at {matrix_42.get('probability_risk_on_pct', 70)}%.",
+            "defaultInflationCall": "Real Yield Dominance (94% Rule)",
+            "defaultInflationDetail": f"Real 10Y TIPS yields ({bond_stress.get('yield_decomposition', {}).get('real_tips_10y_pct', 1.88)}%) driving asset repricing.",
+            "defaultLiquidityView": f"US Debt-to-Liquidity at {glob_liq.get('debt_to_liquidity_pct', 114) or 114:.0f}%",
+            "defaultLiquidityDetail": f"Fiscal dominance intact. Global M2 tracking ${glob_liq.get('global_liquidity_usd_tn', 106.4) or 106.4:.1f}T.",
             "bondStance": "Underweight Duration / Long USFR Cash",
             "bondDetail": "Accord 2.0 Gauge: " + bond_stress.get("fed_treasury_accord_gauge", {}).get("severity", "ELEVATED"),
-            "bullishTickers": ["$VT", "$GLDM", "$USFR", "$SPY"],
-            "bearishTickers": ["$TLT", "$HYG", "$FBTC" if current_quad in ("Quad 3", "Quad 4") else "$UUP"],
-            "quote": "Paradigm C means fiscal dominance: US public debt is 114% of domestic liquidity. 0% structural weight in bonds.",
-            "badgeLabel": "LIVE QUANT TELEMETRY",
-            "url": "https://www.42macro.com"
+            "defaultBullish": ["$VT", "$GLDM", "$USFR", "$SPY"],
+            "defaultBearish": ["$TLT", "$HYG", "$FBTC" if current_quad in ("Quad 3", "Quad 4") else "$UUP"],
+            "defaultQuote": "Paradigm C means fiscal dominance: US public debt is 114% of domestic liquidity. 0% structural weight in bonds.",
+            "defaultUrl": "https://www.42macro.com"
         },
         {
             "id": "am",
-            "author": "Aahan Menon",
+            "name": "Aahan Menon",
             "firm": "Prometheus Macro",
             "badgeColor": "border-amber-500/50 text-amber-400 bg-amber-950/40",
             "avatarGradient": "from-amber-600 to-orange-700",
-            "statedRegime": f"Historical Regime Analog (Nowcast: {growth.get('real_gdp_nowcast_annualized', 2.1)}% GDP)",
-            "growthCall": f"Kalecki-Levy Household Impulse: {growth.get('kalecki_levy_household_profit_impulse', {}).get('state', 'EXPANSIONARY')}",
-            "growthDetail": "Household dissaving buffers private consumption and corporate cash generation.",
-            "inflationCall": f"Demand-Driven PCE: {inflation.get('demand_vs_supply_split', {}).get('demand_pct', 72)}%",
-            "inflationDetail": "Core Sticky Services remain sticky above 3.2% while supply shocks are secondary.",
-            "liquidityView": f"Global Central Bank M2 (${glob_liq.get('global_liquidity_usd_tn', 106.4) or 106.4:.1f}T)",
-            "liquidityDetail": "Global central bank balance sheets stabilizing; monetary pressure gauge neutral.",
+            "defaultStatedRegime": f"Historical Regime Analog (Nowcast: {growth.get('real_gdp_nowcast_annualized', 2.1)}% GDP)",
+            "defaultGrowthCall": f"Kalecki-Levy Household Impulse: {growth.get('kalecki_levy_household_profit_impulse', {}).get('state', 'EXPANSIONARY')}",
+            "defaultGrowthDetail": "Household dissaving buffers private consumption and corporate cash generation.",
+            "defaultInflationCall": f"Demand-Driven PCE: {inflation.get('demand_vs_supply_split', {}).get('demand_pct', 72)}%",
+            "defaultInflationDetail": "Core Sticky Services remain sticky above 3.2% while supply shocks are secondary.",
+            "defaultLiquidityView": f"Global Central Bank M2 (${glob_liq.get('global_liquidity_usd_tn', 106.4) or 106.4:.1f}T)",
+            "defaultLiquidityDetail": "Global central bank balance sheets stabilizing; monetary pressure gauge neutral.",
             "bondStance": "Neutral / Selective TIPS ($TIP)",
             "bondDetail": "Mahalanobis distance scoring indicates positive real yield spread favors TIPS over nominal duration.",
-            "bullishTickers": ["$SPY", "$PDBC", "$TIP", "$GLD"],
-            "bearishTickers": ["$IEF", "$TLT"],
-            "quote": "Narrative follows data: Household wealth effect is generating profit flows that offset higher policy rates.",
-            "badgeLabel": "SYNTHESIZED IN ALPHA ENGINE",
-            "url": "https://www.prometheus-macro.com"
+            "defaultBullish": ["$SPY", "$PDBC", "$TIP", "$GLD"],
+            "defaultBearish": ["$IEF", "$TLT"],
+            "defaultQuote": "Narrative follows data: Household wealth effect is generating profit flows that offset higher policy rates.",
+            "defaultUrl": "https://www.prometheus-macro.com"
         },
         {
             "id": "wp",
-            "author": "Warren Pies",
+            "name": "Warren Pies",
             "firm": "3Fourteen Research",
             "badgeColor": "border-indigo-500/50 text-indigo-400 bg-indigo-950/40",
             "avatarGradient": "from-indigo-600 to-purple-700",
-            "statedRegime": "Debasement Mindset + FCTE Quality",
-            "growthCall": f"Housing Alert: {growth.get('housing_recession_alert_3fourteen', {}).get('drawdown_pct', -0.8):+.1f}% from Peak",
-            "growthDetail": "Construction payrolls well above the -5.0% recession alert threshold.",
-            "inflationCall": f"3-Vector Model: {inflation.get('headline_cpi_nowcast_yoy', 2.65)}% CPI",
-            "inflationDetail": "Brent crude steady, shelter rent decay curve active, wage growth stabilizing ~4%.",
-            "liquidityView": f"MOVE Index at {bond_stress.get('move_vix_co_signer', {}).get('move_index', 98):.0f} vs VIX {bond_stress.get('move_vix_co_signer', {}).get('vix_index', 16):.1f}",
-            "liquidityDetail": "Bond volatility must settle before broad small-cap equity breadth accelerates.",
+            "defaultStatedRegime": "Debasement Mindset + FCTE Quality",
+            "defaultGrowthCall": f"Housing Alert: {growth.get('housing_recession_alert_3fourteen', {}).get('drawdown_pct', -0.8):+.1f}% from Peak",
+            "defaultGrowthDetail": "Construction payrolls well above the -5.0% recession alert threshold.",
+            "defaultInflationCall": f"3-Vector Model: {inflation.get('headline_cpi_nowcast_yoy', 2.65)}% CPI",
+            "defaultInflationDetail": "Brent crude steady, shelter rent decay curve active, wage growth stabilizing ~4%.",
+            "defaultLiquidityView": f"MOVE Index at {bond_stress.get('move_vix_co_signer', {}).get('move_index', 98):.0f} vs VIX {bond_stress.get('move_vix_co_signer', {}).get('vix_index', 16):.1f}",
+            "defaultLiquidityDetail": "Bond volatility must settle before broad small-cap equity breadth accelerates.",
             "bondStance": f"10Y Fair Value Model at {bond_stress.get('fair_value_model', {}).get('fair_value_10y_pct', 4.25):.2f}%",
             "bondDetail": f"Actual 10Y ({rate_10y}%) trading near fair value. Favors yield curve steepeners.",
-            "bullishTickers": [f"${t.replace('$', '')}" for t in top_fcte_tickers],
-            "bearishTickers": ["$TLT", "$XLRE"],
-            "quote": "Manage risk with technicals, build conviction with fundamentals. Debasement mindset favors hard assets.",
-            "badgeLabel": "LIVE FCTE TELEMETRY",
-            "url": "https://3fourteensmi.com"
+            "defaultBullish": [f"${t.replace('$', '')}" for t in top_fcte_tickers],
+            "defaultBearish": ["$TLT", "$XLRE"],
+            "defaultQuote": "Manage risk with technicals, build conviction with fundamentals. Debasement mindset favors hard assets.",
+            "defaultUrl": "https://3fourteensmi.com"
         }
     ]
+
+    frameworks = []
+    for cfg in author_cards_meta:
+        recent_delta = (
+            db.query(IntelligenceDelta)
+            .filter(IntelligenceDelta.framework_author.contains(cfg["name"]))
+            .order_by(desc(IntelligenceDelta.timestamp_utc))
+            .first()
+        )
+
+        extracted = {}
+        if recent_delta and recent_delta.extracted_json:
+            try:
+                extracted = json.loads(recent_delta.extracted_json)
+            except Exception:
+                extracted = {}
+
+        stated_regime = extracted.get("stated_quad_or_regime") or cfg["defaultStatedRegime"]
+        growth_call = extracted.get("growth_view") or cfg["defaultGrowthCall"]
+        inflation_call = extracted.get("inflation_view") or cfg["defaultInflationCall"]
+        liquidity_view = extracted.get("policy_liquidity_view") or cfg["defaultLiquidityView"]
+        
+        quote = (
+            extracted.get("key_verbatim_quote")
+            or (recent_delta.summary_markdown if (recent_delta and recent_delta.summary_markdown and not recent_delta.summary_markdown.startswith("###")) else None)
+            or cfg["defaultQuote"]
+        )
+
+        bullish_raw = extracted.get("bullish_tickers") or cfg["defaultBullish"]
+        bearish_raw = extracted.get("bearish_tickers") or cfg["defaultBearish"]
+        bullish = [f"${t.replace('$', '')}" for t in bullish_raw] if bullish_raw else cfg["defaultBullish"]
+        bearish = [f"${t.replace('$', '')}" for t in bearish_raw] if bearish_raw else cfg["defaultBearish"]
+        
+        source_url = extracted.get("source_url") or (recent_delta.source_url if (recent_delta and recent_delta.source_url) else cfg["defaultUrl"])
+        badge_label = "LIVE WEB SCRAPE + LLM" if (recent_delta and recent_delta.source_type in ("LIVE_SCRAPED_SYNTHESIS", "BATCH_SYNTHESIS")) else "DETERMINISTIC QUANT"
+        last_scraped = recent_delta.timestamp_utc.strftime("%b %d, %H:%M UTC") if recent_delta and recent_delta.timestamp_utc else "Live Stream"
+
+        frameworks.append({
+            "id": cfg["id"],
+            "author": cfg["name"],
+            "firm": cfg["firm"],
+            "badgeColor": cfg["badgeColor"],
+            "avatarGradient": cfg["avatarGradient"],
+            "statedRegime": stated_regime,
+            "growthCall": growth_call,
+            "growthDetail": cfg["defaultGrowthDetail"],
+            "inflationCall": inflation_call,
+            "inflationDetail": cfg["defaultInflationDetail"],
+            "liquidityView": liquidity_view,
+            "liquidityDetail": cfg["defaultLiquidityDetail"],
+            "bondStance": cfg["bondStance"],
+            "bondDetail": cfg["bondDetail"],
+            "bullishTickers": bullish,
+            "bearishTickers": bearish,
+            "quote": quote,
+            "badgeLabel": badge_label,
+            "url": source_url,
+            "lastScraped": last_scraped
+        })
 
     # 6. Dynamic Contradiction Cards
     fair_val_10y = bond_stress.get("fair_value_model", {}).get("fair_value_10y_pct", 4.25)

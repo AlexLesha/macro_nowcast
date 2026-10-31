@@ -8,15 +8,23 @@ import os
 import re
 import json
 import logging
-from typing import Optional, Dict, Any, Union, Type, List
+from pathlib import Path
+from typing import Optional, Dict, Any, Union, Type, List, Set
 from pydantic import BaseModel
+from dotenv import load_dotenv
 import httpx
 
 logger = logging.getLogger("macropulse.llm_gateway")
 
+# Auto-discover and load root or backend .env
+_BASE_DIR = Path(__file__).resolve().parent.parent
+for _env_candidate in [_BASE_DIR / ".env", _BASE_DIR.parent / ".env"]:
+    if _env_candidate.exists():
+        load_dotenv(dotenv_path=_env_candidate)
+
 GROQ_BASE_URL = "https://api.groq.com/openai/v1"
 DEFAULT_GROQ_MODEL = "llama-3.3-70b-versatile"
-FALLBACK_GROQ_MODELS = ["openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3.8-27b"]
+FALLBACK_GROQ_MODELS = ["qwen/qwen3.8-27b", "openai/gpt-oss-120b", "openai/gpt-oss-20b"]
 
 
 def _clean_json_markdown(raw_content: str) -> str:
@@ -40,11 +48,24 @@ class LLMGateway:
                 pass
         self.last_tokens_used: int = 0
         self.last_model_used: str = ""
+        self._unavailable_models: Set[str] = set()
 
     def is_configured(self) -> bool:
         if not self.api_key:
             self.api_key = (os.getenv("GROQ_API_KEY") or "").strip()
+            if not self.api_key:
+                try:
+                    from app.config import settings
+                    self.api_key = (getattr(settings, "GROQ_API_KEY", "") or getattr(settings, "LLM_API_KEY", "")).strip()
+                except Exception:
+                    pass
         return bool(self.api_key)
+
+    def _get_candidate_models(self) -> List[str]:
+        requested_model = os.getenv("GROQ_MODEL", DEFAULT_GROQ_MODEL).strip()
+        ordered = [requested_model] + [m for m in FALLBACK_GROQ_MODELS if m != requested_model]
+        candidates = [m for m in ordered if m not in self._unavailable_models]
+        return candidates or ordered
 
     def _build_payload(
         self,
@@ -112,10 +133,9 @@ class LLMGateway:
             "Content-Type": "application/json",
         }
 
-        requested_model = os.getenv("GROQ_MODEL", DEFAULT_GROQ_MODEL).strip()
-        models_to_try = [requested_model] + [m for m in FALLBACK_GROQ_MODELS if m != requested_model]
+        models_to_try = self._get_candidate_models()
 
-        async with httpx.AsyncClient(timeout=25.0) as client:
+        async with httpx.AsyncClient(timeout=30.0) as client:
             last_error = None
             for model_name in models_to_try:
                 payload = self._build_payload(
@@ -126,23 +146,29 @@ class LLMGateway:
                     if res.status_code == 200:
                         return self._parse_completion_response(res.json(), response_json_schema)
                     elif res.status_code == 429:
-                        logger.error("Groq rate limit hit (HTTP 429).")
-                        raise RuntimeError("GROQ_RATE_LIMIT")
+                        logger.warning(f"Groq rate limit hit (HTTP 429) for '{model_name}'. Trying next fallback model...")
+                        last_error = RuntimeError(f"GROQ_RATE_LIMIT_{model_name}")
+                        continue
                     elif res.status_code in (400, 404):
                         err_text = res.text
-                        if "model_not_found" in err_text or "decommissioned" in err_text or "does not exist" in err_text:
+                        if "model_not_found" in err_text or "decommissioned" in err_text or "does not exist" in err_text or res.status_code == 404:
                             logger.warning(
-                                f"Model '{model_name}' unavailable on Groq ({res.status_code}). Trying fallback model..."
+                                f"Model '{model_name}' unavailable on Groq ({res.status_code}). Trying next fallback model..."
                             )
+                            self._unavailable_models.add(model_name)
                             last_error = RuntimeError(f"GROQ_MODEL_UNAVAILABLE: {model_name}")
                             continue
-                        logger.error(f"Groq API error {res.status_code}: {err_text}")
-                        raise RuntimeError(f"GROQ_ERROR_{res.status_code}")
+                        logger.warning(f"Groq API error {res.status_code} for '{model_name}': {err_text}. Trying next fallback model...")
+                        last_error = RuntimeError(f"GROQ_ERROR_{res.status_code}_{model_name}")
+                        continue
                     else:
-                        logger.error(f"Groq API error {res.status_code}: {res.text}")
-                        raise RuntimeError(f"GROQ_ERROR_{res.status_code}")
-                except (RuntimeError, json.JSONDecodeError):
-                    raise
+                        logger.warning(f"Groq API error {res.status_code} on {model_name}: {res.text}. Trying next fallback model...")
+                        last_error = RuntimeError(f"GROQ_ERROR_{res.status_code}")
+                        continue
+                except (RuntimeError, json.JSONDecodeError) as e:
+                    logger.warning(f"Decoding/runtime exception with model '{model_name}': {e}. Trying next fallback...")
+                    last_error = e
+                    continue
                 except Exception as e:
                     logger.error(f"LLM Gateway execution error on {model_name}: {e}")
                     last_error = e
@@ -173,10 +199,9 @@ class LLMGateway:
             "Content-Type": "application/json",
         }
 
-        requested_model = os.getenv("GROQ_MODEL", DEFAULT_GROQ_MODEL).strip()
-        models_to_try = [requested_model] + [m for m in FALLBACK_GROQ_MODELS if m != requested_model]
+        models_to_try = self._get_candidate_models()
 
-        with httpx.Client(timeout=25.0) as client:
+        with httpx.Client(timeout=30.0) as client:
             last_error = None
             for model_name in models_to_try:
                 payload = self._build_payload(
@@ -187,23 +212,29 @@ class LLMGateway:
                     if res.status_code == 200:
                         return self._parse_completion_response(res.json(), response_json_schema)
                     elif res.status_code == 429:
-                        logger.error("Groq rate limit hit (HTTP 429).")
-                        raise RuntimeError("GROQ_RATE_LIMIT")
+                        logger.warning(f"Groq rate limit hit (HTTP 429) for '{model_name}'. Trying next fallback model...")
+                        last_error = RuntimeError(f"GROQ_RATE_LIMIT_{model_name}")
+                        continue
                     elif res.status_code in (400, 404):
                         err_text = res.text
-                        if "model_not_found" in err_text or "decommissioned" in err_text or "does not exist" in err_text:
+                        if "model_not_found" in err_text or "decommissioned" in err_text or "does not exist" in err_text or res.status_code == 404:
                             logger.warning(
-                                f"Model '{model_name}' unavailable on Groq ({res.status_code}). Trying fallback model..."
+                                f"Model '{model_name}' unavailable on Groq ({res.status_code}). Trying next fallback model..."
                             )
+                            self._unavailable_models.add(model_name)
                             last_error = RuntimeError(f"GROQ_MODEL_UNAVAILABLE: {model_name}")
                             continue
-                        logger.error(f"Groq API error {res.status_code}: {err_text}")
-                        raise RuntimeError(f"GROQ_ERROR_{res.status_code}")
+                        logger.warning(f"Groq API error {res.status_code} for '{model_name}': {err_text}. Trying next fallback model...")
+                        last_error = RuntimeError(f"GROQ_ERROR_{res.status_code}_{model_name}")
+                        continue
                     else:
-                        logger.error(f"Groq API error {res.status_code}: {res.text}")
-                        raise RuntimeError(f"GROQ_ERROR_{res.status_code}")
-                except (RuntimeError, json.JSONDecodeError):
-                    raise
+                        logger.warning(f"Groq API error {res.status_code} on {model_name}: {res.text}. Trying next fallback model...")
+                        last_error = RuntimeError(f"GROQ_ERROR_{res.status_code}")
+                        continue
+                except (RuntimeError, json.JSONDecodeError) as e:
+                    logger.warning(f"Decoding/runtime exception with model '{model_name}': {e}. Trying next fallback...")
+                    last_error = e
+                    continue
                 except Exception as e:
                     logger.error(f"LLM Gateway execution error on {model_name}: {e}")
                     last_error = e

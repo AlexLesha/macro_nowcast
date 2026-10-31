@@ -3,7 +3,7 @@ import logging
 from contextlib import asynccontextmanager
 from typing import Optional
 from pydantic import BaseModel
-from fastapi import FastAPI
+from fastapi import FastAPI, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.db import init_db
@@ -317,9 +317,15 @@ except ImportError:
 
 @app.post("/api/v1/refresh/trigger")
 @app.post("/api/refresh/trigger")
-async def trigger_refresh():
+async def trigger_refresh(background_tasks: BackgroundTasks):
     """Triggers the refresh pipeline in background and returns immediate status."""
-    return refresh_orchestrator.trigger()
+    from app.refresh_pipeline.orchestrator import RefreshPipelineOrchestrator
+    background_tasks.add_task(RefreshPipelineOrchestrator.run_full_refresh)
+    result = refresh_orchestrator.trigger()
+    return {
+        **result,
+        "message": "Full 4-Stage Refresh Pipeline initiated in background.",
+    }
 
 
 @app.get("/api/v1/refresh/stream")

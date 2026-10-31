@@ -12,7 +12,19 @@ from typing import AsyncGenerator, Dict, Any, Optional, List
 from app.refresh_pipeline.media_scraper import MediaScraper
 from app.refresh_pipeline.synthesizer import LLMStrategySynthesizer
 from app.db import SessionLocal
-from app.models.db_models import RegimeSnapshot, IntelligenceDelta
+from app.models.db_models import MacroSeries, MarketDaily, RegimeSnapshot, IntelligenceDelta
+from app.ingestion.fred_client import FredClient
+from app.ingestion.treasury_client import TreasuryClient
+from app.ingestion.market_options_client import MarketOptionsClient
+from app.ingestion.etf_holdings_client import EtfHoldingsClient
+from app.quant_engine.macro_nowcast import (
+    compute_growth_nowcast,
+    compute_inflation_nowcast,
+    compute_quads_and_base_effects,
+)
+from app.quant_engine.liquidity_engine import compute_us_net_liquidity, compute_global_liquidity_and_debt_ratios
+from app.quant_engine.forty_two_macro_engine import FortyTwoMacroEngine
+from sqlalchemy.orm import Session
 
 try:
     from app.refresh_pipeline.health_monitor import health_tracker
@@ -96,6 +108,113 @@ class RefreshPipelineOrchestrator:
         """Delegates to the SSE generator."""
         return run_refresh_pipeline_stream()
 
+    @classmethod
+    async def run_full_refresh(cls, db: Optional[Session] = None) -> dict:
+        """Executes the 4-stage pipeline sequentially and commits an atomic snapshot."""
+        own_session = False
+        if db is None:
+            db = SessionLocal()
+            own_session = True
+
+        try:
+            logger.info("[Pipeline] Starting Stage 1: Market & Macro Ingestion...")
+            try:
+                FredClient().ingest_all_series(db, limit_records=60)
+                TreasuryClient().ingest_treasury_data(db)
+                MarketOptionsClient().ingest_market_data(db, days_back=60)
+                EtfHoldingsClient().ingest_holdings(db)
+            except Exception as e:
+                logger.warning(f"[Pipeline] Ingestion warning (non-fatal): {e}")
+
+            logger.info("[Pipeline] Starting Stage 2: Quant Engine Recalculation...")
+            growth = compute_growth_nowcast()
+            inflation = compute_inflation_nowcast()
+            quads = compute_quads_and_base_effects(
+                growth_series=growth.get("real_gdp_yoy", 2.1),
+                inflation_series=inflation.get("headline_cpi_nowcast_yoy", 2.6)
+            )
+            us_liq = compute_us_net_liquidity(db=db)
+            glob_liq = compute_global_liquidity_and_debt_ratios()
+
+            current_quad = quads.get("current_quad", "Quad 3")
+            grid_matrix = FortyTwoMacroEngine.compute_global_macro_risk_matrix(
+                {"GOLDILOCKS": 10, "REFLATION": 14, "INFLATION": 16, "DEFLATION": 29}
+                if "3" in current_quad
+                else {"GOLDILOCKS": 18, "REFLATION": 30, "INFLATION": 19, "DEFLATION": 2}
+            )
+            grid_regime = grid_matrix.get("active_regime_label", "DEFLATION" if "3" in current_quad else "REFLATION")
+
+            today = datetime.now(timezone.utc).date()
+            snapshot = db.query(RegimeSnapshot).filter_by(date=today).first()
+            if not snapshot:
+                snapshot = RegimeSnapshot(date=today)
+                db.add(snapshot)
+
+            snapshot.us_monthly_quad = current_quad
+            snapshot.us_quarterly_quad = quads.get("forward_1q_quad", "Quad 4")
+            snapshot.quad_1_prob = quads.get("quad_probabilities", {}).get("Q1", 0.1)
+            snapshot.quad_2_prob = quads.get("quad_probabilities", {}).get("Q2", 0.2)
+            snapshot.quad_3_prob = quads.get("quad_probabilities", {}).get("Q3", 0.5)
+            snapshot.quad_4_prob = quads.get("quad_probabilities", {}).get("Q4", 0.2)
+            snapshot.grid_regime = grid_regime
+            snapshot.grid_scores_json = json.dumps(grid_matrix.get("confirming_sums", {}))
+            snapshot.net_liquidity_usd_bn = us_liq.get("net_liquidity_usd_bn", 5742.0)
+            snapshot.global_liquidity_usd_tn = glob_liq.get("global_liquidity_usd_tn", 106.4)
+            snapshot.debt_to_liquidity_pct = glob_liq.get("debt_to_liquidity_pct", 114.0)
+            db.commit()
+
+            logger.info("[Pipeline] Starting Stage 3: Media Scraping & LLM Synthesis...")
+            quant_ground_truth = {
+                "us_monthly_quad": current_quad,
+                "grid_regime": grid_regime,
+                "net_liquidity_usd_bn": us_liq.get("net_liquidity_usd_bn", 5742.0),
+                "real_gdp_yoy": growth.get("real_gdp_yoy", 2.1),
+                "headline_cpi": inflation.get("headline_cpi_nowcast_yoy", 2.6)
+            }
+
+            scraper = MediaScraper()
+            try:
+                raw_sweep = await scraper.harvest_all()
+            except Exception:
+                raw_sweep = scraper.scrape_curated_institutional_sources()
+
+            synthesizer = LLMStrategySynthesizer()
+            batch_output = await synthesizer.synthesize(raw_sweep, quant_ground_truth)
+
+            logger.info("[Pipeline] Starting Stage 4: Persisting Intelligence Deltas...")
+            for author in batch_output.authors:
+                d_id = f"intel-{author.author_name.lower().replace(' ', '-')}"
+                delta = db.query(IntelligenceDelta).filter_by(id=d_id).first()
+                if not delta:
+                    delta = IntelligenceDelta(id=d_id)
+                    db.add(delta)
+                delta.timestamp_utc = datetime.now(timezone.utc)
+                delta.framework_author = f"{author.author_name} ({author.firm})"
+                delta.source_type = "LIVE_SCRAPED_SYNTHESIS"
+                delta.source_title = f"{author.author_name}: {author.stated_quad_or_regime or grid_regime}"
+                delta.source_url = author.source_url or "https://macropulse-alpha.dev"
+                delta.published_at = datetime.now(timezone.utc)
+                delta.summary_markdown = author.key_verbatim_quote or f"### {author.author_name} ({author.firm})\n\n- **Stated Regime**: `{author.stated_quad_or_regime}`"
+                delta.extracted_json = json.dumps(author.model_dump())
+                delta.affected_tickers = ", ".join(author.bullish_tickers + author.bearish_tickers)
+            db.commit()
+
+            return {
+                "status": "success",
+                "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+                "regime": current_quad,
+                "grid": grid_regime,
+                "authors_updated": len(batch_output.authors),
+                "what_changed": batch_output.what_changed_summary_markdown
+            }
+        except Exception as e:
+            logger.error(f"[Pipeline] Full refresh execution error: {e}", exc_info=True)
+            db.rollback()
+            raise
+        finally:
+            if own_session:
+                db.close()
+
 
 # Global singleton orchestrator
 refresh_orchestrator = RefreshPipelineOrchestrator()
@@ -133,6 +252,19 @@ async def run_refresh_pipeline_stream() -> AsyncGenerator[str, None]:
             refresh_orchestrator.logs.append(p1)
             yield f"event: progress\ndata: {json.dumps(p1)}\n\n"
             yield f"data: {json.dumps(p1)}\n\n"
+
+            # Ingest external market and macro feeds
+            try:
+                db_ingest = SessionLocal()
+                try:
+                    FredClient().ingest_all_series(db_ingest, limit_records=60)
+                    TreasuryClient().ingest_treasury_data(db_ingest)
+                    MarketOptionsClient().ingest_market_data(db_ingest, days_back=60)
+                    EtfHoldingsClient().ingest_holdings(db_ingest)
+                finally:
+                    db_ingest.close()
+            except Exception as e:
+                logger.warning(f"[Pipeline Ingestion non-fatal]: {e}")
 
             # Execute real LiquidityEngine live calculation
             try:
@@ -242,10 +374,8 @@ async def run_refresh_pipeline_stream() -> AsyncGenerator[str, None]:
                     delta_rec.source_type = "BATCH_SYNTHESIS"
                     delta_rec.source_title = f"{author_item.author_name}: {author_item.stated_quad_or_regime or 'Macro Stance'}"
                     delta_rec.source_url = author_item.source_url or "https://macro-nowcast.pages.dev"
-                    delta_rec.macro_regime_call = author_item.stated_quad_or_regime
-                    delta_rec.confidence_score = 0.88
                     delta_rec.affected_tickers = ", ".join(author_item.bullish_tickers + author_item.bearish_tickers)
-                    delta_rec.structured_summary_markdown = (
+                    delta_rec.summary_markdown = (
                         f"### {author_item.author_name} ({author_item.firm})\n\n"
                         f"- **Stated Regime**: `{author_item.stated_quad_or_regime}`\n"
                         f"- **Growth View**: {author_item.growth_view}\n"
@@ -253,6 +383,7 @@ async def run_refresh_pipeline_stream() -> AsyncGenerator[str, None]:
                         f"- **Policy & Liquidity**: {author_item.policy_liquidity_view}\n"
                         f"- **Core Quote**: *\"{author_item.key_verbatim_quote}\"*\n"
                     )
+                    delta_rec.extracted_json = json.dumps(author_item.model_dump())
 
                 db.commit()
                 db.close()

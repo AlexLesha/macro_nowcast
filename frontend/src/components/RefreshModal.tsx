@@ -83,6 +83,7 @@ export const RefreshModal: React.FC<RefreshModalProps> = ({
             if (data.stage === "COMPLETED" || data.status === "COMPLETED") {
               setStatus("COMPLETED");
               setProgress(100);
+              window.dispatchEvent(new CustomEvent("macro-nowcast-global-refresh"));
               if (onRefreshComplete) onRefreshComplete();
             } else if (data.stage === "ERROR" || data.status === "FAILED") {
               setStatus("FAILED");
@@ -114,6 +115,7 @@ export const RefreshModal: React.FC<RefreshModalProps> = ({
             setProgress(100);
             const diffRes = await fetch(getApiUrl("/api/v1/refresh/diff"));
             if (diffRes.ok) setDiffReport(await diffRes.json());
+            window.dispatchEvent(new CustomEvent("macro-nowcast-global-refresh"));
             if (onRefreshComplete) onRefreshComplete();
           }
         }
