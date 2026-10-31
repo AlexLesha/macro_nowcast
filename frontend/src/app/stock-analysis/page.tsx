@@ -171,19 +171,19 @@ function buildSynthesizedAnalysisPayload(
     Array.isArray(massiveSrc?.historical_12q) && massiveSrc.historical_12q.length > 0
       ? massiveSrc.historical_12q
       : Array.isArray(secSrc?.historical_12q) && secSrc.historical_12q.length > 0
-      ? secSrc.historical_12q
-      : [
-        { period: "Q4 '23", fiscal_label: "2023-Q4", period_end: "2023-12-31", form: "10-K", revenue_m: 302.6, rev_yoy_pct: -58.2, gaap_gross_margin_pct: 48.5, gaap_net_income_m: 20.9, operating_cash_flow_m: 35.5, free_cash_flow_m: 15.4, cash_and_equivalents_m: 1690.0, total_debt_m: 1315.0, net_cash_m: 375.0, ebit_interest_coverage: 4.1, roic_pct: 14.2 },
-        { period: "Q1 '24", fiscal_label: "2024-Q1", period_end: "2024-03-31", form: "10-Q", revenue_m: 263.3, rev_yoy_pct: -63.7, gaap_gross_margin_pct: 43.9, gaap_net_income_m: -16.1, operating_cash_flow_m: 49.2, free_cash_flow_m: 41.8, cash_and_equivalents_m: 1630.0, total_debt_m: 1316.0, net_cash_m: 314.0, ebit_interest_coverage: 1.8, roic_pct: 8.4 },
-        { period: "Q2 '24", fiscal_label: "2024-Q2", period_end: "2024-06-30", form: "10-Q", revenue_m: 303.5, rev_yoy_pct: -57.3, gaap_gross_margin_pct: 45.2, gaap_net_income_m: 10.8, operating_cash_flow_m: 127.0, free_cash_flow_m: 117.0, cash_and_equivalents_m: 1650.0, total_debt_m: 1318.0, net_cash_m: 332.0, ebit_interest_coverage: 3.9, roic_pct: 11.6 },
-        { period: "Q3 '24", fiscal_label: "2024-Q3", period_end: "2024-09-30", form: "10-Q", revenue_m: 380.9, rev_yoy_pct: -30.9, gaap_gross_margin_pct: 46.8, gaap_net_income_m: 45.8, operating_cash_flow_m: 170.1, free_cash_flow_m: 161.6, cash_and_equivalents_m: 1770.0, total_debt_m: 1320.0, net_cash_m: 450.0, ebit_interest_coverage: 8.2, roic_pct: 17.8 },
-        { period: "Q4 '24", fiscal_label: "2024-Q4", period_end: "2024-12-31", form: "10-K", revenue_m: 382.7, rev_yoy_pct: 26.5, gaap_gross_margin_pct: 51.8, gaap_net_income_m: 62.2, operating_cash_flow_m: 167.3, free_cash_flow_m: 159.2, cash_and_equivalents_m: 1720.0, total_debt_m: 1320.0, net_cash_m: 400.0, ebit_interest_coverage: 10.5, roic_pct: 22.4 },
-        { period: "Q1 '25", fiscal_label: "2025-Q1", period_end: "2025-03-31", form: "10-Q", revenue_m: 356.1, rev_yoy_pct: 35.2, gaap_gross_margin_pct: 47.2, gaap_net_income_m: 48.4, operating_cash_flow_m: 138.4, free_cash_flow_m: 33.8, cash_and_equivalents_m: 1610.0, total_debt_m: 1320.0, net_cash_m: 290.0, ebit_interest_coverage: 9.8, roic_pct: 19.6 },
-        { period: "Q2 '25", fiscal_label: "2025-Q2", period_end: "2025-06-30", form: "10-Q", revenue_m: 363.2, rev_yoy_pct: 19.7, gaap_gross_margin_pct: 46.9, gaap_net_income_m: 54.2, operating_cash_flow_m: 142.0, free_cash_flow_m: 18.4, cash_and_equivalents_m: 1625.0, total_debt_m: 1320.0, net_cash_m: 305.0, ebit_interest_coverage: 10.6, roic_pct: 20.8 },
-        { period: "Q3 '25", fiscal_label: "2025-Q3", period_end: "2025-09-30", form: "10-Q", revenue_m: 410.4, rev_yoy_pct: 7.7, gaap_gross_margin_pct: 47.8, gaap_net_income_m: 68.5, operating_cash_flow_m: 158.0, free_cash_flow_m: 5.9, cash_and_equivalents_m: 1635.0, total_debt_m: 1320.0, net_cash_m: 315.0, ebit_interest_coverage: 11.2, roic_pct: 21.5 },
-        { period: "Q4 '25", fiscal_label: "2025-Q4", period_end: "2025-12-31", form: "10-K", revenue_m: 343.3, rev_yoy_pct: -10.3, gaap_gross_margin_pct: 44.3, gaap_net_income_m: 46.1, operating_cash_flow_m: 112.0, free_cash_flow_m: 37.8, cash_and_equivalents_m: 1640.0, total_debt_m: 1320.0, net_cash_m: 320.0, ebit_interest_coverage: 10.8, roic_pct: 20.2 },
-        { period: "Q1 '26", fiscal_label: "2026-Q1", period_end: "2026-03-31", form: "10-Q", revenue_m: 282.9, rev_yoy_pct: -20.5, gaap_gross_margin_pct: 35.5, gaap_net_income_m: 22.4, operating_cash_flow_m: 96.4, free_cash_flow_m: 83.0, cash_and_equivalents_m: 1645.0, total_debt_m: 1320.0, net_cash_m: 325.0, ebit_interest_coverage: 9.4, roic_pct: 18.4 },
-      ];
+        ? secSrc.historical_12q
+        : [
+          { period: "Q4 '23", fiscal_label: "2023-Q4", period_end: "2023-12-31", form: "10-K", revenue_m: 302.6, rev_yoy_pct: -58.2, gaap_gross_margin_pct: 48.5, gaap_net_income_m: 20.9, operating_cash_flow_m: 35.5, free_cash_flow_m: 15.4, cash_and_equivalents_m: 1690.0, total_debt_m: 1315.0, net_cash_m: 375.0, ebit_interest_coverage: 4.1, roic_pct: 14.2 },
+          { period: "Q1 '24", fiscal_label: "2024-Q1", period_end: "2024-03-31", form: "10-Q", revenue_m: 263.3, rev_yoy_pct: -63.7, gaap_gross_margin_pct: 43.9, gaap_net_income_m: -16.1, operating_cash_flow_m: 49.2, free_cash_flow_m: 41.8, cash_and_equivalents_m: 1630.0, total_debt_m: 1316.0, net_cash_m: 314.0, ebit_interest_coverage: 1.8, roic_pct: 8.4 },
+          { period: "Q2 '24", fiscal_label: "2024-Q2", period_end: "2024-06-30", form: "10-Q", revenue_m: 303.5, rev_yoy_pct: -57.3, gaap_gross_margin_pct: 45.2, gaap_net_income_m: 10.8, operating_cash_flow_m: 127.0, free_cash_flow_m: 117.0, cash_and_equivalents_m: 1650.0, total_debt_m: 1318.0, net_cash_m: 332.0, ebit_interest_coverage: 3.9, roic_pct: 11.6 },
+          { period: "Q3 '24", fiscal_label: "2024-Q3", period_end: "2024-09-30", form: "10-Q", revenue_m: 380.9, rev_yoy_pct: -30.9, gaap_gross_margin_pct: 46.8, gaap_net_income_m: 45.8, operating_cash_flow_m: 170.1, free_cash_flow_m: 161.6, cash_and_equivalents_m: 1770.0, total_debt_m: 1320.0, net_cash_m: 450.0, ebit_interest_coverage: 8.2, roic_pct: 17.8 },
+          { period: "Q4 '24", fiscal_label: "2024-Q4", period_end: "2024-12-31", form: "10-K", revenue_m: 382.7, rev_yoy_pct: 26.5, gaap_gross_margin_pct: 51.8, gaap_net_income_m: 62.2, operating_cash_flow_m: 167.3, free_cash_flow_m: 159.2, cash_and_equivalents_m: 1720.0, total_debt_m: 1320.0, net_cash_m: 400.0, ebit_interest_coverage: 10.5, roic_pct: 22.4 },
+          { period: "Q1 '25", fiscal_label: "2025-Q1", period_end: "2025-03-31", form: "10-Q", revenue_m: 356.1, rev_yoy_pct: 35.2, gaap_gross_margin_pct: 47.2, gaap_net_income_m: 48.4, operating_cash_flow_m: 138.4, free_cash_flow_m: 33.8, cash_and_equivalents_m: 1610.0, total_debt_m: 1320.0, net_cash_m: 290.0, ebit_interest_coverage: 9.8, roic_pct: 19.6 },
+          { period: "Q2 '25", fiscal_label: "2025-Q2", period_end: "2025-06-30", form: "10-Q", revenue_m: 363.2, rev_yoy_pct: 19.7, gaap_gross_margin_pct: 46.9, gaap_net_income_m: 54.2, operating_cash_flow_m: 142.0, free_cash_flow_m: 18.4, cash_and_equivalents_m: 1625.0, total_debt_m: 1320.0, net_cash_m: 305.0, ebit_interest_coverage: 10.6, roic_pct: 20.8 },
+          { period: "Q3 '25", fiscal_label: "2025-Q3", period_end: "2025-09-30", form: "10-Q", revenue_m: 410.4, rev_yoy_pct: 7.7, gaap_gross_margin_pct: 47.8, gaap_net_income_m: 68.5, operating_cash_flow_m: 158.0, free_cash_flow_m: 5.9, cash_and_equivalents_m: 1635.0, total_debt_m: 1320.0, net_cash_m: 315.0, ebit_interest_coverage: 11.2, roic_pct: 21.5 },
+          { period: "Q4 '25", fiscal_label: "2025-Q4", period_end: "2025-12-31", form: "10-K", revenue_m: 343.3, rev_yoy_pct: -10.3, gaap_gross_margin_pct: 44.3, gaap_net_income_m: 46.1, operating_cash_flow_m: 112.0, free_cash_flow_m: 37.8, cash_and_equivalents_m: 1640.0, total_debt_m: 1320.0, net_cash_m: 320.0, ebit_interest_coverage: 10.8, roic_pct: 20.2 },
+          { period: "Q1 '26", fiscal_label: "2026-Q1", period_end: "2026-03-31", form: "10-Q", revenue_m: 282.9, rev_yoy_pct: -20.5, gaap_gross_margin_pct: 35.5, gaap_net_income_m: 22.4, operating_cash_flow_m: 96.4, free_cash_flow_m: 83.0, cash_and_equivalents_m: 1645.0, total_debt_m: 1320.0, net_cash_m: 325.0, ebit_interest_coverage: 9.4, roic_pct: 18.4 },
+        ];
 
   const normalized12q = rawSec12q.map((q: any, i: number) => {
     const revM = Number(q.revenue_m ?? (q.revenue ? q.revenue / 1e6 : 350));
@@ -246,12 +246,12 @@ function buildSynthesizedAnalysisPayload(
   const rawPeers = (massiveSrc?.peer_valuations && massiveSrc.peer_valuations.length > 0)
     ? massiveSrc.peer_valuations
     : [
-        { ticker, name: base.name, market_cap_bn: liveMcapBn, ev_ebitda: base.evEbitda, pe: livePe, fcf_yield: base.fcfYield, net_debt_ebitda: netCashM >= 0 ? -0.45 : 1.2, roe: base.roe, rev_growth_yoy_pct: revYoY, gross_margin_pct: qCurr.gross_margin_pct || 47.8, valuation_verdict: "PRIMARY TARGET", is_target: true },
-        { ticker: "FSLR", name: "First Solar, Inc.", market_cap_bn: 21.4, ev_ebitda: 11.8, pe: 13.5, fcf_yield: 4.8, net_debt_ebitda: -0.62, roe: 19.4, rev_growth_yoy_pct: 22.1, gross_margin_pct: 43.5, valuation_verdict: "GARP / QUALITY LEADER", is_target: false },
-        { ticker: "NXT", name: "Nextracker Inc.", market_cap_bn: 6.8, ev_ebitda: 12.4, pe: 15.2, fcf_yield: 6.1, net_debt_ebitda: -0.35, roe: 31.2, rev_growth_yoy_pct: 18.4, gross_margin_pct: 33.8, valuation_verdict: "COMPOUNDER PREMIUM", is_target: false },
-        { ticker: "SEDG", name: "SolarEdge Technologies", market_cap_bn: 1.1, ev_ebitda: 24.5, pe: 28.0, fcf_yield: -4.2, net_debt_ebitda: 2.85, roe: -14.5, rev_growth_yoy_pct: -42.0, gross_margin_pct: 18.2, valuation_verdict: "TURNAROUND / HIGH BETA", is_target: false },
-        { ticker: "RUN", name: "Sunrun Inc.", market_cap_bn: 2.6, ev_ebitda: 19.8, pe: 24.2, fcf_yield: 2.1, net_debt_ebitda: 4.1, roe: 6.8, rev_growth_yoy_pct: 4.2, gross_margin_pct: 24.5, valuation_verdict: "SECTOR INLINE", is_target: false },
-      ];
+      { ticker, name: base.name, market_cap_bn: liveMcapBn, ev_ebitda: base.evEbitda, pe: livePe, fcf_yield: base.fcfYield, net_debt_ebitda: netCashM >= 0 ? -0.45 : 1.2, roe: base.roe, rev_growth_yoy_pct: revYoY, gross_margin_pct: qCurr.gross_margin_pct || 47.8, valuation_verdict: "PRIMARY TARGET", is_target: true },
+      { ticker: "FSLR", name: "First Solar, Inc.", market_cap_bn: 21.4, ev_ebitda: 11.8, pe: 13.5, fcf_yield: 4.8, net_debt_ebitda: -0.62, roe: 19.4, rev_growth_yoy_pct: 22.1, gross_margin_pct: 43.5, valuation_verdict: "GARP / QUALITY LEADER", is_target: false },
+      { ticker: "NXT", name: "Nextracker Inc.", market_cap_bn: 6.8, ev_ebitda: 12.4, pe: 15.2, fcf_yield: 6.1, net_debt_ebitda: -0.35, roe: 31.2, rev_growth_yoy_pct: 18.4, gross_margin_pct: 33.8, valuation_verdict: "COMPOUNDER PREMIUM", is_target: false },
+      { ticker: "SEDG", name: "SolarEdge Technologies", market_cap_bn: 1.1, ev_ebitda: 24.5, pe: 28.0, fcf_yield: -4.2, net_debt_ebitda: 2.85, roe: -14.5, rev_growth_yoy_pct: -42.0, gross_margin_pct: 18.2, valuation_verdict: "TURNAROUND / HIGH BETA", is_target: false },
+      { ticker: "RUN", name: "Sunrun Inc.", market_cap_bn: 2.6, ev_ebitda: 19.8, pe: 24.2, fcf_yield: 2.1, net_debt_ebitda: 4.1, roe: 6.8, rev_growth_yoy_pct: 4.2, gross_margin_pct: 24.5, valuation_verdict: "SECTOR INLINE", is_target: false },
+    ];
 
   const scoredPeers = rawPeers.map((p: any) => {
     const score =
@@ -517,7 +517,7 @@ export default function SingleStockAnalysisPage() {
           setMacroRegime(`${r} (${q})`);
         }
       })
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   const fetchAnalysis = async (symbol: string) => {
@@ -572,7 +572,7 @@ export default function SingleStockAnalysisPage() {
         const json = await res.json();
         setGeminiStatus(json);
       }
-    } catch {}
+    } catch { }
   };
 
   useEffect(() => {
@@ -701,17 +701,15 @@ export default function SingleStockAnalysisPage() {
                 </span>
                 {geminiStatus && (
                   <span
-                    className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-mono border ${
-                      geminiStatus.color === "green"
+                    className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-mono border ${geminiStatus.color === "green"
                         ? "bg-emerald-950/40 border-emerald-500/40 text-emerald-300"
                         : "bg-amber-950/40 border-amber-500/40 text-amber-300"
-                    }`}
+                      }`}
                     title={geminiStatus.format_warning || geminiStatus.message}
                   >
                     <span
-                      className={`h-1.5 w-1.5 rounded-full ${
-                        geminiStatus.color === "green" ? "bg-emerald-400" : "bg-amber-400"
-                      }`}
+                      className={`h-1.5 w-1.5 rounded-full ${geminiStatus.color === "green" ? "bg-emerald-400" : "bg-amber-400"
+                        }`}
                     />
                     {geminiStatus.status === "ONLINE"
                       ? "Gemini 2.5 Flash Online"
@@ -814,13 +812,12 @@ export default function SingleStockAnalysisPage() {
                   <MetricTip term="14D RSI">14D RSI</MetricTip>: <strong className="text-white">{line2?.rsi_14d ?? vams?.rsi_14d ?? 48.5}</strong>
                 </span>
                 <span
-                  className={`px-2 py-0.5 rounded border font-bold ${
-                    (line2?.vams_state_label || vams?.vams_label) === "BULLISH"
+                  className={`px-2 py-0.5 rounded border font-bold ${(line2?.vams_state_label || vams?.vams_label) === "BULLISH"
                       ? "bg-emerald-950/50 border-emerald-500/40 text-emerald-300"
                       : (line2?.vams_state_label || vams?.vams_label) === "BEARISH"
-                      ? "bg-rose-950/50 border-rose-500/40 text-rose-300"
-                      : "bg-amber-950/50 border-amber-500/40 text-amber-300"
-                  }`}
+                        ? "bg-rose-950/50 border-rose-500/40 text-rose-300"
+                        : "bg-amber-950/50 border-amber-500/40 text-amber-300"
+                    }`}
                 >
                   <MetricTip term="VAMS">VAMS: {line2?.vams_state_label || vams?.vams_label || "NEUTRAL"}</MetricTip>
                 </span>
@@ -863,11 +860,10 @@ export default function SingleStockAnalysisPage() {
                     setTickerInput(sym);
                     fetchAnalysis(sym);
                   }}
-                  className={`px-2.5 py-0.5 rounded border transition ${
-                    activeTicker === sym
+                  className={`px-2.5 py-0.5 rounded border transition ${activeTicker === sym
                       ? "bg-cyan-950 border-cyan-500/50 text-cyan-300 font-bold"
                       : "bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800"
-                  }`}
+                    }`}
                 >
                   ${sym}
                 </button>
@@ -903,8 +899,8 @@ export default function SingleStockAnalysisPage() {
                 gr === "GREEN"
                   ? "text-emerald-400 bg-emerald-950/40 border-emerald-500/40"
                   : gr === "RED"
-                  ? "text-rose-400 bg-rose-950/40 border-rose-500/40"
-                  : "text-amber-400 bg-amber-950/40 border-amber-500/40";
+                    ? "text-rose-400 bg-rose-950/40 border-rose-500/40"
+                    : "text-amber-400 bg-amber-950/40 border-amber-500/40";
               return (
                 <div key={idx} className={`rounded-lg border p-3 space-y-1.5 flex flex-col justify-between ${col}`}>
                   <div className="flex justify-between items-center text-xs font-mono font-bold">
@@ -986,22 +982,19 @@ export default function SingleStockAnalysisPage() {
           </div>
         </section>
 
-        {/* SECTION 2: 12-QUARTER FORENSIC FINANCIAL WALK & DUAL-CHART VISUALIZER */}
+        {/* SECTION 2: 12-QUARTER FORENSIC FINANCIAL WALK & DUAL-CHART VISUALIZER Data Scope: https://api.massive.com/stocks/financials/v1/income-statements (revenue, operating_income, cost_of_revenue, diluted_earnings_per_share) with automatic SEC EDGAR XBRL fallback */}
         <section className="bg-slate-900/60 border border-slate-800 rounded-lg p-5 space-y-4">
           <div className="flex flex-wrap items-center justify-between pb-4 border-b border-slate-800/80 mb-2 gap-2">
             <div>
               <h2 className="text-lg font-bold font-mono text-slate-100">
                 2. 12-Quarter Forensic Financial Walk & Solvency Visualizer
               </h2>
-              <p className="text-xs font-mono text-slate-400">
-                Data Scope: https://api.massive.com/stocks/financials/v1/income-statements (revenue, operating_income, cost_of_revenue, diluted_earnings_per_share) with automatic SEC EDGAR XBRL fallback • SEC CIK: {data?.cik ?? "N/A"}
-              </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-[11px] font-mono px-2 py-0.5 rounded border border-emerald-500/40 text-emerald-400 bg-emerald-950/30">
                 {data?.edgar_status === "LIVE_SEC_EDGAR_OK" ? "● SEC EDGAR VERIFIED" : "SEC INGESTION ACTIVE"}
               </span>
-
+              • SEC CIK: {data?.cik ?? "N/A"}
               {/* VIEW-MODE TOGGLE: GRAPHS & TABLE | GRAPHS ONLY | TABLE ONLY */}
               <div className="inline-flex rounded-lg border border-slate-800 bg-slate-950 p-1 font-mono text-xs">
                 {[
@@ -1013,11 +1006,10 @@ export default function SingleStockAnalysisPage() {
                     key={btn.mode}
                     type="button"
                     onClick={() => setWalkViewMode(btn.mode)}
-                    className={`px-3 py-1 rounded-md transition ${
-                      walkViewMode === btn.mode
+                    className={`px-3 py-1 rounded-md transition ${walkViewMode === btn.mode
                         ? "bg-cyan-600 text-white font-bold shadow"
                         : "text-slate-400 hover:text-slate-200"
-                    }`}
+                      }`}
                   >
                     {btn.label}
                   </button>
@@ -1205,8 +1197,8 @@ export default function SingleStockAnalysisPage() {
                         {q.operating_income
                           ? `$${(q.operating_income / 1e6).toFixed(1)}M`
                           : q.operating_income_m != null
-                          ? `$${q.operating_income_m}M`
-                          : "—"}
+                            ? `$${q.operating_income_m}M`
+                            : "—"}
                       </td>
                     ))}
                   </tr>
@@ -1222,8 +1214,8 @@ export default function SingleStockAnalysisPage() {
                         {q.fcf
                           ? `$${(q.fcf / 1e6).toFixed(1)}M`
                           : q.free_cash_flow_m != null
-                          ? `$${q.free_cash_flow_m}M`
-                          : "—"}
+                            ? `$${q.free_cash_flow_m}M`
+                            : "—"}
                       </td>
                     ))}
                   </tr>
@@ -1262,8 +1254,8 @@ export default function SingleStockAnalysisPage() {
                         {q.net_debt != null
                           ? `$${(q.net_debt / 1e6).toFixed(1)}M`
                           : q.net_cash_m != null
-                          ? `$${(-q.net_cash_m).toFixed(1)}M`
-                          : "—"}
+                            ? `$${(-q.net_cash_m).toFixed(1)}M`
+                            : "—"}
                       </td>
                     ))}
                   </tr>
@@ -1294,9 +1286,6 @@ export default function SingleStockAnalysisPage() {
             <h2 className="text-lg font-bold font-mono text-slate-100 mb-1">
               3. Hedgeye 3 Pods, Unit Economics & Peer Valuation Scorecard
             </h2>
-            <p className="text-xs font-mono text-slate-400">
-              Pod 1 (Macro) • Pod 2 (SEC Verified Unit Economics) • Pod 3 (Microstructure & Float)
-            </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -1445,8 +1434,8 @@ export default function SingleStockAnalysisPage() {
                   const rawPeers = (Array.isArray(data?.peers) && data.peers.length > 0)
                     ? data.peers
                     : (Array.isArray(data?.peer_valuations) && data.peer_valuations.length > 0)
-                    ? data.peer_valuations
-                    : [
+                      ? data.peer_valuations
+                      : [
                         { ticker: "FSLR", name: "First Solar, Inc.", market_cap_bn: 21.4, ev_ebitda: 11.8, pe: 13.5, fcf_yield: 4.8, net_debt_ebitda: -0.62, roe: 19.4, rev_growth_yoy_pct: 22.1, gross_margin_pct: 43.5, valuation_verdict: "GARP / QUALITY LEADER" },
                         { ticker: "NXT", name: "Nextracker Inc.", market_cap_bn: 6.8, ev_ebitda: 12.4, pe: 15.2, fcf_yield: 6.1, net_debt_ebitda: -0.35, roe: 31.2, rev_growth_yoy_pct: 18.4, gross_margin_pct: 33.8, valuation_verdict: "COMPOUNDER PREMIUM" },
                         { ticker: "SEDG", name: "SolarEdge Technologies", market_cap_bn: 1.1, ev_ebitda: 24.5, pe: 28.0, fcf_yield: -4.2, net_debt_ebitda: 2.85, roe: -14.5, rev_growth_yoy_pct: -42.0, gross_margin_pct: 18.2, valuation_verdict: "TURNAROUND / HIGH BETA" },
@@ -1575,19 +1564,19 @@ export default function SingleStockAnalysisPage() {
                           </tr>
                         );
                       })}
-                      </tbody>
-                    );
-                  })()}
-                </table>
-              </div>
-
-              {peerBenchmarks?.relative_valuation_verdict && (
-                <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-3 text-xs text-slate-300">
-                  <strong className="text-cyan-400 font-mono uppercase">Relative Valuation Verdict: </strong>
-                  {peerBenchmarks.relative_valuation_verdict}
-                </div>
-              )}
+                    </tbody>
+                  );
+                })()}
+              </table>
             </div>
+
+            {peerBenchmarks?.relative_valuation_verdict && (
+              <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-3 text-xs text-slate-300">
+                <strong className="text-cyan-400 font-mono uppercase">Relative Valuation Verdict: </strong>
+                {peerBenchmarks.relative_valuation_verdict}
+              </div>
+            )}
+          </div>
         </section>
 
         {/* SECTION 4: GOVERNANCE & SEC REGULATION S-K ITEM 401(f) AUDIT */}
@@ -1831,8 +1820,8 @@ export default function SingleStockAnalysisPage() {
                       c.tone === "emerald"
                         ? "border-emerald-500/40 bg-slate-900/90 text-emerald-300"
                         : c.tone === "amber"
-                        ? "border-amber-500/40 bg-slate-900/90 text-amber-300"
-                        : "border-cyan-500/40 bg-slate-900/90 text-cyan-300";
+                          ? "border-amber-500/40 bg-slate-900/90 text-amber-300"
+                          : "border-cyan-500/40 bg-slate-900/90 text-cyan-300";
 
                     return (
                       <div key={c.id} className={`rounded-xl border p-4 space-y-3 flex flex-col justify-between ${borderTone}`}>
@@ -2011,11 +2000,10 @@ export default function SingleStockAnalysisPage() {
                     key={pct}
                     type="button"
                     onClick={() => setSimShiftPct(pct)}
-                    className={`px-2.5 py-1 rounded text-xs font-bold transition-all ${
-                      simShiftPct === pct
+                    className={`px-2.5 py-1 rounded text-xs font-bold transition-all ${simShiftPct === pct
                         ? "bg-cyan-500 text-black shadow-md shadow-cyan-500/30"
                         : "bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700"
-                    }`}
+                      }`}
                   >
                     {pct > 0 ? `+${pct}%` : `${pct}%`}
                   </button>
