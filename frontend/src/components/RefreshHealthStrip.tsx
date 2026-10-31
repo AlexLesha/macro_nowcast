@@ -73,16 +73,16 @@ export function RefreshHealthStrip({ apiBaseUrl }: { apiBaseUrl?: string }) {
   ];
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-800 bg-[#0B101B] px-3 py-1.5 text-xs font-mono">
+    <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-800 bg-[#0B101B] px-3 py-1.5 text-sm font-mono">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-slate-400 uppercase tracking-wider text-[10px]">
+        <span className="text-slate-400 uppercase tracking-wider text-xs">
           System & Quota:
         </span>
         {items.map((item) => (
           <div
             key={item.key}
             title={item.last_error || item.label}
-            className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] ${TEXT_STYLES[item.color] || TEXT_STYLES.amber}`}
+            className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs ${TEXT_STYLES[item.color] || TEXT_STYLES.amber}`}
           >
             <span className={`h-2 w-2 rounded-full ${DOT_STYLES[item.color] || DOT_STYLES.amber}`} />
             <span>{item.label}</span>
@@ -92,7 +92,7 @@ export function RefreshHealthStrip({ apiBaseUrl }: { apiBaseUrl?: string }) {
       <button
         onClick={() => checkHealth(true)}
         disabled={isChecking}
-        className="text-[11px] text-cyan-400 hover:text-cyan-300 underline decoration-dotted disabled:opacity-50"
+        className="text-xs text-cyan-400 hover:text-cyan-300 underline decoration-dotted disabled:opacity-50"
         title="Re-check API & Gemini key status (0 tokens)"
       >
         {isChecking ? "Checking..." : "Check Status"}

@@ -194,7 +194,7 @@ export default function OptionsAndVolatilityLabPage() {
                   </span>
                 )}
               </div>
-              <h1 className="text-xl md:text-2xl font-bold text-white mt-1">
+              <h1 className="text-base font-bold text-white mt-1">
                 Options & Volatility Surface Lab (5-Module Dynamic Suite)
               </h1>
             </div>
@@ -232,7 +232,7 @@ export default function OptionsAndVolatilityLabPage() {
               {data?.executive_synthesis?.headline_summary ||
                 "Evaluating live option chains, VIX term structure, MOVE co-signer, and sector dispersion..."}
             </div>
-            <div className="flex flex-wrap gap-2 font-mono text-[11px]">
+            <div className="flex flex-wrap gap-2 font-mono text-xs">
               <Link href="/outliers" className="text-cyan-400 hover:underline">
                 → Go to Outliers
               </Link>
@@ -255,7 +255,7 @@ export default function OptionsAndVolatilityLabPage() {
               <span className="text-xs font-mono text-cyan-400 uppercase">
                 Module 1 • Live Option Chain Greeks (${m1?.ticker || selectedTicker})
               </span>
-              <h2 className="text-lg font-bold text-white">
+              <h2 className="text-base font-bold text-white">
                 Dealer Net Gamma (GEX), 0DTE Heat, Vanna/Charm & KSPY Collar Router
               </h2>
             </div>
@@ -382,7 +382,7 @@ export default function OptionsAndVolatilityLabPage() {
                 </div>
                 {m2 && (
                   <span
-                    className={`px-2.5 py-0.5 rounded-full border text-[11px] font-mono font-semibold ${statusBadgeStyle(
+                    className={`px-2.5 py-0.5 rounded-full border text-xs font-mono font-semibold ${statusBadgeStyle(
                       m2.signal_status
                     )}`}
                   >
@@ -460,7 +460,7 @@ export default function OptionsAndVolatilityLabPage() {
                 <p className="text-xs text-slate-200 leading-relaxed">
                   {m2.plain_english_verdict}
                 </p>
-                <div className="text-[11px] font-mono text-cyan-300 pt-1 border-t border-slate-800">
+                <div className="text-xs font-mono text-cyan-300 pt-1 border-t border-slate-800">
                   🔗 Where to Look Next: {m2.model_complement_and_next_step}
                 </div>
               </div>
@@ -481,7 +481,7 @@ export default function OptionsAndVolatilityLabPage() {
                 </div>
                 {m3 && (
                   <span
-                    className={`px-2.5 py-0.5 rounded-full border text-[11px] font-mono font-semibold ${statusBadgeStyle(
+                    className={`px-2.5 py-0.5 rounded-full border text-xs font-mono font-semibold ${statusBadgeStyle(
                       m3.signal_status
                     )}`}
                   >
@@ -497,7 +497,7 @@ export default function OptionsAndVolatilityLabPage() {
                       <div className="text-slate-400">^MOVE (Bond Vol)</div>
                       <div className="text-base font-bold text-amber-300 mt-1">
                         {m3.move_index}{" "}
-                        <span className="text-[11px] text-slate-400">
+                        <span className="text-xs text-slate-400">
                           ({m3.move_1y_pct}th pct)
                         </span>
                       </div>
@@ -506,7 +506,7 @@ export default function OptionsAndVolatilityLabPage() {
                       <div className="text-slate-400">^VIX (Equity Vol)</div>
                       <div className="text-base font-bold text-cyan-300 mt-1">
                         {m3.vix_index}{" "}
-                        <span className="text-[11px] text-slate-400">
+                        <span className="text-xs text-slate-400">
                           ({m3.vix_1y_pct}th pct)
                         </span>
                       </div>
@@ -529,7 +529,7 @@ export default function OptionsAndVolatilityLabPage() {
                   <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-3 text-xs font-mono space-y-1.5">
                     <div className="text-slate-400">Active Co-Signer Regime State:</div>
                     <div className="text-amber-300 font-bold">{m3.cosigner_state}</div>
-                    <div className="text-slate-400 text-[11px] font-sans">
+                    <div className="text-slate-400 text-xs font-sans">
                       Rule: Equity spikes (^VIX &gt; 55th pct) while Bond Vol stays calm (^MOVE &lt; 32nd pct) trigger a high-conviction equity buy. Rising ^MOVE (&gt;72nd pct) while ^VIX is low warns of an impending rate-led equity air-pocket.
                     </div>
                   </div>
@@ -543,7 +543,7 @@ export default function OptionsAndVolatilityLabPage() {
                 <p className="text-xs text-slate-200 leading-relaxed">
                   {m3.plain_english_verdict}
                 </p>
-                <div className="text-[11px] font-mono text-cyan-300 pt-1 border-t border-slate-800">
+                <div className="text-xs font-mono text-cyan-300 pt-1 border-t border-slate-800">
                   🔗 Where to Look Next: {m3.model_complement_and_next_step}
                 </div>
               </div>
@@ -569,7 +569,7 @@ export default function OptionsAndVolatilityLabPage() {
                 </div>
                 {m4 && (
                   <span
-                    className={`px-2.5 py-0.5 rounded-full border text-[11px] font-mono font-semibold ${statusBadgeStyle(
+                    className={`px-2.5 py-0.5 rounded-full border text-xs font-mono font-semibold ${statusBadgeStyle(
                       m4.signal_status
                     )}`}
                   >
@@ -626,7 +626,7 @@ export default function OptionsAndVolatilityLabPage() {
                 <p className="text-xs text-slate-200 leading-relaxed">
                   {m4.plain_english_verdict}
                 </p>
-                <div className="text-[11px] font-mono text-cyan-300 pt-1 border-t border-slate-800">
+                <div className="text-xs font-mono text-cyan-300 pt-1 border-t border-slate-800">
                   🔗 Where to Look Next: {m4.model_complement_and_next_step}
                 </div>
               </div>
@@ -647,7 +647,7 @@ export default function OptionsAndVolatilityLabPage() {
                 </div>
                 {m5 && (
                   <span
-                    className={`px-2.5 py-0.5 rounded-full border text-[11px] font-mono font-semibold ${statusBadgeStyle(
+                    className={`px-2.5 py-0.5 rounded-full border text-xs font-mono font-semibold ${statusBadgeStyle(
                       m5.signal_status
                     )}`}
                   >
@@ -693,7 +693,7 @@ export default function OptionsAndVolatilityLabPage() {
                             <td className="py-1.5 px-2.5 text-slate-300">{r.rvol_5d_vs_21d}x</td>
                             <td className="py-1.5 px-2.5 text-cyan-300">{r.put_call_vol_ratio}x</td>
                             <td className="py-1.5 px-2.5 text-slate-300">{r.put_call_oi_ratio}x</td>
-                            <td className="py-1.5 px-2.5 text-[11px] text-slate-200">
+                            <td className="py-1.5 px-2.5 text-xs text-slate-200">
                               {r.flow_regime}
                             </td>
                           </tr>
@@ -711,7 +711,7 @@ export default function OptionsAndVolatilityLabPage() {
                 <p className="text-xs text-slate-200 leading-relaxed">
                   {m5.plain_english_verdict}
                 </p>
-                <div className="text-[11px] font-mono text-cyan-300 pt-1 border-t border-slate-800">
+                <div className="text-xs font-mono text-cyan-300 pt-1 border-t border-slate-800">
                   🔗 Where to Look Next: {m5.model_complement_and_next_step}
                 </div>
               </div>

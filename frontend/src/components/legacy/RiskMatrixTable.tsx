@@ -37,18 +37,18 @@ export const RiskMatrixTable: React.FC<RiskMatrixTableProps> = ({ matrix }) => {
       <div className="p-4 border-b border-slate-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 bg-[#0a101d]">
         <div className="flex items-center gap-2">
           <Grid className="h-4 w-4 text-cyan-400" />
-          <h3 className="font-mono text-sm font-bold uppercase tracking-wider text-slate-100">
+          <h3 className="font-mono text-base font-bold uppercase tracking-wider text-slate-100">
             42-MARKET RISK RANGE &amp; VAMS MOMENTUM MATRIX
           </h3>
         </div>
 
         {/* Filter Pills */}
-        <div className="flex flex-wrap gap-1.5 font-mono text-xs">
+        <div className="flex flex-wrap gap-1.5 font-mono text-sm">
           {assetClasses.map((ac) => (
             <button
               key={ac}
               onClick={() => setSelectedAssetClass(ac)}
-              className={`px-2.5 py-1 rounded transition text-[11px] ${
+              className={`px-2.5 py-1 rounded transition text-xs ${
                 selectedAssetClass === ac
                   ? "bg-cyan-600 text-white font-bold shadow-md shadow-cyan-600/30"
                   : "bg-slate-900 text-slate-400 hover:bg-slate-800 hover:text-slate-200 border border-slate-800"
@@ -61,8 +61,8 @@ export const RiskMatrixTable: React.FC<RiskMatrixTableProps> = ({ matrix }) => {
       </div>
 
       <div className="overflow-x-auto max-h-[460px] overflow-y-auto">
-        <table className="w-full text-left font-mono text-xs">
-          <thead className="bg-[#0b1220] text-slate-400 uppercase text-[10px] sticky top-0 z-10 border-b border-slate-800">
+        <table className="w-full text-left font-mono text-sm">
+          <thead className="bg-[#0b1220] text-slate-400 uppercase text-xs sticky top-0 z-10 border-b border-slate-800">
             <tr>
               <th className="px-4 py-3">TICKER</th>
               <th className="px-3 py-3">ASSET CLASS</th>
@@ -89,7 +89,7 @@ export const RiskMatrixTable: React.FC<RiskMatrixTableProps> = ({ matrix }) => {
                     <span className="h-2 w-2 rounded-full bg-cyan-400" />
                     <span>{item.ticker}</span>
                   </td>
-                  <td className="px-3 py-2.5 text-slate-400 text-[10px]">
+                  <td className="px-3 py-2.5 text-slate-400 text-xs">
                     <span className="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800">
                       {item.asset_class}
                     </span>
@@ -118,7 +118,7 @@ export const RiskMatrixTable: React.FC<RiskMatrixTableProps> = ({ matrix }) => {
                   </td>
                   <td className="px-3 py-2.5 text-center">
                     <span
-                      className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
+                      className={`px-2 py-0.5 rounded text-xs font-bold border ${
                         isBull
                           ? "bg-emerald-950/80 text-emerald-300 border-emerald-800"
                           : isBear
@@ -129,7 +129,7 @@ export const RiskMatrixTable: React.FC<RiskMatrixTableProps> = ({ matrix }) => {
                       {item.vams_state || "NEUTRAL"}
                     </span>
                   </td>
-                  <td className="px-3 py-2.5 text-center font-mono text-[11px] text-slate-300">
+                  <td className="px-3 py-2.5 text-center font-mono text-sm text-slate-300">
                     {item.rr_trade_low && item.rr_trade_high ? (
                       <span className="px-2 py-0.5 rounded bg-[#131e32] border border-slate-700/60">
                         ${item.rr_trade_low.toFixed(2)} — ${item.rr_trade_high.toFixed(2)}
@@ -143,7 +143,7 @@ export const RiskMatrixTable: React.FC<RiskMatrixTableProps> = ({ matrix }) => {
                   </td>
                   <td className="px-3 py-2.5 text-center">
                     <span
-                      className={`inline-flex items-center gap-1 font-bold text-[10px] ${
+                      className={`inline-flex items-center gap-1 font-bold text-xs ${
                         isTrendBull ? "text-emerald-400" : "text-rose-400"
                       }`}
                     >

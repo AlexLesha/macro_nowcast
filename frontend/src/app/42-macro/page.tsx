@@ -260,7 +260,7 @@ export default function FortyTwoMacroSubPage() {
             <span className="text-xs font-mono uppercase tracking-wider text-cyan-400">
               42 Macro Institutional Suite • Bayesian Nowcast & Risk Overlays
             </span>
-            <h1 className="text-xl md:text-2xl font-bold text-white mt-0.5">
+            <h1 className="text-base font-bold text-white mt-0.5">
               Plain-English Executive Summary ({data.as_of_date || "2026-06-03"})
             </h1>
           </div>
@@ -320,7 +320,7 @@ export default function FortyTwoMacroSubPage() {
         {/* Left: Global Macro Risk Matrix */}
         <div className="rounded-xl border border-slate-800 bg-[#111827] p-5">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-lg font-bold text-white">
+            <h2 className="text-base font-bold text-white">
               Top-Down: Global Macro Risk Matrix (42 Markets)
             </h2>
             <span className="text-xs font-mono text-emerald-400">
@@ -371,7 +371,7 @@ export default function FortyTwoMacroSubPage() {
 
         {/* Right: Bottom-Up Monthly Smoothed GRID Nowcast */}
         <div className="rounded-xl border border-slate-800 bg-[#111827] p-5 overflow-x-auto">
-          <h2 className="text-lg font-bold text-white mb-1">
+          <h2 className="text-base font-bold text-white mb-1">
             Bottom-Up: Major Economies GRID Model (vs. 2015–19 Trend)
           </h2>
           <p className="text-xs text-slate-400 mb-3">
@@ -412,7 +412,7 @@ export default function FortyTwoMacroSubPage() {
         {/* KISS Portfolio Card */}
         <div className="rounded-xl border border-slate-800 bg-[#111827] p-5">
           <div className="flex items-center justify-between mb-2">
-            <h2 className="text-lg font-bold text-white">KISS Model Portfolio (60/30/10)</h2>
+            <h2 className="text-base font-bold text-white">KISS Model Portfolio (60/30/10)</h2>
             <span className="text-xs font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300">
               SPX Beta Δ: {kiss.portfolio_beta_adjusted_spx_delta_pct ?? 69}%
             </span>
@@ -436,7 +436,7 @@ export default function FortyTwoMacroSubPage() {
                     <span className="font-bold text-white">{labelMap[tk]}</span>
                     <span className="text-sm font-bold text-cyan-300">{actual}%</span>
                   </div>
-                  <div className="flex justify-between text-[11px] text-slate-400 mt-1">
+                  <div className="flex justify-between text-xs text-slate-400 mt-1">
                     <span>% of Max Target Allocation</span>
                     <span>{pctMax}%</span>
                   </div>
@@ -450,7 +450,7 @@ export default function FortyTwoMacroSubPage() {
         <div className="lg:col-span-2 rounded-xl border border-slate-800 bg-[#111827] p-5">
           <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
             <div>
-              <h2 className="text-lg font-bold text-white">
+              <h2 className="text-base font-bold text-white">
                 Dr. Mo Discretionary Risk Management Overlay
               </h2>
               <p className="text-xs text-slate-400">
@@ -516,7 +516,7 @@ export default function FortyTwoMacroSubPage() {
                       <td className={`py-2 px-3 font-semibold ${vamsColor}`}>{vamsBadge}</td>
                       <td className="py-2 px-3">{item?.rsi_14d ?? 50}</td>
                       <td className="py-2 px-3">
-                        <span className={`px-2 py-0.5 rounded border text-[11px] ${tradeColor}`}>
+                        <span className={`px-2 py-0.5 rounded border text-xs ${tradeColor}`}>
                           {tradeStr}
                         </span>
                       </td>
@@ -533,7 +533,7 @@ export default function FortyTwoMacroSubPage() {
       <section className="rounded-xl border border-slate-800 bg-[#111827] p-5">
         <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
           <div>
-            <h2 className="text-lg font-bold text-white">
+            <h2 className="text-base font-bold text-white">
               Macro Weather Model (6 Principal Component Cycles • 1–3M Horizon)
             </h2>
             <p className="text-xs text-slate-400">
@@ -584,7 +584,7 @@ export default function FortyTwoMacroSubPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Probable Range Table */}
         <div className="rounded-xl border border-slate-800 bg-[#111827] p-5 overflow-x-auto">
-          <h2 className="text-lg font-bold text-white mb-1">
+          <h2 className="text-base font-bold text-white mb-1">
             VAMS & Probable Range (5D Return + 21D Max Drawdown by VAMS)
           </h2>
           <p className="text-xs text-slate-400 mb-3">
@@ -633,7 +633,7 @@ export default function FortyTwoMacroSubPage() {
         {/* Crowding & 16-Indicator Positioning Model */}
         <div className="rounded-xl border border-slate-800 bg-[#111827] p-5">
           <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-            <h2 className="text-lg font-bold text-white">
+            <h2 className="text-base font-bold text-white">
               Tactical Crowding & 16-Indicator Positioning
             </h2>
             <span className="text-xs font-mono text-amber-300">
@@ -678,7 +678,7 @@ export default function FortyTwoMacroSubPage() {
                     <strong className="text-white">${c?.ticker}</strong> ({c?.name}) • RSI:{" "}
                     {c?.rsi_14d} • 3M Flow Z: {c?.flow_z_3m}σ
                   </div>
-                  <span className="text-[11px] font-semibold">{qStr}</span>
+                  <span className="text-xs font-semibold">{qStr}</span>
                 </div>
               );
             })}
@@ -688,47 +688,47 @@ export default function FortyTwoMacroSubPage() {
 
       {/* 6. SECULAR & SCOUTING MONITORS (JOLTS FAKE DEMAND, PROFITABILITY, OIS NEUTRAL & TREASURY SUPPLY) */}
       <section className="rounded-xl border border-slate-800 bg-[#111827] p-5">
-        <h2 className="text-lg font-bold text-white mb-3">
+        <h2 className="text-base font-bold text-white mb-3">
           Specialized 2026 Macro Monitors (Labor Fake Demand, Profitability, OIS Neutral Rate & Treasury Supply)
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 font-mono text-xs">
           <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-4">
             <div className="text-slate-400">JOLTS Fake Job Demand Spread</div>
-            <div className="text-xl font-bold text-amber-400 mt-1">
+            <div className="text-base font-bold text-amber-400 mt-1">
               +{scouting.jolts_fake_job_demand_spread_bps ?? 130} bps
             </div>
-            <p className="text-[11px] text-slate-300 mt-1.5 font-sans">
+            <p className="text-xs text-slate-300 mt-1.5 font-sans">
               {scouting.jolts_interpretation}
             </p>
           </div>
 
           <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-4">
             <div className="text-slate-400">Corporate Profitability Model</div>
-            <div className="text-xl font-bold text-emerald-400 mt-1">
+            <div className="text-base font-bold text-emerald-400 mt-1">
               +{scouting.corporate_profitability_model_bps ?? 607} bps
             </div>
-            <p className="text-[11px] text-slate-300 mt-1.5 font-sans">
+            <p className="text-xs text-slate-300 mt-1.5 font-sans">
               N-GDP YoY minus (ULC YoY − Productivity YoY). Above historical mean (+584 bps), supporting S&P 500 NTM EPS expansion.
             </p>
           </div>
 
           <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-4">
             <div className="text-slate-400">OIS-Derived Fed Neutral Spread</div>
-            <div className="text-xl font-bold text-rose-400 mt-1">
+            <div className="text-base font-bold text-rose-400 mt-1">
               +{scouting.ois_neutral_rate_model?.cutting_cycle_spread_bps ?? 11} to +
               {scouting.ois_neutral_rate_model?.hiking_cycle_spread_bps ?? 39} bps
             </div>
-            <p className="text-[11px] text-slate-300 mt-1.5 font-sans">
+            <p className="text-xs text-slate-300 mt-1.5 font-sans">
               Floor OIS ({scouting.ois_neutral_rate_model?.ois_floor_neutral_pct ?? 3.73}%) & Terminal OIS ({scouting.ois_neutral_rate_model?.ois_terminal_neutral_pct ?? 4.01}%) vs. EFFR ({scouting.ois_neutral_rate_model?.effr_pct ?? 3.62}%).
             </p>
           </div>
 
           <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-4">
             <div className="text-slate-400">Approx. NTM Treasury Supply</div>
-            <div className="text-xl font-bold text-cyan-300 mt-1">
+            <div className="text-base font-bold text-cyan-300 mt-1">
               ${(scouting.ntm_marketable_treasury_supply_bn ?? 12234).toLocaleString()}B
             </div>
-            <p className="text-[11px] text-slate-300 mt-1.5 font-sans">
+            <p className="text-xs text-slate-300 mt-1.5 font-sans">
               Maturing 12M (${scouting.ntm_supply_components_bn?.maturing_next_12m_bn ?? 10179}B) + FYTD Deficit (${scouting.ntm_supply_components_bn?.annualized_fytd_deficit_bn ?? 2337}B) + Fed RMP (${scouting.ntm_supply_components_bn?.annualized_fed_divestment_or_rmp_bn ?? -282}B).
             </p>
           </div>

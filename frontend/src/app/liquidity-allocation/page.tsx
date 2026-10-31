@@ -146,7 +146,7 @@ export default function LiquidityAllocationPage() {
           <Layers className="h-4 w-4" />
           <span>MACRO LIQUIDITY &amp; ASSET ALLOCATION</span>
         </div>
-        <h1 className="text-2xl font-bold font-mono tracking-tight text-slate-100">
+        <h1 className="text-base font-bold font-mono tracking-tight text-slate-100">
           Sovereign Fiscal Stress &amp; Multi-Horizon Portfolio Engines
         </h1>
         <p className="text-xs text-slate-400 font-mono mt-1 max-w-3xl">
@@ -161,7 +161,7 @@ export default function LiquidityAllocationPage() {
       <div className="p-6 rounded-2xl bg-[#0c121e] border border-slate-800 shadow-xl space-y-6">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-800/80 pb-4">
           <div>
-            <h2 className="text-lg font-mono font-bold text-slate-100 flex items-center gap-2">
+            <h2 className="text-base font-mono font-bold text-slate-100 flex items-center gap-2">
               <Clock className="h-5 w-5 text-cyan-400" />
               MULTI-HORIZON ASSET ALLOCATION MATRIX
             </h2>
@@ -209,7 +209,7 @@ export default function LiquidityAllocationPage() {
         <div className="space-y-4">
           <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs font-mono">
             <div>
-              <span className="text-cyan-400 font-bold uppercase block text-[11px]">Active Strategy Horizon:</span>
+              <span className="text-cyan-400 font-bold uppercase block text-xs">Active Strategy Horizon:</span>
               <span className="text-base font-bold text-slate-100">
                 {activeDynHorizon?.title || horizons[horizonTab].name}
               </span>
@@ -218,7 +218,7 @@ export default function LiquidityAllocationPage() {
               <span className="text-slate-400 font-semibold">Regime Rationale:</span>{" "}
               {activeDynHorizon?.regime_thesis || horizons[horizonTab].focus}
             </div>
-            <div className="px-2.5 py-1 rounded bg-slate-800 border border-slate-700 text-slate-300 font-semibold text-[11px] shrink-0">
+            <div className="px-2.5 py-1 rounded bg-slate-800 border border-slate-700 text-slate-300 font-semibold text-xs shrink-0">
               {horizons[horizonTab].benchmark}
             </div>
           </div>
@@ -226,40 +226,40 @@ export default function LiquidityAllocationPage() {
           {activeDynHorizon && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 text-xs font-mono">
               <div className="p-3 rounded-xl bg-emerald-950/20 border border-emerald-800/40 space-y-1">
-                <span className="text-[10px] font-bold text-emerald-400 uppercase block">Overweight Sectors &amp; Commodities</span>
+                <span className="text-xs font-bold text-emerald-400 uppercase block">Overweight Sectors &amp; Commodities</span>
                 <div className="flex flex-wrap gap-1 pt-1">
                   {activeDynHorizon.sectors_long?.map((s: string, idx: number) => (
-                    <span key={idx} className="px-1.5 py-0.5 rounded bg-emerald-900/60 text-emerald-200 text-[10px] border border-emerald-700/50">
+                    <span key={idx} className="px-1.5 py-0.5 rounded bg-emerald-900/60 text-emerald-200 text-xs border border-emerald-700/50">
                       {s}
                     </span>
                   ))}
                 </div>
               </div>
               <div className="p-3 rounded-xl bg-rose-950/20 border border-rose-800/40 space-y-1">
-                <span className="text-[10px] font-bold text-rose-400 uppercase block">Underweight / Avoid Sectors</span>
+                <span className="text-xs font-bold text-rose-400 uppercase block">Underweight / Avoid Sectors</span>
                 <div className="flex flex-wrap gap-1 pt-1">
                   {activeDynHorizon.sectors_avoid?.map((s: string, idx: number) => (
-                    <span key={idx} className="px-1.5 py-0.5 rounded bg-rose-900/60 text-rose-200 text-[10px] border border-rose-700/50">
+                    <span key={idx} className="px-1.5 py-0.5 rounded bg-rose-900/60 text-rose-200 text-xs border border-rose-700/50">
                       {s}
                     </span>
                   ))}
                 </div>
               </div>
               <div className="p-3 rounded-xl bg-cyan-950/20 border border-cyan-800/40 space-y-1">
-                <span className="text-[10px] font-bold text-cyan-400 uppercase block">Country Quads Leadership</span>
+                <span className="text-xs font-bold text-cyan-400 uppercase block">Country Quads Leadership</span>
                 <div className="flex flex-wrap gap-1 pt-1">
                   {activeDynHorizon.countries_long?.map((c: string, idx: number) => (
-                    <span key={idx} className="px-1.5 py-0.5 rounded bg-cyan-900/60 text-cyan-200 text-[10px] border border-cyan-700/50">
+                    <span key={idx} className="px-1.5 py-0.5 rounded bg-cyan-900/60 text-cyan-200 text-xs border border-cyan-700/50">
                       {c}
                     </span>
                   ))}
                 </div>
               </div>
               <div className="p-3 rounded-xl bg-indigo-950/20 border border-indigo-800/40 space-y-1">
-                <span className="text-[10px] font-bold text-indigo-400 uppercase block">Factors &amp; Sleeves</span>
+                <span className="text-xs font-bold text-indigo-400 uppercase block">Factors &amp; Sleeves</span>
                 <div className="flex flex-wrap gap-1 pt-1">
                   {activeDynHorizon.factors_and_sleeves?.map((f: string, idx: number) => (
-                    <span key={idx} className="px-1.5 py-0.5 rounded bg-indigo-900/60 text-indigo-200 text-[10px] border border-indigo-700/50">
+                    <span key={idx} className="px-1.5 py-0.5 rounded bg-indigo-900/60 text-indigo-200 text-xs border border-indigo-700/50">
                       {f}
                     </span>
                   ))}
@@ -271,7 +271,7 @@ export default function LiquidityAllocationPage() {
           {/* Allocation Table */}
           <div className="overflow-x-auto rounded-xl border border-slate-800">
             <table className="w-full text-left text-xs font-mono">
-              <thead className="bg-slate-900/80 text-slate-400 uppercase text-[10px] border-b border-slate-800">
+              <thead className="bg-slate-900/80 text-slate-400 uppercase text-xs border-b border-slate-800">
                 <tr>
                   <th className="py-3 px-4">Asset / Sector Allocation</th>
                   <th className="py-3 px-4">Target Weight</th>
@@ -290,7 +290,7 @@ export default function LiquidityAllocationPage() {
                     </td>
                     <td className="py-3 px-4">
                       <span
-                        className={`px-2 py-0.5 rounded font-semibold text-[10px] ${
+                        className={`px-2 py-0.5 rounded font-semibold text-xs ${
                           row.stance.includes("OVERWEIGHT") || row.stance.includes("LONG") || row.stance.includes("BULL")
                             ? "bg-emerald-950/80 text-emerald-400 border border-emerald-800"
                             : row.stance.includes("UNDERWEIGHT")
@@ -314,7 +314,7 @@ export default function LiquidityAllocationPage() {
       <div className="p-6 rounded-2xl bg-[#0c121e] border border-slate-800 shadow-xl space-y-6">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-800/80 pb-4">
           <div>
-            <h2 className="text-lg font-mono font-bold text-slate-100 flex items-center gap-2">
+            <h2 className="text-base font-mono font-bold text-slate-100 flex items-center gap-2">
               <BarChart2 className="h-5 w-5 text-indigo-400" />
               DR. MO 70-FACTOR INSTITUTIONAL HEATMAP
             </h2>
@@ -364,7 +364,7 @@ export default function LiquidityAllocationPage() {
                 <div className="flex items-center justify-between text-xs font-mono">
                   <span className="font-bold text-slate-100">${f.ticker}</span>
                   <span
-                    className={`text-[9px] px-1.5 py-0.2 rounded font-mono font-bold ${
+                    className={`text-xs px-1.5 py-0.2 rounded font-mono font-bold ${
                       isLong
                         ? "bg-emerald-900 text-emerald-300"
                         : isShort
@@ -376,13 +376,13 @@ export default function LiquidityAllocationPage() {
                   </span>
                 </div>
                 <div
-                  className={`text-[11px] font-mono font-semibold mt-2 ${
+                  className={`text-sm font-mono font-semibold mt-2 ${
                     isLong ? "text-emerald-400" : isShort ? "text-rose-400" : "text-slate-400"
                   }`}
                 >
                   {f.signal}
                 </div>
-                <div className="text-[10px] font-mono text-slate-500 mt-0.5">
+                <div className="text-xs font-mono text-slate-500 mt-0.5">
                   Target Exp: {f.target_exposure_pct}%
                 </div>
               </div>

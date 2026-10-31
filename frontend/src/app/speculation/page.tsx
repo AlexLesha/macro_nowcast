@@ -215,7 +215,7 @@ export default function SpeculationMatrixPage() {
           <span>INSTITUTIONAL CAPITAL FLOW LOGIC &bull; AUDIT ITEM #25</span>
         </div>
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          <h1 className="text-2xl font-bold font-mono tracking-tight text-slate-100">
+          <h1 className="text-base font-bold font-mono tracking-tight text-slate-100">
             1st, 2nd &amp; 3rd Order Speculation Matrix
           </h1>
           <span className="text-xs font-mono px-3 py-1 rounded bg-slate-900 border border-slate-800 text-slate-400">
@@ -256,12 +256,12 @@ export default function SpeculationMatrixPage() {
           <div className="p-4 rounded-xl bg-slate-900/80 border border-cyan-500/30 space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-cyan-400">1ST ORDER: DIRECT THEME</span>
-              <span className="text-[10px] px-1.5 py-0.2 rounded bg-cyan-950 text-cyan-300">OBVIOUS CROWD</span>
+              <span className="text-xs px-1.5 py-0.2 rounded bg-cyan-950 text-cyan-300">OBVIOUS CROWD</span>
             </div>
-            <p className="text-slate-300 text-[11px] leading-relaxed">
+            <p className="text-slate-300 text-xs leading-relaxed">
               Primary assets directly impacted by headline macro policy (e.g. NVDA GPU compute, GLD currency debasement, TPL Permian energy royalties).
             </p>
-            <div className="pt-1 text-[10px] text-slate-400 font-semibold">
+            <div className="pt-1 text-xs text-slate-400 font-semibold">
               Valuation Multiples: <strong className="text-slate-200">Expanded / Peak</strong>
             </div>
           </div>
@@ -270,12 +270,12 @@ export default function SpeculationMatrixPage() {
           <div className="p-4 rounded-xl bg-slate-900/80 border border-indigo-500/30 space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-indigo-400">2ND ORDER: ENABLERS</span>
-              <span className="text-[10px] px-1.5 py-0.2 rounded bg-indigo-950 text-indigo-300">ALPHA ZONE</span>
+              <span className="text-xs px-1.5 py-0.2 rounded bg-indigo-950 text-indigo-300">ALPHA ZONE</span>
             </div>
-            <p className="text-slate-300 text-[11px] leading-relaxed">
+            <p className="text-slate-300 text-xs leading-relaxed">
               Critical supply chain inputs and infrastructure required for 1st order themes to scale (e.g. ANET networking, MPWR power management, WMB gas pipelines).
             </p>
-            <div className="pt-1 text-[10px] text-slate-400 font-semibold">
+            <div className="pt-1 text-xs text-slate-400 font-semibold">
               Valuation Multiples: <strong className="text-slate-200">Lagging Hyperscalers</strong>
             </div>
           </div>
@@ -284,12 +284,12 @@ export default function SpeculationMatrixPage() {
           <div className="p-4 rounded-xl bg-slate-900/80 border border-emerald-500/30 space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-emerald-400">3RD ORDER: DERIVATIVES</span>
-              <span className="text-[10px] px-1.5 py-0.2 rounded bg-emerald-950 text-emerald-300">ASYMMETRIC</span>
+              <span className="text-xs px-1.5 py-0.2 rounded bg-emerald-950 text-emerald-300">ASYMMETRIC</span>
             </div>
-            <p className="text-slate-300 text-[11px] leading-relaxed">
+            <p className="text-slate-300 text-xs leading-relaxed">
               Second-derivative capital flows and bottleneck physical resources (e.g. CEG nuclear power PPAs, JPM SLR relief, PLTR margin defense).
             </p>
-            <div className="pt-1 text-[10px] text-slate-400 font-semibold">
+            <div className="pt-1 text-xs text-slate-400 font-semibold">
               Valuation Multiples: <strong className="text-slate-200">Deep Cyclical Discount</strong>
             </div>
           </div>
@@ -300,7 +300,7 @@ export default function SpeculationMatrixPage() {
       <div className="rounded-2xl bg-[#0c121e] border border-slate-800 shadow-xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs font-mono">
-            <thead className="bg-slate-900/90 text-slate-400 uppercase text-[10px] border-b border-slate-800 tracking-wider">
+            <thead className="bg-slate-900/90 text-slate-400 uppercase text-xs border-b border-slate-800 tracking-wider">
               <tr>
                 <th className="py-3.5 px-4">Order of Effect</th>
                 <th className="py-3.5 px-4">Stock</th>
@@ -324,7 +324,7 @@ export default function SpeculationMatrixPage() {
                     {/* Order Badge */}
                     <td className="py-3 px-4 whitespace-nowrap">
                       <span
-                        className={`px-2 py-0.5 rounded font-bold text-[10px] uppercase ${
+                        className={`px-2 py-0.5 rounded font-bold text-xs uppercase ${
                           is1st
                             ? "bg-cyan-950/80 text-cyan-400 border border-cyan-800"
                             : is2nd
@@ -350,7 +350,7 @@ export default function SpeculationMatrixPage() {
                         <div className="space-y-0.5">
                           <span className="font-bold text-slate-100">${Number(item.live_price).toFixed(2)}</span>
                           <span
-                            className={`block text-[10px] font-bold ${
+                            className={`block text-xs font-bold ${
                               item.vams_status?.includes("+1") || item.vams_status?.includes("BULLISH")
                                 ? "text-emerald-400"
                                 : item.vams_status?.includes("-1") || item.vams_status?.includes("BEARISH")
@@ -362,7 +362,7 @@ export default function SpeculationMatrixPage() {
                           </span>
                         </div>
                       ) : (
-                        <span className="text-slate-500 text-[11px]">—</span>
+                        <span className="text-slate-500 text-xs">—</span>
                       )}
                     </td>
 
@@ -371,7 +371,7 @@ export default function SpeculationMatrixPage() {
                       {item.live_entry_timing ? (
                         <div className="space-y-1">
                           <span
-                            className={`px-2 py-0.5 rounded text-[10px] font-semibold border inline-block ${
+                            className={`px-2 py-0.5 rounded text-xs font-semibold border inline-block ${
                               item.live_entry_timing.includes("LOW-BASE") || item.live_entry_timing.includes("Priority Accumulate")
                                 ? "bg-emerald-950/80 text-emerald-300 border-emerald-800"
                                 : item.live_entry_timing.includes("EXTENDED")
@@ -391,15 +391,15 @@ export default function SpeculationMatrixPage() {
                           )}
                         </div>
                       ) : (
-                        <span className="text-slate-500 text-[11px]">Tracking</span>
+                        <span className="text-slate-500 text-xs">Tracking</span>
                       )}
                     </td>
 
                     {/* Industry */}
-                    <td className="py-3 px-4 text-slate-400 text-[11px] whitespace-nowrap">{item.industry}</td>
+                    <td className="py-3 px-4 text-slate-400 text-xs whitespace-nowrap">{item.industry}</td>
 
                     {/* Reasons for Selection */}
-                    <td className="py-3 px-4 text-slate-300 leading-relaxed text-[11px]">
+                    <td className="py-3 px-4 text-slate-300 leading-relaxed text-xs">
                       {item.reasons}
                     </td>
 

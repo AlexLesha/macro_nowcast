@@ -53,20 +53,20 @@ export const RegimeBanner: React.FC<RegimeBannerProps> = ({ regime }) => {
             <span>MACRO REGIME NOWCAST</span>
           </div>
           <div className="flex items-baseline gap-3">
-            <h2 className="text-3xl font-black font-mono tracking-tight text-white">
+            <h2 className="text-base font-black font-mono tracking-tight text-white">
               {activeQuad.replace("_", " ")}
             </h2>
             <span className="text-xs px-2.5 py-1 rounded bg-emerald-950/80 text-emerald-400 border border-emerald-800 font-mono font-semibold">
               {gridRegime}
             </span>
           </div>
-          <p className="text-xs text-slate-400 mt-2 font-mono leading-relaxed">
+          <p className="text-sm text-slate-400 mt-2 font-mono leading-relaxed">
             Hedgeye Quad 2 (Growth Accelerating / Inflation Accelerating). Optimal environment for Equities, Commodities, and Crypto.
           </p>
 
           {/* Probability Distribution Bar */}
           <div className="mt-4">
-            <div className="flex justify-between text-[11px] font-mono text-slate-400 mb-1">
+            <div className="flex justify-between text-sm font-mono text-slate-400 mb-1">
               <span>Quad Probabilities</span>
               <span className="text-slate-200 font-semibold">Q2: {p2}% Conviction</span>
             </div>
@@ -76,7 +76,7 @@ export const RegimeBanner: React.FC<RegimeBannerProps> = ({ regime }) => {
               <div style={{ width: `${p3}%` }} className="bg-amber-500" title={`Quad 3: ${p3}%`} />
               <div style={{ width: `${p4}%` }} className="bg-rose-500" title={`Quad 4: ${p4}%`} />
             </div>
-            <div className="flex justify-between text-[10px] font-mono text-slate-500 mt-1">
+            <div className="flex justify-between text-xs font-mono text-slate-500 mt-1">
               <span>Q1 (Goldilocks): {p1}%</span>
               <span>Q2 (Reflation): {p2}%</span>
               <span>Q3 (Stagflation): {p3}%</span>
@@ -93,29 +93,29 @@ export const RegimeBanner: React.FC<RegimeBannerProps> = ({ regime }) => {
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="bg-[#121c2e] p-3 rounded-lg border border-slate-800/80">
-              <span className="text-[10px] font-mono text-slate-400 block mb-1">
+              <span className="text-xs font-mono text-slate-400 block mb-1">
                 FED NET LIQUIDITY
               </span>
-              <div className="flex items-baseline gap-1 text-lg font-bold font-mono text-white">
+              <div className="flex items-baseline gap-1 text-base font-bold font-mono text-white">
                 <DollarSign className="h-4 w-4 text-emerald-400 -mr-1" />
                 <span>{netLiquidity.toLocaleString()}</span>
                 <span className="text-xs text-slate-400">B</span>
               </div>
-              <span className="text-[10px] text-slate-400 font-mono block mt-0.5">
+              <span className="text-xs text-slate-400 font-mono block mt-0.5">
                 WALCL − TGA − RRP
               </span>
             </div>
 
             <div className="bg-[#121c2e] p-3 rounded-lg border border-slate-800/80">
-              <span className="text-[10px] font-mono text-slate-400 block mb-1">
+              <span className="text-xs font-mono text-slate-400 block mb-1">
                 GLOBAL M2 LIQUIDITY
               </span>
-              <div className="flex items-baseline gap-1 text-lg font-bold font-mono text-white">
+              <div className="flex items-baseline gap-1 text-base font-bold font-mono text-white">
                 <Globe className="h-4 w-4 text-cyan-400 -mr-1" />
                 <span>${globalLiq}</span>
                 <span className="text-xs text-slate-400">T</span>
               </div>
-              <span className="text-[10px] text-emerald-400 font-mono block mt-0.5">
+              <span className="text-xs text-emerald-400 font-mono block mt-0.5">
                 +1.8% 30d RoC
               </span>
             </div>
@@ -129,7 +129,7 @@ export const RegimeBanner: React.FC<RegimeBannerProps> = ({ regime }) => {
               <PieChart className="h-4 w-4 text-cyan-400" />
               <span>OPTIMAL KISS ALLOCATION</span>
             </div>
-            <span className="text-[10px] font-mono text-cyan-400">SYSTEMATIC</span>
+            <span className="text-xs font-mono text-cyan-400">SYSTEMATIC</span>
           </div>
 
           <div className="grid grid-cols-3 gap-2">
@@ -138,8 +138,8 @@ export const RegimeBanner: React.FC<RegimeBannerProps> = ({ regime }) => {
                 key={ticker}
                 className="bg-[#121c2e] px-2.5 py-1.5 rounded border border-slate-800 flex items-center justify-between"
               >
-                <span className="text-xs font-mono font-semibold text-slate-200">{ticker}</span>
-                <span className="text-xs font-mono font-bold text-cyan-400">{wt}%</span>
+                <span className="text-sm font-mono font-semibold text-slate-200">{ticker}</span>
+                <span className="text-sm font-mono font-bold text-cyan-400">{wt}%</span>
               </div>
             ))}
           </div>

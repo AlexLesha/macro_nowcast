@@ -197,7 +197,7 @@ export default function UnifiedNowcastDashboard() {
               <span>US &amp; GLOBAL QUADS</span>
             </div>
             <div className="flex items-baseline gap-2 pt-1">
-              <span className="text-2xl font-black font-mono text-slate-100">{monthlyQuad.replace("_", " ")}</span>
+              <span className="text-base font-black font-mono text-slate-100">{monthlyQuad.replace("_", " ")}</span>
               <span className="text-xs font-mono px-2 py-0.5 rounded bg-emerald-950/80 text-emerald-400 border border-emerald-800 font-bold">
                 MONTHLY
               </span>
@@ -246,7 +246,7 @@ export default function UnifiedNowcastDashboard() {
                 title={`Deflation: ${gridShares.deflation_pct}%`}
               />
             </div>
-            <div className="flex items-center justify-between text-[10px] font-mono text-slate-400">
+            <div className="flex items-center justify-between text-xs font-mono text-slate-400">
               <span>Gold: {gridShares.goldilocks_pct}%</span>
               <span>Refl: {gridShares.reflation_pct}%</span>
               <span>Infl: {gridShares.inflation_pct}%</span>
@@ -261,14 +261,14 @@ export default function UnifiedNowcastDashboard() {
               <span>PROMETHEUS 1965 ANALOG</span>
             </div>
             <div className="flex items-baseline gap-2 pt-1">
-              <span className="text-xl font-bold font-mono text-slate-100">
+              <span className="text-base font-bold font-mono text-slate-100">
                 {execData?.kpi_3_similarity_match?.top_historical_period || "2019-Q3"}
               </span>
               <span className="text-xs font-mono text-amber-400 font-bold px-1.5 py-0.2 rounded bg-amber-950/80 border border-amber-800">
                 {execData?.kpi_3_similarity_match?.similarity_score_pct ?? 86.4}% MATCH
               </span>
             </div>
-            <div className="text-[11px] font-mono text-slate-400 pt-0.5">
+            <div className="text-xs font-mono text-slate-400 pt-0.5">
               <span>Expected Return: </span>
               <span className="text-emerald-400 font-semibold">
                 SPY {execData?.kpi_3_similarity_match?.expected_21d_spy_return_pct || "+1.8%"}
@@ -283,7 +283,7 @@ export default function UnifiedNowcastDashboard() {
               <span>US NET LIQUIDITY</span>
             </div>
             <div className="flex items-baseline gap-2 pt-1">
-              <span className="text-2xl font-black font-mono text-emerald-400">
+              <span className="text-base font-black font-mono text-emerald-400">
                 ${netLiquidityBn.toLocaleString()}B
               </span>
             </div>
@@ -305,7 +305,7 @@ export default function UnifiedNowcastDashboard() {
                 {execData?.kpi_5_move_vix_cosigner?.cosigner_state || "BULLISH CO-SIGN"}
               </span>
             </div>
-            <div className="text-[11px] font-mono text-slate-400 pt-1">
+            <div className="text-xs font-mono text-slate-400 pt-1">
               MOVE: <strong className="text-slate-200">{execData?.kpi_5_move_vix_cosigner?.move_index ?? 94.2}</strong> ({execData?.kpi_5_move_vix_cosigner?.move_1y_pct ?? 25}th pct) &bull; VIX:{" "}
               <strong className="text-slate-200">{execData?.kpi_5_move_vix_cosigner?.vix_index ?? 15.8}</strong>
             </div>
@@ -323,17 +323,17 @@ export default function UnifiedNowcastDashboard() {
                 <PieChart className="h-4 w-4" />
               </div>
               <div>
-                <h3 className="text-sm font-mono font-bold text-slate-100">KISS 60/30/10 MODEL</h3>
-                <p className="text-[11px] font-mono text-slate-400">Vol-Targeted &amp; VAMS-Scaled Allocation</p>
+                <h3 className="text-base font-mono font-bold text-slate-100">KISS 60/30/10 MODEL</h3>
+                <p className="text-xs font-mono text-slate-400">Vol-Targeted &amp; VAMS-Scaled Allocation</p>
               </div>
             </div>
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-cyan-950 text-cyan-400 border border-cyan-800">
+            <span className="text-xs font-mono px-2 py-0.5 rounded bg-cyan-950 text-cyan-400 border border-cyan-800">
               10% VOL TARGET
             </span>
           </div>
 
           {/* Allocation Weights */}
-          <div className="space-y-3 font-mono text-xs">
+          <div className="space-y-3 font-mono text-sm">
             <div>
               <div className="flex justify-between text-slate-300 mb-1">
                 <span className="font-semibold text-cyan-400">$SPY (Equities)</span>
@@ -375,7 +375,7 @@ export default function UnifiedNowcastDashboard() {
             </div>
           </div>
 
-          <div className="pt-2 text-[11px] font-mono text-slate-400 border-t border-slate-800/80">
+          <div className="pt-2 text-xs font-mono text-slate-400 border-t border-slate-800/80">
             Systematic rule: VAMS momentum scaling scales risk assets; unallocated capital parks in ultra-short Treasuries.
           </div>
         </div>
@@ -388,16 +388,16 @@ export default function UnifiedNowcastDashboard() {
                 <Scale className="h-4 w-4" />
               </div>
               <div>
-                <h3 className="text-sm font-mono font-bold text-slate-100">3FOURTEEN RAA MODEL</h3>
-                <p className="text-[11px] font-mono text-slate-400">Regime Adaptive Asset Allocation</p>
+                <h3 className="text-base font-mono font-bold text-slate-100">3FOURTEEN RAA MODEL</h3>
+                <p className="text-xs font-mono text-slate-400">Regime Adaptive Asset Allocation</p>
               </div>
             </div>
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-indigo-950 text-indigo-400 border border-indigo-800">
+            <span className="text-xs font-mono px-2 py-0.5 rounded bg-indigo-950 text-indigo-400 border border-indigo-800">
               WARREN PIES
             </span>
           </div>
 
-          <div className="space-y-3 font-mono text-xs">
+          <div className="space-y-3 font-mono text-sm">
             <div>
               <div className="flex justify-between text-slate-300 mb-1">
                 <span className="font-semibold text-indigo-400">Equities Bucket</span>
@@ -406,7 +406,7 @@ export default function UnifiedNowcastDashboard() {
               <div className="w-full bg-slate-900 rounded-full h-2 overflow-hidden border border-slate-800">
                 <div className="bg-indigo-500 h-full rounded-full" style={{ width: `${execData?.card_b_3fourteen_raa?.equities_pct ?? 41.0}%` }} />
               </div>
-              <p className="text-[10px] text-slate-400 mt-0.5">Tilt: High FCTE Quality &bull; Top: {(execData?.card_b_3fourteen_raa?.top_holdings || ["SPY", "PDBC", "GLDM"]).slice(0, 4).join(", ")}</p>
+              <p className="text-xs text-slate-400 mt-0.5">Tilt: High FCTE Quality &bull; Top: {(execData?.card_b_3fourteen_raa?.top_holdings || ["SPY", "PDBC", "GLDM"]).slice(0, 4).join(", ")}</p>
             </div>
 
             <div>
@@ -417,7 +417,7 @@ export default function UnifiedNowcastDashboard() {
               <div className="w-full bg-slate-900 rounded-full h-2 overflow-hidden border border-slate-800">
                 <div className="bg-blue-500 h-full rounded-full" style={{ width: `${execData?.card_b_3fourteen_raa?.fixed_income_pct ?? 29.3}%` }} />
               </div>
-              <p className="text-[10px] text-slate-400 mt-0.5">Focus: Short-to-Intermediate durations ($SHY / $IEF / $SCHQ)</p>
+              <p className="text-xs text-slate-400 mt-0.5">Focus: Short-to-Intermediate durations ($SHY / $IEF / $SCHQ)</p>
             </div>
 
             <div>
@@ -428,11 +428,11 @@ export default function UnifiedNowcastDashboard() {
               <div className="w-full bg-slate-900 rounded-full h-2 overflow-hidden border border-slate-800">
                 <div className="bg-amber-500 h-full rounded-full" style={{ width: `${execData?.card_b_3fourteen_raa?.alternatives_pct ?? 29.7}%` }} />
               </div>
-              <p className="text-[10px] text-slate-400 mt-0.5">Focus: Bullion ($GLDM), Commodities ($PDBC), Crypto ($IBIT)</p>
+              <p className="text-xs text-slate-400 mt-0.5">Focus: Bullion ($GLDM), Commodities ($PDBC), Crypto ($IBIT)</p>
             </div>
           </div>
 
-          <div className="pt-2 text-[11px] font-mono text-slate-400 border-t border-slate-800/80">
+          <div className="pt-2 text-xs font-mono text-slate-400 border-t border-slate-800/80">
             RAA dynamically weights factors based on 2Y/10Y Fair Value modeling and speculative capitulation triggers.
           </div>
         </div>
@@ -445,47 +445,47 @@ export default function UnifiedNowcastDashboard() {
                 <ShieldAlert className="h-4 w-4" />
               </div>
               <div>
-                <h3 className="text-sm font-mono font-bold text-slate-100">KSPY OPTION OVERLAY</h3>
-                <p className="text-[11px] font-mono text-slate-400">Hedgeye Dynamic Collar Engine</p>
+                <h3 className="text-base font-mono font-bold text-slate-100">KSPY OPTION OVERLAY</h3>
+                <p className="text-xs font-mono text-slate-400">Hedgeye Dynamic Collar Engine</p>
               </div>
             </div>
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800 font-bold">
+            <span className="text-xs font-mono px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800 font-bold">
               ACTIVE
             </span>
           </div>
 
           <div className="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800 space-y-2">
-            <div className="text-[11px] font-mono text-slate-400 uppercase">Regime Designation:</div>
+            <div className="text-xs font-mono text-slate-400 uppercase">Regime Designation:</div>
             <div className="text-base font-bold font-mono text-cyan-400 tracking-wide">
               {(execData?.card_c_kspy_option_overlay?.kspy_overlay_regime || kspyOverlay).replace(/_/g, " ")}
             </div>
-            <p className="text-xs text-slate-300 font-mono leading-relaxed">
+            <p className="text-sm text-slate-300 font-mono leading-relaxed">
               {execData?.card_c_kspy_option_overlay?.plain_english_verdict || kspyDesc}
             </p>
           </div>
 
-          <div className="grid grid-cols-3 gap-2 text-xs font-mono">
+          <div className="grid grid-cols-3 gap-2 text-sm font-mono">
             <div className="p-2.5 rounded-lg bg-slate-900/60 border border-slate-800">
-              <span className="text-slate-400 text-[10px] block">Put Wall</span>
+              <span className="text-slate-400 text-xs block">Put Wall</span>
               <strong className="text-slate-100">
                 ${execData?.card_c_kspy_option_overlay?.put_wall_strike ? Number(execData.card_c_kspy_option_overlay.put_wall_strike).toFixed(1) : "540.0"}
               </strong>
             </div>
             <div className="p-2.5 rounded-lg bg-slate-900/60 border border-slate-800">
-              <span className="text-slate-400 text-[10px] block">Gamma Flip</span>
+              <span className="text-slate-400 text-xs block">Gamma Flip</span>
               <strong className="text-slate-100">
                 ${execData?.card_c_kspy_option_overlay?.gamma_flip_price ? Number(execData.card_c_kspy_option_overlay.gamma_flip_price).toFixed(1) : "581.0"}
               </strong>
             </div>
             <div className="p-2.5 rounded-lg bg-slate-900/60 border border-slate-800">
-              <span className="text-slate-400 text-[10px] block">Call Wall</span>
+              <span className="text-slate-400 text-xs block">Call Wall</span>
               <strong className="text-slate-100">
                 ${execData?.card_c_kspy_option_overlay?.call_wall_strike ? Number(execData.card_c_kspy_option_overlay.call_wall_strike).toFixed(1) : "595.0"}
               </strong>
             </div>
           </div>
 
-          <div className="pt-2 text-[11px] font-mono text-slate-400 border-t border-slate-800/80">
+          <div className="pt-2 text-xs font-mono text-slate-400 border-t border-slate-800/80">
             Net GEX: <strong className="text-cyan-400">{execData?.card_c_kspy_option_overlay?.net_gex_bn ? `${execData.card_c_kspy_option_overlay.net_gex_bn > 0 ? "+" : ""}${execData.card_c_kspy_option_overlay.net_gex_bn}B` : "+4.2B"}</strong> &bull; Systematic overlay finances zero-cost tail protection when S&amp;P 500 pushes into top of risk range.
           </div>
         </div>
@@ -499,13 +499,13 @@ export default function UnifiedNowcastDashboard() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-cyan-400" />
-            <h2 className="text-lg font-mono font-bold text-slate-100">
+            <h2 className="text-base font-mono font-bold text-slate-100">
               LATEST VERIFIED INTELLIGENCE DELTAS
             </h2>
           </div>
           <Link
             href="/synthesis"
-            className="text-xs font-mono text-cyan-400 hover:text-cyan-300 flex items-center gap-1 transition"
+            className="text-sm font-mono text-cyan-400 hover:text-cyan-300 flex items-center gap-1 transition"
           >
             <span>Explore 4-Framework Synthesis Matrix</span>
             <ChevronRight className="h-3.5 w-3.5" />

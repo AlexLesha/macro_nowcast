@@ -216,7 +216,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
               id="download-html-export-button"
               onClick={handleDownloadHtml}
               disabled={isExportingHtml}
-              className="px-3.5 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-mono text-xs font-semibold flex items-center gap-1.5 shadow-lg shadow-cyan-600/20 transition shrink-0"
+              className="px-3.5 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-mono text-sm font-semibold flex items-center gap-1.5 shadow-lg shadow-cyan-600/20 transition shrink-0"
             >
               <Download className="h-3.5 w-3.5" />
               <span>{isExportingHtml ? "Compiling..." : "Download"}</span>
@@ -241,7 +241,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
             <button
               id="copy-shareable-link-button"
               onClick={handleCopyLink}
-              className="px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-mono text-xs font-semibold flex items-center gap-1.5 shadow-lg shadow-indigo-600/20 transition shrink-0"
+              className="px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-mono text-sm font-semibold flex items-center gap-1.5 shadow-lg shadow-indigo-600/20 transition shrink-0"
             >
               {copiedLink ? <Check className="h-3.5 w-3.5 text-emerald-300" /> : <Copy className="h-3.5 w-3.5" />}
               <span>{copiedLink ? "Copied!" : "Copy URL"}</span>
@@ -266,7 +266,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
             <button
               id="download-json-export-button"
               onClick={handleDownloadJson}
-              className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-mono text-xs font-semibold flex items-center gap-1.5 shadow-lg shadow-emerald-600/20 transition shrink-0"
+              className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-mono text-sm font-semibold flex items-center gap-1.5 shadow-lg shadow-emerald-600/20 transition shrink-0"
             >
               <Download className="h-3.5 w-3.5" />
               <span>JSON</span>
@@ -276,13 +276,13 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
 
         {/* Footer */}
         <div className="px-6 py-3 border-t border-slate-800 bg-slate-900/80 flex items-center justify-between">
-          <span className="text-[11px] font-mono text-slate-500 flex items-center gap-1">
+          <span className="text-xs font-mono text-slate-500 flex items-center gap-1">
             <Cloud className="h-3.5 w-3.5 text-cyan-400" />
             Configured for Vercel / Cloud Containerization
           </span>
           <button
             onClick={onClose}
-            className="px-4 py-1.5 rounded-lg font-mono text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition"
+            className="px-4 py-1.5 rounded-lg font-mono text-sm font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition"
           >
             Close
           </button>

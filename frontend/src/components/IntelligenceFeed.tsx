@@ -34,12 +34,12 @@ export const IntelligenceFeed: React.FC<IntelligenceFeedProps> = ({
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4 border-b border-slate-800 pb-3">
         <div className="flex items-center gap-2">
           <BookOpen className="h-4 w-4 text-cyan-400" />
-          <h3 className="font-mono text-sm font-bold uppercase tracking-wider text-slate-100">
+          <h3 className="font-mono text-base font-bold uppercase tracking-wider text-slate-100">
             SYSTEMATIC INTELLIGENCE &amp; PORTFOLIO DELTAS
           </h3>
         </div>
 
-        <div className="flex items-center gap-2 font-mono text-xs">
+        <div className="flex items-center gap-2 font-mono text-sm">
           <button
             onClick={onTriggerHoldingsSync}
             disabled={isSyncing}
@@ -77,19 +77,19 @@ export const IntelligenceFeed: React.FC<IntelligenceFeedProps> = ({
             >
               <div className="flex items-center justify-between gap-2 mb-2">
                 <div className="flex items-center gap-2">
-                  <span className="px-2 py-0.5 rounded bg-cyan-950 text-cyan-300 border border-cyan-800 text-[10px] font-mono font-bold">
+                  <span className="px-2 py-0.5 rounded bg-cyan-950 text-cyan-300 border border-cyan-800 text-xs font-mono font-bold">
                     {delta.framework_author}
                   </span>
-                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-900 text-slate-400 border border-slate-800">
+                  <span className="text-xs font-mono px-1.5 py-0.5 rounded bg-slate-900 text-slate-400 border border-slate-800">
                     {delta.source_type}
                   </span>
                 </div>
-                <span className="text-[10px] font-mono text-slate-500">
+                <span className="text-xs font-mono text-slate-500">
                   {delta.timestamp_utc ? new Date(delta.timestamp_utc).toLocaleDateString() : ""}
                 </span>
               </div>
 
-              <h4 className="font-mono text-sm font-bold text-slate-100 flex items-center gap-1.5">
+              <h4 className="font-mono text-base font-bold text-slate-100 flex items-center gap-1.5">
                 <span>{delta.source_title}</span>
                 {delta.source_url && (
                   <a
@@ -103,21 +103,21 @@ export const IntelligenceFeed: React.FC<IntelligenceFeedProps> = ({
                 )}
               </h4>
 
-              <p className="text-xs text-slate-300 font-sans mt-1 leading-relaxed">
+              <p className="text-sm text-slate-300 font-sans mt-1 leading-relaxed">
                 {delta.summary_markdown}
               </p>
 
               {/* If FCTE holdings parsed */}
               {parsedData?.fcte_holdings && (
                 <div className="mt-3 bg-[#0b1220] p-2.5 rounded border border-slate-800/80">
-                  <span className="text-[10px] font-mono text-cyan-400 block mb-2 font-semibold">
+                  <span className="text-xs font-mono text-cyan-400 block mb-2 font-semibold">
                     WARREN PIES FCTE TOP 20 CONVICTION STOCKS:
                   </span>
                   <div className="flex flex-wrap gap-1.5">
                     {parsedData.fcte_holdings.map((h: any) => (
                       <span
                         key={h.ticker}
-                        className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#131e33] border border-slate-700/60 text-slate-200"
+                        className="text-xs font-mono px-2 py-0.5 rounded bg-[#131e33] border border-slate-700/60 text-slate-200"
                       >
                         <strong>{h.ticker}</strong>: {h.weight_pct}%
                       </span>
@@ -129,14 +129,14 @@ export const IntelligenceFeed: React.FC<IntelligenceFeedProps> = ({
               {/* If RAA allocations parsed */}
               {parsedData?.raa_allocations && (
                 <div className="mt-3 bg-[#0b1220] p-2.5 rounded border border-slate-800/80">
-                  <span className="text-[10px] font-mono text-cyan-400 block mb-2 font-semibold">
+                  <span className="text-xs font-mono text-cyan-400 block mb-2 font-semibold">
                     3FOURTEEN RAA TARGET ASSET ALLOCATION:
                   </span>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                     {parsedData.raa_allocations.map((a: any) => (
                       <div
                         key={a.asset_class}
-                        className="text-[10px] font-mono p-1.5 rounded bg-[#131e33] border border-slate-700/60 flex justify-between"
+                        className="text-xs font-mono p-1.5 rounded bg-[#131e33] border border-slate-700/60 flex justify-between"
                       >
                         <span className="text-slate-300 truncate mr-1">{a.asset_class}</span>
                         <span className="font-bold text-cyan-300">{a.weight_pct}%</span>
@@ -149,14 +149,14 @@ export const IntelligenceFeed: React.FC<IntelligenceFeedProps> = ({
               {/* If CFTC COT parsed */}
               {parsedData?.cftc_cot && (
                 <div className="mt-3 bg-[#0b1220] p-2.5 rounded border border-slate-800/80">
-                  <span className="text-[10px] font-mono text-cyan-400 block mb-2 font-semibold">
+                  <span className="text-xs font-mono text-cyan-400 block mb-2 font-semibold">
                     CFTC NET NON-COMMERCIAL POSITIONING &amp; PERCENTILE RANK:
                   </span>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                     {parsedData.cftc_cot.map((c: any) => (
                       <div
                         key={c.contract}
-                        className="text-[10px] font-mono p-1.5 rounded bg-[#131e33] border border-slate-700/60 flex justify-between"
+                        className="text-xs font-mono p-1.5 rounded bg-[#131e33] border border-slate-700/60 flex justify-between"
                       >
                         <span className="text-slate-300">{c.ticker} ({c.percentile_3y}%)</span>
                         <span

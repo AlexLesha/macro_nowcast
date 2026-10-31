@@ -74,7 +74,7 @@ export default function MultiHorizonOutliersPage() {
                   </span>
                 )}
               </div>
-              <h1 className="text-xl md:text-2xl font-bold text-white mt-1">
+              <h1 className="text-base font-bold text-white mt-1">
                 Outliers
               </h1>
             </div>
@@ -119,7 +119,7 @@ export default function MultiHorizonOutliersPage() {
               <span className="text-xs font-mono uppercase px-2.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
                 🥇 Priority 1 — Verified Low-Base / Pullback Pivots
               </span>
-              <h2 className="text-lg font-bold text-white mt-1.5">
+              <h2 className="text-base font-bold text-white mt-1.5">
                 Unloved Bottoming Pivots & Coiled Springs ({SUBMENU_TITLES[horizon]})
               </h2>
             </div>
@@ -169,7 +169,7 @@ export default function MultiHorizonOutliersPage() {
                         {idea.price_and_vams}
                       </div>
                       <div className="space-y-1">
-                        <div className="flex justify-between text-[11px] font-mono text-slate-400">
+                        <div className="flex justify-between text-xs font-mono text-slate-400">
                           <span>0% (Low)</span>
                           <span>
                             {active.range_bar_label}: {idea.range_bar_pct}%
@@ -192,7 +192,7 @@ export default function MultiHorizonOutliersPage() {
                       <div className="text-xs font-semibold text-emerald-300">
                         ► Actionable Direction: {idea.actionable_trade}
                       </div>
-                      <div className="text-[11px] font-mono text-slate-400">
+                      <div className="text-xs font-mono text-slate-400">
                         Invalidation / Stop: {idea.invalidation_stop}
                       </div>
                     </div>
@@ -210,7 +210,7 @@ export default function MultiHorizonOutliersPage() {
               <span className="text-xs font-mono uppercase px-2.5 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/40">
                 🥈 Priority 2 — Trend Continuation Compounders
               </span>
-              <h2 className="text-lg font-bold text-white mt-1.5">
+              <h2 className="text-base font-bold text-white mt-1.5">
                 Mid-Runway Compounders ({SUBMENU_TITLES[horizon]})
               </h2>
             </div>
@@ -246,7 +246,7 @@ export default function MultiHorizonOutliersPage() {
                       {idea.price_and_vams}
                     </div>
                     <div className="space-y-1">
-                      <div className="flex justify-between text-[11px] font-mono text-slate-400">
+                      <div className="flex justify-between text-xs font-mono text-slate-400">
                         <span>0%</span>
                         <span>
                           {active.range_bar_label}: {idea.range_bar_pct}%
@@ -269,7 +269,7 @@ export default function MultiHorizonOutliersPage() {
                     <div className="text-xs font-semibold text-blue-300">
                       ► Actionable Direction: {idea.actionable_trade}
                     </div>
-                    <div className="text-[11px] font-mono text-slate-400">
+                    <div className="text-xs font-mono text-slate-400">
                       Invalidation / Stop: {idea.invalidation_stop}
                     </div>
                   </div>
@@ -286,7 +286,7 @@ export default function MultiHorizonOutliersPage() {
               <span className="text-xs font-mono uppercase px-2.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40">
                 🛑 Bucket 3 — Played-Out Pivots / Extended At Highs
               </span>
-              <h2 className="text-lg font-bold text-white mt-1.5">
+              <h2 className="text-base font-bold text-white mt-1.5">
                 Bullish Pivot Already Played Out ({SUBMENU_TITLES[horizon]} — Hold Trailing Stop or Wait for Pullback)
               </h2>
             </div>

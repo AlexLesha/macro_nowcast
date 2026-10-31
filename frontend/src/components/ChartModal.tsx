@@ -58,7 +58,7 @@ export const ChartModal: React.FC<ChartModalProps> = ({ seriesId, onClose }) => 
 
           <div className="flex items-center gap-3">
             {/* Mode Selector */}
-            <div className="flex items-center bg-slate-900 border border-slate-800 rounded p-0.5 text-xs font-mono">
+            <div className="flex items-center bg-slate-900 border border-slate-800 rounded p-0.5 text-sm font-mono">
               <button
                 onClick={() => setChartMode("value")}
                 className={`px-2.5 py-1 rounded transition ${
@@ -97,26 +97,26 @@ export const ChartModal: React.FC<ChartModalProps> = ({ seriesId, onClose }) => 
         {/* Modal Body */}
         <div className="p-6">
           {loading ? (
-            <div className="h-72 flex items-center justify-center text-slate-400 font-mono text-xs">
+            <div className="h-72 flex items-center justify-center text-slate-400 font-mono text-sm">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-400 mr-3" />
               Loading series history from database...
             </div>
           ) : data.length === 0 ? (
-            <div className="h-72 flex items-center justify-center text-slate-500 font-mono text-xs">
+            <div className="h-72 flex items-center justify-center text-slate-500 font-mono text-sm">
               No historical data available for {seriesId}
             </div>
           ) : (
-            <div className="h-72 w-full font-mono text-xs">
+            <div className="h-72 w-full font-mono text-sm">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={data}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#1f293d" />
                   <XAxis
                     dataKey="date"
                     stroke="#64748b"
-                    tick={{ fontSize: 10 }}
+                    tick={{ fontSize: 12 }}
                     tickFormatter={(val) => String(val).slice(0, 7)}
                   />
-                  <YAxis stroke="#64748b" tick={{ fontSize: 10 }} domain={["auto", "auto"]} />
+                  <YAxis stroke="#64748b" tick={{ fontSize: 12 }} domain={["auto", "auto"]} />
                   <Tooltip
                     contentStyle={{
                       backgroundColor: "#0b1220",
@@ -124,7 +124,7 @@ export const ChartModal: React.FC<ChartModalProps> = ({ seriesId, onClose }) => 
                       color: "#f8fafc",
                       borderRadius: 8,
                       fontFamily: "monospace",
-                      fontSize: 12,
+                      fontSize: 14,
                     }}
                   />
                   {chartMode === "value" && (

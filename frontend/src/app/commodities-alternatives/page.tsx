@@ -279,7 +279,7 @@ export default function CommoditiesAlternativesPage() {
               <span className="text-xs font-mono uppercase tracking-wider text-cyan-400">
                 Physical Scarcity • CrossBorder Shadow Plumbing • Macro Feedback Loops
               </span>
-              <h1 className="text-xl md:text-2xl font-bold text-white mt-0.5">
+              <h1 className="text-base font-bold text-white mt-0.5">
                 Commodities & Alternatives Institutional Suite
               </h1>
             </div>
@@ -307,7 +307,7 @@ export default function CommoditiesAlternativesPage() {
         <section className="rounded-xl border border-slate-800 bg-[#111827] p-5 space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3">
             <div>
-              <h2 className="text-lg font-bold text-white">
+              <h2 className="text-base font-bold text-white">
                 Structure #1 — Physical Term-Structure, Rate-Adjusted Convenience Yield & Vehicle Router
               </h2>
               <p className="text-xs text-slate-400">
@@ -365,7 +365,7 @@ export default function CommoditiesAlternativesPage() {
         {/* STRUCTURE #2: SHADOW MONETARY PLUMBING (4 SUB-MODULES WITH OPTION A & B) */}
         <section className="rounded-xl border border-slate-800 bg-[#111827] p-5 space-y-5">
           <div className="border-b border-slate-800 pb-3">
-            <h2 className="text-lg font-bold text-white">
+            <h2 className="text-base font-bold text-white">
               Structure #2 — CrossBorder Capital (Michael Howell) Shadow Monetary Plumbing, Stablecoins, Cayman Basis & Sovereign Gold
             </h2>
             <p className="text-xs text-slate-400 mt-0.5">
@@ -441,7 +441,7 @@ export default function CommoditiesAlternativesPage() {
                     <span>USDT (${m2b?.stablecoin_stats?.usdt_bn}B) + USDC (${m2b?.stablecoin_stats?.usdc_bn}B) T-Bill Holdings:</span>
                     <span className="text-emerald-400">${m2b?.stablecoin_tbill_holdings_bn}B ({m2b?.marginal_tbill_buyer_rank})</span>
                   </div>
-                  <div className="text-[11px] text-slate-300">Source: {m2b?.detected_funding_source}</div>
+                  <div className="text-xs text-slate-300">Source: {m2b?.detected_funding_source}</div>
                 </div>
               )}
 
@@ -452,7 +452,7 @@ export default function CommoditiesAlternativesPage() {
                     <span>Cycle Stage (BTC.D {m2b?.crypto_cycle_stage?.btc_dominance_pct}% | ETH.D {m2b?.crypto_cycle_stage?.eth_dominance_pct}%):</span>
                     <span className="text-cyan-300">{m2b?.crypto_cycle_stage?.current_stage}</span>
                   </div>
-                  <div className="text-[11px] text-slate-300">
+                  <div className="text-xs text-slate-300">
                     Low-Quality Tech ($ARKK/$SPHB) Drainage: {m2b?.cross_market_equity_drainage?.sphb_vs_qual_drainage_status}
                   </div>
                 </div>
@@ -539,7 +539,7 @@ export default function CommoditiesAlternativesPage() {
         {/* STRUCTURE #3: TWO-WAY MACRO FEEDBACK MATRIX */}
         <section className="rounded-xl border border-slate-800 bg-[#111827] p-5 space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold text-white">
+            <h2 className="text-base font-bold text-white">
               Structure #3 — Two-Way Macro Model Feedback Matrix (Live Gold/Oil Ratio: {s3.gold_to_oil_ratio}x)
             </h2>
           </div>

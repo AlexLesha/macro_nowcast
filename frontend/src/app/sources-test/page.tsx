@@ -36,8 +36,8 @@ function normalizeFinancialQuarterRow(item: any): any {
   const corRaw = Number(item.cost_of_revenue ?? (item.cost_of_revenue_m !== undefined ? item.cost_of_revenue_m * 1e6 : 0));
   const opIncRaw = Number(
     item.operating_income ??
-      item.operating_income_loss ??
-      (item.operating_income_m !== undefined ? item.operating_income_m * 1e6 : 0)
+    item.operating_income_loss ??
+    (item.operating_income_m !== undefined ? item.operating_income_m * 1e6 : 0)
   );
   const dilutedEps =
     item.diluted_earnings_per_share !== undefined && item.diluted_earnings_per_share !== null
@@ -52,8 +52,8 @@ function normalizeFinancialQuarterRow(item: any): any {
     item.gaap_gross_margin_pct !== undefined
       ? Number(item.gaap_gross_margin_pct)
       : revM > 0
-      ? Number(((gpM / revM) * 100).toFixed(1))
-      : 0;
+        ? Number(((gpM / revM) * 100).toFixed(1))
+        : 0;
   const niM = item.gaap_net_income_m !== undefined ? Number(item.gaap_net_income_m) : Number((opIncM * 0.8).toFixed(1));
   const ocfM = item.operating_cash_flow_m !== undefined ? Number(item.operating_cash_flow_m) : Number((niM + gpM * 0.15).toFixed(1));
   const fcfM = item.free_cash_flow_m !== undefined ? Number(item.free_cash_flow_m) : Number((ocfM * 0.8).toFixed(1));
@@ -100,9 +100,9 @@ async function fetchMassiveAndFallbackSources(ticker: string): Promise<Record<st
 
   const authHeaders: Record<string, string> = massiveBearerKey
     ? {
-        Authorization: `Bearer ${massiveBearerKey}`,
-        Accept: "application/json",
-      }
+      Authorization: `Bearer ${massiveBearerKey}`,
+      Accept: "application/json",
+    }
     : { Accept: "application/json" };
 
   let massiveRows: any[] = [];
@@ -348,7 +348,7 @@ export default function SourcesTestPage() {
                   Zero Mock Fallbacks • Verbatim Feed Diagnostics
                 </span>
               </div>
-              <h1 className="text-xl md:text-2xl font-bold text-white mt-0.5">
+              <h1 className="text-base font-bold text-white mt-0.5">
                 Multi-Source Header Stats &amp; 12-Quarter Walk: ${activeTicker}
               </h1>
             </div>
@@ -384,11 +384,10 @@ export default function SourcesTestPage() {
                     setTickerInput(sym);
                     fetchSources(sym);
                   }}
-                  className={`px-2.5 py-0.5 rounded border transition ${
-                    activeTicker === sym
+                  className={`px-2.5 py-0.5 rounded border transition ${activeTicker === sym
                       ? "bg-cyan-950 border-cyan-500 text-cyan-300 font-bold"
                       : "bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800"
-                  }`}
+                    }`}
                 >
                   ${sym}
                 </button>
@@ -402,11 +401,10 @@ export default function SourcesTestPage() {
                   type="button"
                   key={m}
                   onClick={() => setChartViewMode(m)}
-                  className={`px-2.5 py-1 rounded border transition ${
-                    chartViewMode === m
+                  className={`px-2.5 py-1 rounded border transition ${chartViewMode === m
                       ? "bg-blue-600 text-white border-blue-400"
                       : "bg-slate-900 text-slate-400 border-slate-800 hover:bg-slate-800"
-                  }`}
+                    }`}
                 >
                   {m === "BOTH" ? "Graphs & Table" : m === "CHARTS_ONLY" ? "Graphs Only" : "Table Only"}
                 </button>
@@ -419,11 +417,10 @@ export default function SourcesTestPage() {
             <button
               type="button"
               onClick={() => setSelectedSource("ALL")}
-              className={`px-3 py-1 rounded border transition ${
-                selectedSource === "ALL"
+              className={`px-3 py-1 rounded border transition ${selectedSource === "ALL"
                   ? "bg-cyan-950 border-cyan-500 text-cyan-300 font-bold"
                   : "bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-800"
-              }`}
+                }`}
             >
               All Sources Stacked
             </button>
@@ -432,11 +429,10 @@ export default function SourcesTestPage() {
                 type="button"
                 key={k}
                 onClick={() => setSelectedSource(k)}
-                className={`px-3 py-1 rounded border transition ${
-                  selectedSource === k
+                className={`px-3 py-1 rounded border transition ${selectedSource === k
                     ? "bg-blue-600 border-blue-400 text-white font-bold"
                     : "bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-800"
-                }`}
+                  }`}
               >
                 {sourcesMap[k]?.source_name}
               </button>
@@ -472,8 +468,8 @@ export default function SourcesTestPage() {
             const statusBadgeClass = isOnline
               ? "bg-emerald-950 border-emerald-500/50 text-emerald-300"
               : String(src.status || "").includes("429") || String(src.status || "").includes("KEY")
-              ? "bg-amber-950 border-amber-500/50 text-amber-300"
-              : "bg-rose-950 border-rose-500/50 text-rose-300";
+                ? "bg-amber-950 border-amber-500/50 text-amber-300"
+                : "bg-rose-950 border-rose-500/50 text-rose-300";
 
             return (
               <div key={key} className="rounded-xl border border-slate-800 bg-[#111827] p-5 space-y-4 shadow-lg">
@@ -483,7 +479,7 @@ export default function SourcesTestPage() {
                   <div className="space-y-1">
                     <h2 className="text-base font-bold text-white flex flex-wrap items-center gap-2">
                       <span>{src.source_name}</span>
-                      <span className={`px-2 py-0.5 rounded text-[11px] font-mono border ${statusBadgeClass}`}>
+                      <span className={`px-2 py-0.5 rounded text-xs font-mono border ${statusBadgeClass}`}>
                         {src.status}
                       </span>
                     </h2>
@@ -528,7 +524,7 @@ export default function SourcesTestPage() {
                           </strong>
                         </span>
                         {h.day_range && (
-                          <span className="px-2 py-0.5 rounded bg-slate-950 border border-slate-800 text-slate-300 text-[11px]">
+                          <span className="px-2 py-0.5 rounded bg-slate-950 border border-slate-800 text-slate-300 text-xs">
                             Day: {h.day_range}
                           </span>
                         )}
@@ -539,7 +535,7 @@ export default function SourcesTestPage() {
                       </div>
                     </div>
 
-                    <div className="flex flex-wrap justify-between gap-2 text-[11px] text-slate-300">
+                    <div className="flex flex-wrap justify-between gap-2 text-xs text-slate-300">
                       <div>
                         BETA: <strong className="text-amber-300">{h.beta ?? "N/A"}</strong> • SHORT FLOAT:{" "}
                         <strong className="text-rose-300">{formatPctField(h.short_interest_pct_float)}</strong> • INST OWN:{" "}
@@ -625,7 +621,7 @@ export default function SourcesTestPage() {
                     {(chartViewMode === "BOTH" || chartViewMode === "TABLE_ONLY") && (
                       <div className="overflow-x-auto border border-slate-800 rounded-lg">
                         <table className="w-full text-left text-xs font-mono">
-                          <thead className="bg-slate-900 text-slate-400 border-b border-slate-800 text-[11px]">
+                          <thead className="bg-slate-900 text-slate-400 border-b border-slate-800 text-xs">
                             <tr>
                               <th className="py-2 px-3">Period</th>
                               <th className="py-2 px-3">Revenue ($M)</th>

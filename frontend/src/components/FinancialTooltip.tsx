@@ -267,12 +267,16 @@ interface FinancialTooltipProps {
   term: keyof typeof FINANCIAL_DEFINITIONS | string;
   children?: React.ReactNode;
   inline?: boolean;
+  placement?: "top" | "bottom" | "auto";
+  align?: "left" | "center" | "right";
 }
 
 export const FinancialTooltip: React.FC<FinancialTooltipProps> = ({
   term,
   children,
   inline = false,
+  placement = "bottom",
+  align = "left",
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -297,6 +301,18 @@ export const FinancialTooltip: React.FC<FinancialTooltipProps> = ({
     };
   }, [isOpen]);
 
+  const verticalClass =
+    placement === "top"
+      ? "bottom-full mb-2"
+      : "top-full mt-2";
+
+  const alignClass =
+    align === "left"
+      ? "left-0 translate-x-0"
+      : align === "right"
+      ? "right-0 translate-x-0"
+      : "left-1/2 -translate-x-1/2";
+
   return (
     <span
       ref={containerRef}
@@ -317,7 +333,7 @@ export const FinancialTooltip: React.FC<FinancialTooltipProps> = ({
           e.stopPropagation();
           setIsOpen((prev) => !prev);
         }}
-        className="w-3.5 h-3.5 rounded-full bg-slate-800 border border-slate-700 text-cyan-400 hover:text-cyan-200 hover:bg-slate-700 hover:border-cyan-500/50 flex items-center justify-center text-[9px] font-mono leading-none transition-all flex-shrink-0"
+        className="w-3.5 h-3.5 rounded-full bg-slate-800 border border-slate-700 text-cyan-400 hover:text-cyan-200 hover:bg-slate-700 hover:border-cyan-500/50 flex items-center justify-center text-xs font-mono leading-none transition-all flex-shrink-0"
       >
         ?
       </button>
@@ -325,25 +341,26 @@ export const FinancialTooltip: React.FC<FinancialTooltipProps> = ({
       {isOpen && (
         <div
           role="tooltip"
-          className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 w-80 sm:w-96 p-3.5 rounded-lg bg-[#0a0f1d] border border-cyan-500/40 text-slate-100 shadow-2xl shadow-black/80 text-left font-sans text-xs space-y-2 pointer-events-auto backdrop-blur-xl"
+          className={`absolute ${verticalClass} ${alignClass} w-80 sm:w-96 p-3.5 rounded-lg bg-[#0a0f1d] border border-cyan-500/40 text-slate-100 shadow-2xl shadow-black/80 text-left font-sans text-sm space-y-2 pointer-events-auto backdrop-blur-xl z-[9999]`}
+          style={{ zIndex: 9999 }}
         >
           {/* Header */}
           <div className="flex items-start justify-between gap-2 border-b border-slate-800 pb-2">
             <div>
-              <div className="text-[10px] font-mono uppercase tracking-wider text-cyan-400 font-bold">
+              <div className="text-xs font-mono uppercase tracking-wider text-cyan-400 font-bold">
                 Institutional Metric Guide
               </div>
-              <div className="text-sm font-bold text-white font-mono">{def.title}</div>
+              <div className="text-base font-bold text-white font-mono">{def.title}</div>
             </div>
-            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-cyan-950/80 border border-cyan-500/30 text-cyan-300">
+            <span className="text-xs font-mono px-1.5 py-0.5 rounded bg-cyan-950/80 border border-cyan-500/30 text-cyan-300">
               AUDITED
             </span>
           </div>
 
           {/* Formula */}
           {def.formula && (
-            <div className="p-2 rounded bg-black/60 border border-slate-800/80 font-mono text-[11px] text-emerald-400">
-              <span className="text-slate-400 text-[10px] block mb-0.5 uppercase tracking-wide">
+            <div className="p-2 rounded bg-black/60 border border-slate-800/80 font-mono text-xs text-emerald-400">
+              <span className="text-slate-400 text-xs block mb-0.5 uppercase tracking-wide">
                 Mathematical Formula:
               </span>
               {def.formula}
@@ -351,13 +368,13 @@ export const FinancialTooltip: React.FC<FinancialTooltipProps> = ({
           )}
 
           {/* Definition */}
-          <p className="text-slate-300 text-[11px] leading-relaxed font-normal">
+          <p className="text-slate-300 text-sm leading-relaxed font-normal">
             {def.definition}
           </p>
 
           {/* Interpretation */}
           {def.interpretation && (
-            <div className="text-[11px] text-slate-300 border-l-2 border-cyan-500/60 pl-2 py-0.5 italic">
+            <div className="text-sm text-slate-300 border-l-2 border-cyan-500/60 pl-2 py-0.5 italic">
               <strong className="text-cyan-300 not-italic">Institutional Interpretation: </strong>
               {def.interpretation}
             </div>
@@ -365,16 +382,16 @@ export const FinancialTooltip: React.FC<FinancialTooltipProps> = ({
 
           {/* Thresholds */}
           {(def.bullishThreshold || def.bearishThreshold) && (
-            <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-800/80 text-[10px] font-mono">
+            <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-800/80 text-xs font-mono">
               {def.bullishThreshold && (
                 <div className="text-emerald-400">
-                  <span className="text-slate-500 block text-[9px] uppercase">Bullish Target</span>
+                  <span className="text-slate-500 block text-xs uppercase">Bullish Target</span>
                   ▲ {def.bullishThreshold}
                 </div>
               )}
               {def.bearishThreshold && (
                 <div className="text-rose-400">
-                  <span className="text-slate-500 block text-[9px] uppercase">Risk Trigger</span>
+                  <span className="text-slate-500 block text-xs uppercase">Risk Trigger</span>
                   ▼ {def.bearishThreshold}
                 </div>
               )}
@@ -522,38 +539,77 @@ export const METRIC_GLOSSARY: Record<string, { formula?: string; explanation: st
     formula: "Short Float, Days-to-Cover & Institutional Ownership",
     explanation: "Market microstructure metrics gauging short interest crowding, squeeze potential, and institutional sponsorship.",
   },
+  THETA: {
+    formula: "Theta = ∂V / ∂t (Option price decay per calendar day elapsed)",
+    explanation: "Time decay velocity: measures daily option premium decay, accelerating within 21 to 45 DTE.",
+  },
+  DELTA: {
+    formula: "Delta = ∂V / ∂S (Change in option price per $1 move in underlying)",
+    explanation: "Directional exposure and hedge ratio indicating share-equivalent sensitivity.",
+  },
+  GAMMA: {
+    formula: "Gamma = ∂²V / ∂S² (Rate of change of delta per $1 move)",
+    explanation: "Curvature of option price; indicates acceleration of dealer delta hedging flow.",
+  },
+  VEGA: {
+    formula: "Vega = ∂V / ∂σ (Change in option price per 1% move in implied volatility)",
+    explanation: "Volatility sensitivity measuring sensitivity to expanding or collapsing implied volatility.",
+  },
 };
+
+export interface MetricTipProps {
+  term: string;
+  formula?: string;
+  explanation?: string;
+  children: React.ReactNode;
+  placement?: "top" | "bottom" | "auto";
+  align?: "left" | "center" | "right";
+}
 
 export function MetricTip({
   term,
   formula,
   explanation,
   children,
-}: {
-  term: string;
-  formula?: string;
-  explanation?: string;
-  children: React.ReactNode;
-}) {
+  placement = "bottom", // "bottom" prevents clipping on top table headers
+  align = "center",
+}: MetricTipProps) {
   const gloss = METRIC_GLOSSARY[term.toUpperCase()] || METRIC_GLOSSARY[term] || {};
   const effectiveFormula = formula || gloss.formula;
   const effectiveExplanation =
     explanation || gloss.explanation || "Financial metric definition and institutional significance.";
 
+  // Compute vertical placement classes
+  const verticalClass =
+    placement === "top"
+      ? "bottom-full mb-2"
+      : "top-full mt-2";
+
+  // Compute horizontal alignment classes to avoid screen/table edge clipping
+  const alignClass =
+    align === "left"
+      ? "left-0 translate-x-0"
+      : align === "right"
+      ? "right-0 translate-x-0"
+      : "left-1/2 -translate-x-1/2";
+
   return (
     <span className="relative group inline-flex items-center gap-0.5 cursor-help border-b border-dotted border-slate-600 hover:border-cyan-400 transition-colors">
       {children}
-      <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-3 rounded-lg bg-slate-950/95 border border-slate-700 text-slate-200 text-xs shadow-2xl opacity-0 group-hover:opacity-100 transition-all duration-200 z-50 font-sans normal-case tracking-normal backdrop-blur-md">
+      <span
+        className={`pointer-events-none absolute ${verticalClass} ${alignClass} w-64 max-w-[calc(100vw-2rem)] p-3 rounded-lg bg-slate-950/98 border border-slate-700 text-slate-200 text-sm shadow-2xl opacity-0 group-hover:opacity-100 transition-all duration-150 z-[9999] font-sans normal-case tracking-normal backdrop-blur-md pointer-events-none break-words`}
+        style={{ zIndex: 9999 }}
+      >
         <span className="flex items-center justify-between pb-1 mb-1 border-b border-slate-800">
-          <span className="font-bold text-cyan-400 font-mono text-[11px]">{term}</span>
-          <span className="text-[10px] text-slate-500 font-mono">GLOSSARY</span>
+          <span className="font-bold text-cyan-400 font-mono text-base">{term}</span>
+          <span className="text-xs text-slate-500 font-mono">GLOSSARY</span>
         </span>
         {effectiveFormula && (
-          <span className="block font-mono text-[10px] text-amber-300 bg-slate-900/90 px-1.5 py-0.5 rounded border border-slate-800 mb-1.5 break-all">
+          <span className="block font-mono text-xs text-amber-300 bg-slate-900/90 px-1.5 py-0.5 rounded border border-slate-800 mb-1.5 break-all">
             {effectiveFormula}
           </span>
         )}
-        <span className="block text-[11px] leading-relaxed text-slate-300">{effectiveExplanation}</span>
+        <span className="block text-sm leading-relaxed text-slate-300">{effectiveExplanation}</span>
       </span>
     </span>
   );
@@ -571,7 +627,7 @@ export function RankMedal({
   if (rank === 1) {
     return (
       <span
-        className={`inline-flex items-center justify-center shrink-0 w-[18px] h-[18px] rounded-full border border-amber-400 bg-amber-400/10 text-amber-300 text-[10px] font-mono font-bold leading-none select-none shadow-sm shadow-amber-500/20 ${className}`}
+        className={`inline-flex items-center justify-center shrink-0 w-[18px] h-[18px] rounded-full border border-amber-400 bg-amber-400/10 text-amber-300 text-xs font-mono font-bold leading-none select-none shadow-sm shadow-amber-500/20 ${className}`}
       >
         1
       </span>
@@ -580,7 +636,7 @@ export function RankMedal({
   if (rank === 2) {
     return (
       <span
-        className={`inline-flex items-center justify-center shrink-0 w-[18px] h-[18px] rounded-full border border-slate-500 bg-slate-700/30 text-slate-300 text-[10px] font-mono font-bold leading-none select-none shadow-sm ${className}`}
+        className={`inline-flex items-center justify-center shrink-0 w-[18px] h-[18px] rounded-full border border-slate-500 bg-slate-700/30 text-slate-300 text-xs font-mono font-bold leading-none select-none shadow-sm ${className}`}
       >
         2
       </span>
@@ -589,7 +645,7 @@ export function RankMedal({
   if (rank === 3) {
     return (
       <span
-        className={`inline-flex items-center justify-center shrink-0 w-[18px] h-[18px] rounded-full border border-[#c2410c] bg-orange-950/40 text-[#f97316] text-[10px] font-mono font-bold leading-none select-none shadow-sm ${className}`}
+        className={`inline-flex items-center justify-center shrink-0 w-[18px] h-[18px] rounded-full border border-[#c2410c] bg-orange-950/40 text-[#f97316] text-xs font-mono font-bold leading-none select-none shadow-sm ${className}`}
       >
         3
       </span>
@@ -598,7 +654,7 @@ export function RankMedal({
   if (showAll && typeof rank === "number" && rank > 3) {
     return (
       <span
-        className={`inline-flex items-center justify-center shrink-0 w-[18px] h-[18px] rounded-full border border-slate-800 bg-slate-900/60 text-slate-500 text-[10px] font-mono font-bold leading-none select-none ${className}`}
+        className={`inline-flex items-center justify-center shrink-0 w-[18px] h-[18px] rounded-full border border-slate-800 bg-slate-900/60 text-slate-500 text-xs font-mono font-bold leading-none select-none ${className}`}
       >
         {rank}
       </span>

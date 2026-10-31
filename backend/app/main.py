@@ -276,6 +276,21 @@ async def get_options_lab_dashboard(ticker: str = "SPY", force: bool = False):
     )
 
 
+@app.get("/api/v1/synthesis/dashboard")
+@app.get("/api/synthesis/dashboard")
+@app.get("/v1/synthesis/dashboard")
+@app.get("/synthesis/dashboard")
+def get_synthesis_dashboard_main():
+    """Synthesizes real-time metrics across Prometheus, Hedgeye, 42 Macro, and 3Fourteen Research."""
+    from app.db import SessionLocal
+    from app.api.routes import get_synthesis_dashboard
+    db = SessionLocal()
+    try:
+        return get_synthesis_dashboard(db)
+    finally:
+        db.close()
+
+
 # ==============================================================================
 # CHUNK 6: AUTONOMOUS REFRESH PIPELINE & SSE STREAMING ENDPOINTS
 # ==============================================================================

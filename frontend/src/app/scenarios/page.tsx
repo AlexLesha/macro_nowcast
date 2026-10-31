@@ -243,7 +243,7 @@ export default function ScenariosPlaybookPage() {
           <span>4-QUARTER FORWARD SCENARIO PLAYBOOK &bull; AUDIT ITEM #26</span>
         </div>
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          <h1 className="text-2xl font-bold font-mono tracking-tight text-slate-100">
+          <h1 className="text-base font-bold font-mono tracking-tight text-slate-100">
             Forward Macro Scenarios &amp; Systematic Policy Execution
           </h1>
           <span className="text-xs font-mono px-3 py-1 rounded bg-slate-900 border border-slate-800 text-slate-400">
@@ -276,7 +276,7 @@ export default function ScenariosPlaybookPage() {
                   {item.quarter}
                 </span>
                 <span
-                  className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase border ${
+                  className={`text-xs px-1.5 py-0.5 rounded font-bold uppercase border ${
                     isWarning
                       ? "bg-amber-950/80 text-amber-300 border-amber-800"
                       : "bg-emerald-950/80 text-emerald-300 border-emerald-800"
@@ -285,8 +285,8 @@ export default function ScenariosPlaybookPage() {
                   {item.trigger_status?.split("(")[0].trim() || "NORMAL"}
                 </span>
               </div>
-              <div className="text-[11px] text-slate-300 font-medium line-clamp-1">{item.headline}</div>
-              <div className="text-[10px] text-slate-500 font-mono">
+              <div className="text-xs text-slate-300 font-medium line-clamp-1">{item.headline}</div>
+              <div className="text-xs text-slate-500 font-mono">
                 Base: {item.baseProb} &bull; Alt: {item.altProb}
               </div>
             </button>
@@ -306,7 +306,7 @@ export default function ScenariosPlaybookPage() {
                 </span>
                 <span className="text-xs font-mono text-cyan-400 font-bold">{activeQ.quarter}</span>
               </div>
-              <h2 className="text-lg font-mono font-bold text-slate-100 mt-2">
+              <h2 className="text-base font-mono font-bold text-slate-100 mt-2">
                 {activeQ.scenario_name || activeQ.baseScenario.title}
               </h2>
             </div>
@@ -320,7 +320,7 @@ export default function ScenariosPlaybookPage() {
                 <span>Live Quantitative Trigger Telemetry</span>
               </span>
               <span
-                className={`text-[10px] px-2 py-0.5 rounded border font-bold uppercase ${
+                className={`text-xs px-2 py-0.5 rounded border font-bold uppercase ${
                   activeQ.trigger_status?.includes("WARNING") || activeQ.trigger_status?.includes("ACTIVE")
                     ? "bg-amber-950 text-amber-300 border-amber-800"
                     : "bg-emerald-950 text-emerald-300 border-emerald-800"
@@ -341,10 +341,10 @@ export default function ScenariosPlaybookPage() {
           {/* Dynamic Policy & Market Result */}
           {activeQ.policy_and_market_result && (
             <div className="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800 text-xs font-mono space-y-1">
-              <span className="text-[10px] uppercase font-bold text-cyan-400 block">
+              <span className="text-xs uppercase font-bold text-cyan-400 block">
                 Policy Trajectory &amp; Systematic Deployment Result:
               </span>
-              <p className="text-slate-200 leading-relaxed text-[11px]">
+              <p className="text-slate-200 leading-relaxed text-xs">
                 {activeQ.policy_and_market_result}
               </p>
             </div>
@@ -356,7 +356,7 @@ export default function ScenariosPlaybookPage() {
               Asset Direction Matrix:
             </h3>
             {activeQ.asset_directions && (
-              <div className="p-3 rounded-lg bg-slate-900/40 border border-slate-800 text-[11px] font-mono text-slate-300">
+              <div className="p-3 rounded-lg bg-slate-900/40 border border-slate-800 text-xs font-mono text-slate-300">
                 <span className="font-bold text-cyan-300">Consensus Directions: </span>
                 {activeQ.asset_directions}
               </div>
@@ -374,10 +374,10 @@ export default function ScenariosPlaybookPage() {
           {/* Quantitative Triggers & Prerequisites */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-mono">
             <div className="p-4 rounded-xl bg-slate-900/40 border border-slate-800 space-y-2">
-              <span className="text-cyan-400 font-bold uppercase text-[11px] block">
+              <span className="text-cyan-400 font-bold uppercase text-xs block">
                 Quantitative Triggers:
               </span>
-              <ul className="space-y-1 text-slate-300 text-[11px]">
+              <ul className="space-y-1 text-slate-300 text-xs">
                 {activeQ.baseScenario.triggers.map((t: string, idx: number) => (
                   <li key={idx} className="flex items-start gap-1.5">
                     <ArrowRight className="h-3.5 w-3.5 text-cyan-400 shrink-0 mt-0.5" />
@@ -388,10 +388,10 @@ export default function ScenariosPlaybookPage() {
             </div>
 
             <div className="p-4 rounded-xl bg-slate-900/40 border border-slate-800 space-y-2">
-              <span className="text-indigo-400 font-bold uppercase text-[11px] block">
+              <span className="text-indigo-400 font-bold uppercase text-xs block">
                 Firm Prerequisites:
               </span>
-              <ul className="space-y-1 text-slate-300 text-[11px]">
+              <ul className="space-y-1 text-slate-300 text-xs">
                 {activeQ.baseScenario.prerequisites.map((p: string, idx: number) => (
                   <li key={idx} className="flex items-start gap-1.5">
                     <CheckCircle2 className="h-3.5 w-3.5 text-indigo-400 shrink-0 mt-0.5" />
@@ -421,10 +421,10 @@ export default function ScenariosPlaybookPage() {
             </p>
 
             <div className="space-y-2 text-xs font-mono">
-              <span className="text-amber-400 font-bold uppercase text-[11px] block">
+              <span className="text-amber-400 font-bold uppercase text-xs block">
                 Trigger Checkpoints:
               </span>
-              <ul className="space-y-1 text-slate-300 text-[11px]">
+              <ul className="space-y-1 text-slate-300 text-xs">
                 {activeQ.altScenario.triggers.map((t: string, idx: number) => (
                   <li key={idx} className="flex items-start gap-1.5">
                     <AlertTriangle className="h-3.5 w-3.5 text-amber-400 shrink-0 mt-0.5" />
@@ -435,7 +435,7 @@ export default function ScenariosPlaybookPage() {
             </div>
 
             <div className="p-3 rounded-lg bg-slate-900/60 border border-slate-800 text-xs font-mono">
-              <span className="text-slate-400 text-[10px] block uppercase font-bold mb-1">
+              <span className="text-slate-400 text-xs block uppercase font-bold mb-1">
                 Alternative Market Results:
               </span>
               <p className="text-slate-200">{activeQ.altScenario.assetDirection}</p>
@@ -443,10 +443,10 @@ export default function ScenariosPlaybookPage() {
           </div>
 
           <div className="p-3.5 rounded-xl bg-amber-950/20 border border-amber-800/40 text-xs font-mono space-y-1">
-            <span className="text-amber-400 font-bold uppercase text-[10px] block">
+            <span className="text-amber-400 font-bold uppercase text-xs block">
               Emergency Policy Intervention:
             </span>
-            <p className="text-slate-300 text-[11px]">{activeQ.altScenario.policyResponse}</p>
+            <p className="text-slate-300 text-xs">{activeQ.altScenario.policyResponse}</p>
           </div>
         </div>
       </div>

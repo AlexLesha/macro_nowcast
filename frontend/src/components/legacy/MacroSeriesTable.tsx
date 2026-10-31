@@ -46,10 +46,10 @@ export const MacroSeriesTable: React.FC<MacroSeriesTableProps> = ({
       <div className="p-4 border-b border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-[#0a101d]">
         <div className="flex items-center gap-2">
           <Database className="h-4 w-4 text-cyan-400" />
-          <h3 className="font-mono text-sm font-bold uppercase tracking-wider text-slate-100">
+          <h3 className="font-mono text-base font-bold uppercase tracking-wider text-slate-100">
             MACRO ECONOMIC INGESTION LAYER
           </h3>
-          <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-400">
+          <span className="text-xs font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-400">
             {series.length} Series Loaded
           </span>
         </div>
@@ -59,13 +59,13 @@ export const MacroSeriesTable: React.FC<MacroSeriesTableProps> = ({
           placeholder="Filter series (e.g. CPI, GDP, DGS10)..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="text-xs bg-[#121c2e] border border-slate-700/80 rounded-md px-3 py-1.5 text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-500 w-full sm:w-64 font-mono"
+          className="text-sm bg-[#121c2e] border border-slate-700/80 rounded-md px-3 py-1.5 text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-500 w-full sm:w-64 font-mono"
         />
       </div>
 
       <div className="overflow-x-auto max-h-[420px] overflow-y-auto">
-        <table className="w-full text-left font-mono text-xs">
-          <thead className="bg-[#0b1220] text-slate-400 uppercase text-[10px] sticky top-0 z-10 border-b border-slate-800">
+        <table className="w-full text-left font-mono text-sm">
+          <thead className="bg-[#0b1220] text-slate-400 uppercase text-xs sticky top-0 z-10 border-b border-slate-800">
             <tr>
               <th className="px-4 py-3">SERIES ID</th>
               <th className="px-3 py-3">SOURCE</th>
@@ -92,7 +92,7 @@ export const MacroSeriesTable: React.FC<MacroSeriesTableProps> = ({
                     {item.series_id}
                   </td>
                   <td className="px-3 py-2.5 text-slate-400">
-                    <span className="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800 text-[10px]">
+                    <span className="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800 text-xs">
                       {item.source}
                     </span>
                   </td>
@@ -130,7 +130,7 @@ export const MacroSeriesTable: React.FC<MacroSeriesTableProps> = ({
                   <td className="px-3 py-2.5 text-center">
                     {zVal !== null ? (
                       <span
-                        className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
+                        className={`px-2 py-0.5 rounded text-xs font-bold border ${
                           zVal > 1.5
                             ? "bg-rose-950/80 text-rose-300 border-rose-800"
                             : zVal < -1.5

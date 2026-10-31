@@ -100,7 +100,7 @@ export const FcteHoldingsTable: React.FC = () => {
               <h3 className="text-base font-mono font-bold tracking-wide text-slate-100">
                 3FOURTEEN FCTE CORE 20 HOLDINGS
               </h3>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-indigo-950/80 text-indigo-300 border border-indigo-800/60 font-semibold">
+              <span className="text-xs font-mono px-2 py-0.5 rounded-full bg-indigo-950/80 text-indigo-300 border border-indigo-800/60 font-semibold">
                 WARREN PIES FULL-CYCLE TREND
               </span>
             </div>
@@ -128,7 +128,7 @@ export const FcteHoldingsTable: React.FC = () => {
               placeholder="Search ticker..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-8 pr-3 py-1.5 text-xs bg-[#070b12] border border-slate-800 rounded-lg text-slate-200 placeholder-slate-500 font-mono focus:outline-none focus:border-cyan-500"
+              className="w-full pl-8 pr-3 py-1.5 text-sm bg-[#070b12] border border-slate-800 rounded-lg text-slate-200 placeholder-slate-500 font-mono focus:outline-none focus:border-cyan-500"
             />
           </div>
 
@@ -136,7 +136,7 @@ export const FcteHoldingsTable: React.FC = () => {
             id="refresh-fcte-holdings-button"
             onClick={() => fetchHoldings(true)}
             disabled={isRefreshing || loading}
-            className="px-3 py-1.5 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/40 font-mono text-xs font-semibold transition flex items-center gap-1.5 shrink-0"
+            className="px-3 py-1.5 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/40 font-mono text-sm font-semibold transition flex items-center gap-1.5 shrink-0"
             title="Re-scrape live holdings table"
           >
             <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? "animate-spin" : ""}`} />
@@ -149,7 +149,7 @@ export const FcteHoldingsTable: React.FC = () => {
       {error && (
         <div
           id="fcte-error-banner"
-          className="p-4 mb-4 rounded-xl bg-rose-950/40 border border-rose-500/40 text-rose-200 flex items-start justify-between gap-3 font-mono text-xs animate-in fade-in"
+          className="p-4 mb-4 rounded-xl bg-rose-950/40 border border-rose-500/40 text-rose-200 flex items-start justify-between gap-3 font-mono text-sm animate-in fade-in"
         >
           <div className="flex items-start gap-2.5">
             <AlertTriangle className="h-4 w-4 text-rose-400 shrink-0 mt-0.5" />
@@ -160,7 +160,7 @@ export const FcteHoldingsTable: React.FC = () => {
           </div>
           <button
             onClick={() => fetchHoldings(true)}
-            className="px-2.5 py-1 rounded bg-rose-900/60 hover:bg-rose-800 text-white font-bold transition text-[11px] shrink-0"
+            className="px-2.5 py-1 rounded bg-rose-900/60 hover:bg-rose-800 text-white font-bold transition text-sm shrink-0"
           >
             Retry Scrape
           </button>
@@ -182,8 +182,8 @@ export const FcteHoldingsTable: React.FC = () => {
       {/* Live Table */}
       {!loading && !error && (
         <div className="overflow-x-auto rounded-xl border border-slate-800/80 bg-[#070b12]">
-          <table className="w-full text-left font-mono text-xs">
-            <thead className="bg-[#0b1220] text-slate-400 uppercase text-[10px] border-b border-slate-800">
+          <table className="w-full text-left font-mono text-sm">
+            <thead className="bg-[#0b1220] text-slate-400 uppercase text-xs border-b border-slate-800">
               <tr>
                 <th className="px-4 py-3 w-12 text-center">#</th>
                 <th className="px-4 py-3">TICKER</th>
@@ -208,7 +208,7 @@ export const FcteHoldingsTable: React.FC = () => {
                     key={h.ticker}
                     className="hover:bg-slate-800/30 transition group"
                   >
-                    <td className="px-4 py-2.5 text-center text-slate-500 text-[11px]">
+                    <td className="px-4 py-2.5 text-center text-slate-500 text-sm">
                       {idx + 1}
                     </td>
                     <td className="px-4 py-2.5 font-bold text-cyan-300 group-hover:text-cyan-200">
@@ -216,7 +216,7 @@ export const FcteHoldingsTable: React.FC = () => {
                         ${h.ticker}
                       </span>
                     </td>
-                    <td className="px-4 py-2.5 text-slate-200 font-sans font-medium text-xs">
+                    <td className="px-4 py-2.5 text-slate-200 font-sans font-medium text-sm">
                       {h.name}
                     </td>
                     <td className="px-4 py-2.5 text-right font-bold text-emerald-400 font-mono">
@@ -231,7 +231,7 @@ export const FcteHoldingsTable: React.FC = () => {
                       </div>
                     </td>
                     {holdings.some((item) => item.shares_held) && (
-                      <td className="px-4 py-2.5 text-right text-slate-400 font-mono text-[11px] hidden md:table-cell">
+                      <td className="px-4 py-2.5 text-right text-slate-400 font-mono text-xs hidden md:table-cell">
                         {h.shares_held ? Number(h.shares_held).toLocaleString() : "-"}
                       </td>
                     )}
@@ -256,7 +256,7 @@ export const FcteHoldingsTable: React.FC = () => {
           </span>
         </div>
         {lastFetched && (
-          <span className="text-[11px] text-slate-500">
+          <span className="text-xs text-slate-500">
             Last Checked: {lastFetched}
           </span>
         )}

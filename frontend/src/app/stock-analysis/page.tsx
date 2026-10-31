@@ -717,7 +717,7 @@ export default function SingleStockAnalysisPage() {
                   </span>
                 )}
               </div>
-              <h1 className="text-xl md:text-2xl font-bold text-white mt-0.5">
+              <h1 className="text-base font-bold text-white mt-0.5">
                 {dossier?.company_name || activeTicker} ({activeTicker})
               </h1>
             </div>
@@ -744,7 +744,7 @@ export default function SingleStockAnalysisPage() {
           </div>
 
           {/* 3-LINE TOP HEADER METRIC RIBBON */}
-          <div className="rounded-lg border border-slate-800/90 bg-slate-950/70 p-2.5 space-y-1.5 font-mono text-[11px]">
+          <div className="rounded-lg border border-slate-800/90 bg-slate-950/70 p-2.5 space-y-1.5 font-mono text-xs">
             {/* Line 1: GICS, Live Price, Market Cap, Enterprise Value */}
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/70 pb-1.5">
               <div className="flex flex-wrap items-center gap-2">
@@ -769,12 +769,12 @@ export default function SingleStockAnalysisPage() {
                 </span>
                 <span>•</span>
                 <span>
-                  <MetricTip term="EV / EBITDA">ENTERPRISE VALUE (EV)</MetricTip>:{" "}
+                  <MetricTip term="EV / EBITDA" placement="bottom" align="center">ENTERPRISE VALUE (EV)</MetricTip>:{" "}
                   <strong className="text-cyan-300">${line1?.enterprise_value_bn ?? 8.0}B</strong>
                 </span>
                 <span>•</span>
                 <span>
-                  <MetricTip term="FWD P/E">FWD P/E</MetricTip>:{" "}
+                  <MetricTip term="FWD P/E" placement="bottom" align="right">FWD P/E</MetricTip>:{" "}
                   <strong className="text-white">{line1?.forward_pe ?? quant?.quality_and_valuation?.forward_pe ?? 19.8}x</strong>
                 </span>
               </div>
@@ -784,17 +784,17 @@ export default function SingleStockAnalysisPage() {
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/70 pb-1.5">
               <div className="flex flex-wrap items-center gap-3 text-slate-300">
                 <span>
-                  <MetricTip term="126D BETA">126D BETA</MetricTip>:{" "}
+                  <MetricTip term="126D BETA" placement="bottom" align="left">126D BETA</MetricTip>:{" "}
                   <strong className="text-amber-300">{line2?.beta_126d ?? factor?.primary_empirical_sector?.beta_6m ?? 1.35}x</strong>
                 </span>
                 <span>•</span>
                 <span>
-                  <MetricTip term="SHORT FLOAT & DTC">SHORT FLOAT</MetricTip>:{" "}
+                  <MetricTip term="SHORT FLOAT & DTC" placement="bottom" align="left">SHORT FLOAT</MetricTip>:{" "}
                   <strong className={(line2?.short_float_pct ?? 5) >= 10 ? "text-rose-400" : "text-white"}>
                     {line2?.short_float_pct ?? 11.4}%
                   </strong>{" "}
                   <span className="text-slate-500">
-                    <MetricTip term="DTC">({line2?.short_ratio_days ?? 3.8}d DTC)</MetricTip>
+                    <MetricTip term="DTC" placement="bottom" align="left">({line2?.short_ratio_days ?? 3.8}d DTC)</MetricTip>
                   </span>
                 </span>
                 <span>•</span>
@@ -803,13 +803,13 @@ export default function SingleStockAnalysisPage() {
                 </span>
                 <span>•</span>
                 <span>
-                  INSIDER (<MetricTip term="DEF 14A" explanation="SEC Form DEF 14A: Annual definitive proxy statement disclosing executive compensation and insider equity beneficial ownership.">DEF 14A</MetricTip>):{" "}
+                  INSIDER (<MetricTip term="DEF 14A" explanation="SEC Form DEF 14A: Annual definitive proxy statement disclosing executive compensation and insider equity beneficial ownership." placement="bottom" align="center">DEF 14A</MetricTip>):{" "}
                   <strong className="text-cyan-300">{line2?.insider_ownership_pct ?? dossier?.governance?.insider_ownership_pct ?? 2.8}%</strong>
                 </span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-300">
-                  <MetricTip term="14D RSI">14D RSI</MetricTip>: <strong className="text-white">{line2?.rsi_14d ?? vams?.rsi_14d ?? 48.5}</strong>
+                  <MetricTip term="14D RSI" placement="bottom" align="right">14D RSI</MetricTip>: <strong className="text-white">{line2?.rsi_14d ?? vams?.rsi_14d ?? 48.5}</strong>
                 </span>
                 <span
                   className={`px-2 py-0.5 rounded border font-bold ${(line2?.vams_state_label || vams?.vams_label) === "BULLISH"
@@ -819,7 +819,7 @@ export default function SingleStockAnalysisPage() {
                         : "bg-amber-950/50 border-amber-500/40 text-amber-300"
                     }`}
                 >
-                  <MetricTip term="VAMS">VAMS: {line2?.vams_state_label || vams?.vams_label || "NEUTRAL"}</MetricTip>
+                  <MetricTip term="VAMS" placement="bottom" align="right">VAMS: {line2?.vams_state_label || vams?.vams_label || "NEUTRAL"}</MetricTip>
                 </span>
               </div>
             </div>
@@ -832,7 +832,7 @@ export default function SingleStockAnalysisPage() {
                 </span>
                 <span>•</span>
                 <span>
-                  <MetricTip term="42M CACRI">42M CACRI</MetricTip>:{" "}
+                  <MetricTip term="42M CACRI" placement="bottom" align="left">42M CACRI</MetricTip>:{" "}
                   <strong className="text-emerald-400">{line3?.cacri_pct ?? 19.0}% ({line3?.cacri_status || "CONTAINED"})</strong>
                 </span>
                 <span>•</span>
@@ -869,7 +869,7 @@ export default function SingleStockAnalysisPage() {
                 </button>
               ))}
             </div>
-            <span className="text-[11px] text-slate-500">
+            <span className="text-xs text-slate-500">
               As of: {data?.as_of_utc || "Live Sync"}
             </span>
           </div>
@@ -878,7 +878,7 @@ export default function SingleStockAnalysisPage() {
         {/* SECTION 1: THE EXECUTIVE COCKPIT & TRAFFIC-LIGHT SCORECARD */}
         <section className="rounded-xl border border-slate-800 bg-[#111827] p-5 space-y-4">
           <div className="border-b border-slate-800 pb-3 flex flex-wrap justify-between items-center gap-2">
-            <h2 className="text-lg font-bold text-white">
+            <h2 className="text-base font-bold text-white">
               1. Executive Cockpit & &quot;Traffic Light&quot; Quality Scorecard
             </h2>
             <span className="text-xs font-mono text-slate-400">
@@ -919,7 +919,7 @@ export default function SingleStockAnalysisPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
             <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-3.5 space-y-2 text-xs font-mono">
               <div className="text-cyan-300 font-bold uppercase">
-                <MetricTip term="126D BETA">Empirical Factor DNA (126-Day Rolling OLS)</MetricTip>
+                <MetricTip term="126D BETA" placement="bottom" align="left">Empirical Factor DNA (126-Day Rolling OLS)</MetricTip>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-400">Primary Sector Match:</span>
@@ -935,7 +935,7 @@ export default function SingleStockAnalysisPage() {
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-400">
-                  <MetricTip term="126D BETA">OLS Systematic R² vs Alpha</MetricTip>:
+                  <MetricTip term="126D BETA" placement="bottom" align="left">OLS Systematic R² vs Alpha</MetricTip>:
                 </span>
                 <span className="text-emerald-300 font-bold">
                   R²={factor?.alpha_beta_decomposition?.systematic_macro_factor_r2_pct ?? 65}% • α={factor?.alpha_beta_decomposition?.jensens_alpha_annualized_pct ?? 4.5}%/yr
@@ -946,15 +946,15 @@ export default function SingleStockAnalysisPage() {
             <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-3.5 space-y-2 text-xs font-mono">
               <div className="flex items-center justify-between">
                 <span className="text-amber-300 font-bold uppercase">
-                  <MetricTip term="NET DEBT">Audited Balance Sheet & Solvency Matrix</MetricTip>
+                  <MetricTip term="NET DEBT" placement="bottom" align="left">Audited Balance Sheet & Solvency Matrix</MetricTip>
                 </span>
-                <span className="px-2 py-0.5 rounded bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 text-[10px] font-bold">
+                <span className="px-2 py-0.5 rounded bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 text-xs font-bold">
                   {solvencyMatrix?.status || "NET CASH FORTRESS"}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-400">
-                  <MetricTip term="NET DEBT">Cash vs. Total Debt</MetricTip>:
+                  <MetricTip term="NET DEBT" placement="bottom" align="left">Cash vs. Total Debt</MetricTip>:
                 </span>
                 <span className="text-white font-bold">
                   ${(cashM / 1000).toFixed(2)}B Cash vs ${(debtM / 1000).toFixed(2)}B Debt (
@@ -966,7 +966,7 @@ export default function SingleStockAnalysisPage() {
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-400">
-                  <MetricTip term="NET DEBT / EBITDA">Net Debt / EBITDA & Coverage</MetricTip>:
+                  <MetricTip term="NET DEBT / EBITDA" placement="bottom" align="left">Net Debt / EBITDA & Coverage</MetricTip>:
                 </span>
                 <span className="text-white font-bold">
                   {solvencyMatrix?.net_debt_to_ebitda ?? rate?.net_debt_to_ebitda ?? -0.68}x (EBIT Coverage: {solvencyMatrix?.interest_coverage_x ?? rate?.interest_coverage_x ?? 11.4}x)
@@ -986,12 +986,12 @@ export default function SingleStockAnalysisPage() {
         <section className="bg-slate-900/60 border border-slate-800 rounded-lg p-5 space-y-4">
           <div className="flex flex-wrap items-center justify-between pb-4 border-b border-slate-800/80 mb-2 gap-2">
             <div>
-              <h2 className="text-lg font-bold font-mono text-slate-100">
+              <h2 className="text-base font-bold font-mono text-slate-100">
                 2. 12-Quarter Forensic Financial Walk & Solvency Visualizer
               </h2>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-[11px] font-mono px-2 py-0.5 rounded border border-emerald-500/40 text-emerald-400 bg-emerald-950/30">
+              <span className="text-xs font-mono px-2 py-0.5 rounded border border-emerald-500/40 text-emerald-400 bg-emerald-950/30">
                 {data?.edgar_status === "LIVE_SEC_EDGAR_OK" ? "● SEC EDGAR VERIFIED" : "SEC INGESTION ACTIVE"}
               </span>
               • SEC CIK: {data?.cik ?? "N/A"}
@@ -1027,7 +1027,7 @@ export default function SingleStockAnalysisPage() {
                   <span className="text-cyan-400 font-bold uppercase">
                     Chart 2A: 12-Quarter Earnings & True FCF Walk ($M vs Margin %)
                   </span>
-                  <span className="text-slate-400 text-[11px]">12 Quarters</span>
+                  <span className="text-slate-400 text-xs">12 Quarters</span>
                 </div>
                 <div className="h-72 w-full">
                   <ResponsiveContainer width="100%" height="100%">
@@ -1089,7 +1089,7 @@ export default function SingleStockAnalysisPage() {
                   <span className="text-amber-400 font-bold uppercase">
                     Chart 2B: 12-Quarter Solvency, Net Cash & EBIT Coverage Walk
                   </span>
-                  <span className="text-slate-400 text-[11px]">Cash vs Debt ($M)</span>
+                  <span className="text-slate-400 text-xs">Cash vs Debt ($M)</span>
                 </div>
                 <div className="h-72 w-full">
                   <ResponsiveContainer width="100%" height="100%">
@@ -1157,7 +1157,7 @@ export default function SingleStockAnalysisPage() {
                     {(data?.financial_walk_12q || historical12Q)?.map((q: any, idx: number) => (
                       <th key={q.period_end || q.period || idx} className="py-2.5 px-2 text-right">
                         <div>{q.fiscal_label || q.period || q.period_end}</div>
-                        <div className="text-[10px] text-slate-500 font-normal">{q.form || "10-Q"}</div>
+                        <div className="text-xs text-slate-500 font-normal">{q.form || "10-Q"}</div>
                       </th>
                     ))}
                   </tr>
@@ -1165,7 +1165,7 @@ export default function SingleStockAnalysisPage() {
                 <tbody className="divide-y divide-slate-800/60 text-slate-200">
                   <tr>
                     <td className="py-2 px-3 font-medium text-cyan-400">
-                      <MetricTip term="REVENUE GROWTH YOY">Revenue</MetricTip>
+                      <MetricTip term="REVENUE GROWTH YOY" placement="bottom" align="left">Revenue</MetricTip>
                     </td>
                     {(data?.financial_walk_12q || historical12Q)?.map((q: any, idx: number) => (
                       <td key={q.period_end || q.period || idx} className="py-2 px-2 text-right">
@@ -1175,7 +1175,7 @@ export default function SingleStockAnalysisPage() {
                   </tr>
                   <tr>
                     <td className="py-2 px-3 font-medium">
-                      <MetricTip term="GROSS MARGIN">Gross Margin %</MetricTip>
+                      <MetricTip term="GROSS MARGIN" placement="bottom" align="left">Gross Margin %</MetricTip>
                     </td>
                     {(data?.financial_walk_12q || historical12Q)?.map((q: any, idx: number) => (
                       <td key={q.period_end || q.period || idx} className="py-2 px-2 text-right">
@@ -1187,7 +1187,7 @@ export default function SingleStockAnalysisPage() {
                   </tr>
                   <tr>
                     <td className="py-2 px-3 font-medium">
-                      <MetricTip term="OPERATING MARGIN">Operating Income</MetricTip>
+                      <MetricTip term="OPERATING MARGIN" placement="bottom" align="left">Operating Income</MetricTip>
                     </td>
                     {(data?.financial_walk_12q || historical12Q)?.map((q: any, idx: number) => (
                       <td
@@ -1204,7 +1204,7 @@ export default function SingleStockAnalysisPage() {
                   </tr>
                   <tr>
                     <td className="py-2 px-3 font-medium">
-                      <MetricTip term="FCF">Free Cash Flow (FCF)</MetricTip>
+                      <MetricTip term="FCF" placement="bottom" align="left">Free Cash Flow (FCF)</MetricTip>
                     </td>
                     {(data?.financial_walk_12q || historical12Q)?.map((q: any, idx: number) => (
                       <td
@@ -1221,7 +1221,7 @@ export default function SingleStockAnalysisPage() {
                   </tr>
                   <tr>
                     <td className="py-2 px-3 font-medium">
-                      <MetricTip term="SBC DILUTION % REV">SBC Dilution % Rev</MetricTip>
+                      <MetricTip term="SBC DILUTION % REV" placement="top" align="left">SBC Dilution % Rev</MetricTip>
                     </td>
                     {(data?.financial_walk_12q || historical12Q)?.map((q: any, idx: number) => (
                       <td key={q.period_end || q.period || idx} className="py-2 px-2 text-right text-amber-400">
@@ -1231,7 +1231,7 @@ export default function SingleStockAnalysisPage() {
                   </tr>
                   <tr>
                     <td className="py-2 px-3 font-medium text-slate-300">
-                      <MetricTip term="SLOAN ACCRUAL RATIO">Sloan Accrual Ratio</MetricTip>
+                      <MetricTip term="SLOAN ACCRUAL RATIO" placement="top" align="left">Sloan Accrual Ratio</MetricTip>
                     </td>
                     {(data?.financial_walk_12q || historical12Q)?.map((q: any, idx: number) => {
                       const netInc = q.gaap_net_income_m ?? (q.net_income ? q.net_income / 1e6 : (q.revenue_m || 300) * 0.15);
@@ -1247,7 +1247,7 @@ export default function SingleStockAnalysisPage() {
                   </tr>
                   <tr className="bg-slate-950/20">
                     <td className="py-2 px-3 font-medium text-slate-300">
-                      <MetricTip term="NET DEBT">Net Debt ($M)</MetricTip>
+                      <MetricTip term="NET DEBT" placement="top" align="left">Net Debt ($M)</MetricTip>
                     </td>
                     {(data?.financial_walk_12q || historical12Q)?.map((q: any, idx: number) => (
                       <td key={q.period_end || q.period || idx} className="py-2 px-2 text-right">
@@ -1261,7 +1261,7 @@ export default function SingleStockAnalysisPage() {
                   </tr>
                   <tr className="bg-slate-950/20">
                     <td className="py-2 px-3 font-medium text-slate-300">
-                      <MetricTip term="QUICK RATIO">Quick Ratio</MetricTip>
+                      <MetricTip term="QUICK RATIO" placement="top" align="left">Quick Ratio</MetricTip>
                     </td>
                     {(data?.financial_walk_12q || historical12Q)?.map((q: any, idx: number) => (
                       <td key={q.period_end || q.period || idx} className="py-2 px-2 text-right">
@@ -1283,7 +1283,7 @@ export default function SingleStockAnalysisPage() {
         {/* SECTION 3: HEDGEYE 3 PODS, UNIT ECONOMICS, MOAT & PEER VALUATION BENCHMARKING */}
         <section className="bg-slate-900/60 border border-slate-800 rounded-lg p-5 space-y-5">
           <div>
-            <h2 className="text-lg font-bold font-mono text-slate-100 mb-1">
+            <h2 className="text-base font-bold font-mono text-slate-100 mb-1">
               3. Hedgeye 3 Pods, Unit Economics & Peer Valuation Scorecard
             </h2>
           </div>
@@ -1292,46 +1292,46 @@ export default function SingleStockAnalysisPage() {
             {/* Pod 1 */}
             <div className="border border-slate-800 bg-slate-950/40 p-4 rounded">
               <div className="text-xs font-semibold text-cyan-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                <MetricTip term="POD 1">Pod 1: Macro & Factor</MetricTip>
+                <MetricTip term="POD 1" placement="bottom" align="left">Pod 1: Macro & Factor</MetricTip>
               </div>
               <div className="text-sm font-bold text-slate-100">{data?.macro_regime ?? macroRegime}</div>
               <div className="text-xs text-slate-400 mt-1 flex items-center gap-1">
-                <MetricTip term="126D BETA">126D Beta:</MetricTip> {data?.beta_126d ?? "1.48"}x vs $SPY
+                <MetricTip term="126D BETA" placement="bottom" align="left">126D Beta:</MetricTip> {data?.beta_126d ?? "1.48"}x vs $SPY
               </div>
               <div className="text-xs text-slate-400 flex items-center gap-1">
-                <MetricTip term="VAMS">VAMS State:</MetricTip> {data?.vams_state ?? "BULLISH"}
+                <MetricTip term="VAMS" placement="bottom" align="left">VAMS State:</MetricTip> {data?.vams_state ?? "BULLISH"}
               </div>
             </div>
 
             {/* Pod 2: Driven by SEC EDGAR */}
             <div className="border border-slate-800 bg-slate-950/40 p-4 rounded">
               <div className="text-xs font-semibold text-emerald-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                <MetricTip term="POD 2">Pod 2: Unit Economics (SEC EDGAR)</MetricTip>
+                <MetricTip term="POD 2" placement="bottom" align="center">Pod 2: Unit Economics (SEC EDGAR)</MetricTip>
               </div>
               <div className="text-sm font-bold text-slate-100">
                 YoY Rev: {data?.pod2_unit_economics?.rev_growth_yoy_pct ?? 0}%
               </div>
               <div className="text-xs text-slate-400 mt-1 flex items-center gap-1">
-                <MetricTip term="GROSS MARGIN">Gross Margin YoY:</MetricTip> {data?.pod2_unit_economics?.gross_margin_delta_yoy_bps ?? 0} bps
+                <MetricTip term="GROSS MARGIN" placement="bottom" align="center">Gross Margin YoY:</MetricTip> {data?.pod2_unit_economics?.gross_margin_delta_yoy_bps ?? 0} bps
               </div>
               <div className="text-xs text-slate-400 flex items-center gap-1">
-                <MetricTip term="FCF CONVERSION">Trailing 4Q FCF Conv:</MetricTip> {data?.pod2_unit_economics?.trailing_4q_fcf_conversion_pct ?? 0}%
+                <MetricTip term="FCF CONVERSION" placement="bottom" align="center">Trailing 4Q FCF Conv:</MetricTip> {data?.pod2_unit_economics?.trailing_4q_fcf_conversion_pct ?? 0}%
               </div>
-              <div className="text-[11px] text-slate-500 mt-1 flex items-center gap-1">
-                <MetricTip term="OPERATING MARGIN">Operating Leverage:</MetricTip> {data?.pod2_unit_economics?.operating_leverage_state ?? "EXPANDING"}
+              <div className="text-xs text-slate-500 mt-1 flex items-center gap-1">
+                <MetricTip term="OPERATING MARGIN" placement="bottom" align="center">Operating Leverage:</MetricTip> {data?.pod2_unit_economics?.operating_leverage_state ?? "EXPANDING"}
               </div>
             </div>
 
             {/* Pod 3 */}
             <div className="border border-slate-800 bg-slate-950/40 p-4 rounded">
               <div className="text-xs font-semibold text-amber-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                <MetricTip term="POD 3">Pod 3: Float & Microstructure</MetricTip>
+                <MetricTip term="POD 3" placement="bottom" align="right">Pod 3: Float & Microstructure</MetricTip>
               </div>
               <div className="text-sm font-bold text-slate-100 flex items-center gap-1">
-                <MetricTip term="SHORT FLOAT">Short Float:</MetricTip> {data?.short_float_pct ?? 0}%
+                <MetricTip term="SHORT FLOAT" placement="bottom" align="right">Short Float:</MetricTip> {data?.short_float_pct ?? 0}%
               </div>
               <div className="text-xs text-slate-400 mt-1 flex items-center gap-1">
-                <MetricTip term="DTC">Days to Cover:</MetricTip> {data?.days_to_cover ?? 0}d
+                <MetricTip term="DTC" placement="bottom" align="right">Days to Cover:</MetricTip> {data?.days_to_cover ?? 0}d
               </div>
               <div className="text-xs text-slate-400">Institutional Ownership: {data?.institutional_own_pct ?? 0}%</div>
             </div>
@@ -1377,7 +1377,7 @@ export default function SingleStockAnalysisPage() {
                   {data?.cache_metadata?.badge_label || "Cache: 7-Day TTL (Weekly Update)"}
                 </span>
                 {data?.cache_metadata?.response_time_ms !== undefined && (
-                  <span className="text-[11px] font-mono text-slate-400 bg-slate-900 px-2 py-1 rounded border border-slate-800">
+                  <span className="text-xs font-mono text-slate-400 bg-slate-900 px-2 py-1 rounded border border-slate-800">
                     {data.cache_metadata.response_time_ms}ms
                   </span>
                 )}
@@ -1392,25 +1392,25 @@ export default function SingleStockAnalysisPage() {
                     <th className="py-2.5 px-3">Company</th>
                     <th className="py-2.5 px-3">Mkt Cap ($B)</th>
                     <th className="py-2.5 px-3 text-right">
-                      <MetricTip term="EV / EBITDA">EV / EBITDA</MetricTip>
+                      <MetricTip term="EV / EBITDA" placement="bottom" align="center">EV / EBITDA</MetricTip>
                     </th>
                     <th className="py-2.5 px-3 text-right">
-                      <MetricTip term="FWD P/E">Forward P/E</MetricTip>
+                      <MetricTip term="FWD P/E" placement="bottom" align="center">Forward P/E</MetricTip>
                     </th>
                     <th className="py-2.5 px-3 text-right">
-                      <MetricTip term="FCF CONVERSION">FCF Conv</MetricTip>
+                      <MetricTip term="FCF CONVERSION" placement="bottom" align="center">FCF Conv</MetricTip>
                     </th>
                     <th className="py-2.5 px-3 text-right">
-                      <MetricTip term="NET DEBT / EBITDA">Net Debt / EBITDA</MetricTip>
+                      <MetricTip term="NET DEBT / EBITDA" placement="bottom" align="center">Net Debt / EBITDA</MetricTip>
                     </th>
                     <th className="py-2.5 px-3 text-right">
-                      <MetricTip term="ROE">ROE %</MetricTip>
+                      <MetricTip term="ROE" placement="bottom" align="center">ROE %</MetricTip>
                     </th>
                     <th className="py-2.5 px-3 text-right">
-                      <MetricTip term="REVENUE GROWTH YOY">Rev YoY %</MetricTip>
+                      <MetricTip term="REVENUE GROWTH YOY" placement="bottom" align="right">Rev YoY %</MetricTip>
                     </th>
                     <th className="py-2.5 px-3 text-right">
-                      <MetricTip term="GROSS MARGIN">Gross Margin</MetricTip>
+                      <MetricTip term="GROSS MARGIN" placement="bottom" align="right">Gross Margin</MetricTip>
                     </th>
                     <th className="py-2.5 px-3">Peer Verdict</th>
                   </tr>
@@ -1503,7 +1503,7 @@ export default function SingleStockAnalysisPage() {
                                 <RankMedal rank={compRank} showAll={true} />
                                 <span className={isCurrent ? "text-cyan-300 font-bold" : "text-white"}>{peer.ticker}</span>
                                 {isCurrent && (
-                                  <span className="text-[10px] text-cyan-400 border border-cyan-500/40 px-1 rounded font-mono">
+                                  <span className="text-xs text-cyan-400 border border-cyan-500/40 px-1 rounded font-mono">
                                     ANALYZED
                                   </span>
                                 )}
@@ -1557,7 +1557,7 @@ export default function SingleStockAnalysisPage() {
                               </div>
                             </td>
                             <td className="py-2.5 px-3 whitespace-nowrap">
-                              <span className="px-2 py-0.5 rounded bg-slate-900 border border-slate-700 text-slate-200 text-[10px]">
+                              <span className="px-2 py-0.5 rounded bg-slate-900 border border-slate-700 text-slate-200 text-xs">
                                 {peer.valuation_verdict}
                               </span>
                             </td>
@@ -1582,7 +1582,7 @@ export default function SingleStockAnalysisPage() {
         {/* SECTION 4: GOVERNANCE & SEC REGULATION S-K ITEM 401(f) AUDIT */}
         <section className="rounded-xl border border-slate-800 bg-[#111827] p-5 space-y-3">
           <div className="border-b border-slate-800 pb-3">
-            <h2 className="text-lg font-bold text-white">
+            <h2 className="text-base font-bold text-white">
               4. Executive Governance, Insider Ownership & Legal Audit
             </h2>
             <p className="text-xs text-slate-400 mt-0.5">
@@ -1601,7 +1601,7 @@ export default function SingleStockAnalysisPage() {
               <div className="text-emerald-400 font-bold text-base">
                 {dossier?.governance?.insider_ownership_pct ?? "N/A"}% of Float
               </div>
-              <div className="text-slate-300 font-sans text-[11px]">
+              <div className="text-slate-300 font-sans text-xs">
                 {dossier?.governance?.trailing_12m_form4_summary || "Routine transactions."}
               </div>
             </div>
@@ -1615,7 +1615,7 @@ export default function SingleStockAnalysisPage() {
         {/* SECTION 5: MACRO SCENARIOS & SIDE-BY-SIDE 6-12M BULL CATALYSTS VS BEAR VULNERABILITIES */}
         <section className="rounded-xl border border-slate-800 bg-[#111827] p-5 space-y-5">
           <div className="border-b border-slate-800 pb-3">
-            <h2 className="text-lg font-bold text-white">
+            <h2 className="text-base font-bold text-white">
               5. Macro Regime Transmission Channels & 6–12M Bull Catalysts vs. Bear Vulnerabilities
             </h2>
             <p className="text-xs text-slate-400 mt-0.5">
@@ -1646,7 +1646,7 @@ export default function SingleStockAnalysisPage() {
                 <span className="text-emerald-400 font-bold uppercase">
                   ▲ 6–12M Bull Catalysts & Upside Drivers
                 </span>
-                <span className="px-2 py-0.5 rounded bg-emerald-950/60 text-emerald-300 text-[10px]">
+                <span className="px-2 py-0.5 rounded bg-emerald-950/60 text-emerald-300 text-xs">
                   {bullCatalysts.length} Active Catalysts
                 </span>
               </div>
@@ -1655,12 +1655,12 @@ export default function SingleStockAnalysisPage() {
                   <div key={idx} className="rounded-lg border border-slate-800/90 bg-slate-900/70 p-3 space-y-1 text-xs">
                     <div className="flex flex-wrap justify-between items-center gap-1 font-mono">
                       <span className="font-bold text-emerald-300">{cat.title}</span>
-                      <span className="px-1.5 py-0.5 rounded bg-emerald-950/60 border border-emerald-500/30 text-emerald-200 text-[10px]">
+                      <span className="px-1.5 py-0.5 rounded bg-emerald-950/60 border border-emerald-500/30 text-emerald-200 text-xs">
                         {cat.horizon_or_prob}
                       </span>
                     </div>
                     <p className="text-slate-300 leading-snug">{cat.transmission}</p>
-                    <div className="text-[11px] font-mono text-cyan-300 pt-1">
+                    <div className="text-xs font-mono text-cyan-300 pt-1">
                       ► Quantified Impact: <strong className="text-white">{cat.valuation_or_eps_impact}</strong>
                     </div>
                   </div>
@@ -1674,7 +1674,7 @@ export default function SingleStockAnalysisPage() {
                 <span className="text-rose-400 font-bold uppercase">
                   ▼ 6–12M Bear Vulnerabilities & Downside Risks
                 </span>
-                <span className="px-2 py-0.5 rounded bg-rose-950/60 text-rose-300 text-[10px]">
+                <span className="px-2 py-0.5 rounded bg-rose-950/60 text-rose-300 text-xs">
                   {bearVulnerabilities.length} Monitored Risks
                 </span>
               </div>
@@ -1683,12 +1683,12 @@ export default function SingleStockAnalysisPage() {
                   <div key={idx} className="rounded-lg border border-slate-800/90 bg-slate-900/70 p-3 space-y-1 text-xs">
                     <div className="flex flex-wrap justify-between items-center gap-1 font-mono">
                       <span className="font-bold text-rose-300">{vuln.title}</span>
-                      <span className="px-1.5 py-0.5 rounded bg-rose-950/60 border border-rose-500/30 text-rose-200 text-[10px]">
+                      <span className="px-1.5 py-0.5 rounded bg-rose-950/60 border border-rose-500/30 text-rose-200 text-xs">
                         {vuln.horizon_or_prob}
                       </span>
                     </div>
                     <p className="text-slate-300 leading-snug">{vuln.transmission}</p>
-                    <div className="text-[11px] font-mono text-amber-300 pt-1">
+                    <div className="text-xs font-mono text-amber-300 pt-1">
                       ► Downside Sensitivity: <strong className="text-white">{vuln.valuation_or_eps_impact}</strong>
                     </div>
                   </div>
@@ -1702,9 +1702,9 @@ export default function SingleStockAnalysisPage() {
         <section className="rounded-xl border border-slate-800 bg-[#111827] p-5 space-y-6">
           <div className="border-b border-slate-800 pb-3 flex flex-wrap justify-between items-center gap-2">
             <div>
-              <h2 className="text-lg font-bold text-white flex items-center gap-2">
+              <h2 className="text-base font-bold text-white flex items-center gap-2">
                 <span>6. Options Volatility Surface, Greeks Matrix & Tactical Playbook</span>
-                <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-cyan-950 border border-cyan-500/40 text-cyan-300">
+                <span className="text-xs font-mono px-2 py-0.5 rounded bg-cyan-950 border border-cyan-500/40 text-cyan-300">
                   VOLATILITY REGIME: {optionsSurface?.metrics_6?.[1]?.value?.includes("+") ? "POSITIVE VRP (EDGE: SELL VOL)" : "NEGATIVE VRP (EDGE: BUY VOL)"}
                 </span>
               </h2>
@@ -1815,7 +1815,7 @@ export default function SingleStockAnalysisPage() {
 
               return (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {cards.map((c) => {
+                  {cards.map((c, idx) => {
                     const borderTone =
                       c.tone === "emerald"
                         ? "border-emerald-500/40 bg-slate-900/90 text-emerald-300"
@@ -1823,33 +1823,36 @@ export default function SingleStockAnalysisPage() {
                           ? "border-amber-500/40 bg-slate-900/90 text-amber-300"
                           : "border-cyan-500/40 bg-slate-900/90 text-cyan-300";
 
+                    const cardAlign: "left" | "center" | "right" =
+                      idx % 3 === 0 ? "left" : idx % 3 === 1 ? "center" : "right";
+
                     return (
                       <div key={c.id} className={`rounded-xl border p-4 space-y-3 flex flex-col justify-between ${borderTone}`}>
                         <div className="space-y-1.5">
                           <div className="flex items-center justify-between text-xs font-mono">
                             <span className="font-bold text-slate-100 flex items-center gap-1">
-                              <MetricTip term={c.metricTerm}>{c.title}</MetricTip>
+                              <MetricTip term={c.metricTerm} placement="bottom" align={cardAlign}>{c.title}</MetricTip>
                             </span>
                           </div>
                           <div className="text-base font-bold text-white font-mono">{c.value}</div>
-                          <div className="text-[11px] text-slate-400 font-sans leading-snug">{c.subvalue}</div>
+                          <div className="text-xs text-slate-400 font-sans leading-snug">{c.subvalue}</div>
                         </div>
 
                         {!c.isPlaybook ? (
                           <div className="space-y-2 text-xs font-sans text-slate-300 border-t border-slate-800 pt-2.5">
                             <div>
-                              <strong className="text-cyan-400 font-mono text-[10px] block uppercase">
+                              <strong className="text-cyan-400 font-mono text-xs block uppercase">
                                 Plain-English Definition:
                               </strong>
-                              <p className="text-[11px] leading-relaxed text-slate-200 mt-0.5">{c.plainEnglish}</p>
+                              <p className="text-xs leading-relaxed text-slate-200 mt-0.5">{c.plainEnglish}</p>
                             </div>
                             <div>
-                              <strong className="text-amber-400 font-mono text-[10px] block uppercase">
+                              <strong className="text-amber-400 font-mono text-xs block uppercase">
                                 Impact of Changes:
                               </strong>
-                              <p className="text-[11px] leading-relaxed text-slate-200 mt-0.5">{c.impactOfChanges}</p>
+                              <p className="text-xs leading-relaxed text-slate-200 mt-0.5">{c.impactOfChanges}</p>
                             </div>
-                            <div className="p-2 rounded bg-black/50 border border-slate-800 font-mono text-[10px]">
+                            <div className="p-2 rounded bg-black/50 border border-slate-800 font-mono text-xs">
                               <span className="text-slate-400 block font-bold uppercase mb-0.5">
                                 Volatility-Aware Meaningful Amplitude:
                               </span>
@@ -1857,8 +1860,8 @@ export default function SingleStockAnalysisPage() {
                             </div>
                           </div>
                         ) : (
-                          <div className="space-y-1.5 text-[11px] font-sans text-slate-200 border-t border-slate-800 pt-2.5">
-                            <div className="p-2 rounded bg-black/40 border border-slate-800 space-y-1 font-mono text-[10px]">
+                          <div className="space-y-1.5 text-xs font-sans text-slate-200 border-t border-slate-800 pt-2.5">
+                            <div className="p-2 rounded bg-black/40 border border-slate-800 space-y-1 font-mono text-xs">
                               <div>
                                 <span className="text-cyan-400 font-bold">Trade (&lt; 3 Weeks): </span>
                                 <span className="text-slate-300">Governed by 15-Day Probable Range (${(vams?.prob_low ?? spot * 0.92).toFixed(2)}–${(vams?.prob_high ?? spot * 1.09).toFixed(2)}) and 14D RSI ({line2?.rsi_14d ?? 48.5}).</span>
@@ -1872,7 +1875,7 @@ export default function SingleStockAnalysisPage() {
                                 <span className="text-slate-300">Governed by audited SEC EDGAR Sloan accruals and true cash flow conversion.</span>
                               </div>
                             </div>
-                            <div className="p-2 rounded bg-rose-950/30 border border-rose-500/30 text-rose-300 font-mono text-[10px]">
+                            <div className="p-2 rounded bg-rose-950/30 border border-rose-500/30 text-rose-300 font-mono text-xs">
                               <strong className="text-rose-400">Quad Sensitivity: </strong>
                               In Quad 3 (Stagflation) or Quad 4 (Deflation), scale all Trade and Trend position sizing down by 50%.
                             </div>
@@ -1893,11 +1896,11 @@ export default function SingleStockAnalysisPage() {
                 <h3 className="text-sm font-bold uppercase text-amber-300 flex items-center gap-1.5">
                   <span>Options Greeks & Dealer Hedging Sensitivity Matrix</span>
                 </h3>
-                <p className="text-[11px] text-slate-400 font-sans">
+                <p className="text-xs text-slate-400 font-sans">
                   Mechanical market maker hedging constraints across spot price corridors
                 </p>
               </div>
-              <span className="text-[11px] px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
+              <span className="text-xs px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
                 GAMMA FLIP: ${(Number(line1?.live_price ?? 64.80) * 0.96).toFixed(2)}
               </span>
             </div>
@@ -1915,66 +1918,66 @@ export default function SingleStockAnalysisPage() {
                 <tbody className="divide-y divide-slate-800/60 text-slate-200">
                   <tr>
                     <td className="py-2.5 px-3 font-bold text-cyan-400 flex items-center gap-1">
-                      <span>Delta (Δ) Sensitivity</span>
-                      <FinancialTooltip term="BETA" />
+                      <MetricTip term="DELTA" placement="bottom" align="left">Delta (Δ) Sensitivity</MetricTip>
+                      <FinancialTooltip term="BETA" placement="bottom" align="left" />
                     </td>
                     <td className="py-2.5 px-3 text-white">0.52 (ATM) / 0.25 (OTM)</td>
                     <td className="py-2.5 px-3 text-emerald-400">
                       Dealers buy shares into pullbacks at Put Wall (${Number(optionsSurface?.put_wall ?? 58.32).toFixed(2)})
                     </td>
-                    <td className="py-2.5 px-3 text-slate-300 font-sans text-[11px]">
+                    <td className="py-2.5 px-3 text-slate-300 font-sans text-xs">
                       At Put Wall floor, short dealer puts force positive delta hedging; protects downside.
                     </td>
                   </tr>
                   <tr>
                     <td className="py-2.5 px-3 font-bold text-amber-400 flex items-center gap-1">
-                      <span>Gamma (Γ) & Net GEX</span>
-                      <FinancialTooltip term="DEALER_GEX" />
+                      <MetricTip term="GAMMA" placement="bottom" align="left">Gamma (Γ) & Net GEX</MetricTip>
+                      <FinancialTooltip term="DEALER_GEX" placement="bottom" align="left" />
                     </td>
                     <td className="py-2.5 px-3 text-emerald-300">+$28.4M / 1% (Long Γ)</td>
                     <td className="py-2.5 px-3 text-cyan-300">
                       Dealers sell rallies & buy dips (Mean-Reversion dampener)
                     </td>
-                    <td className="py-2.5 px-3 text-slate-300 font-sans text-[11px]">
+                    <td className="py-2.5 px-3 text-slate-300 font-sans text-xs">
                       Positive GEX pins price between Put Wall & Call Wall; suppresses intraday volatility.
                     </td>
                   </tr>
                   <tr>
                     <td className="py-2.5 px-3 font-bold text-purple-400 flex items-center gap-1">
-                      <span>Vega (ν) & VRP Term</span>
-                      <FinancialTooltip term="VRP" />
+                      <MetricTip term="VEGA" placement="bottom" align="left">Vega (ν) & VRP Term</MetricTip>
+                      <FinancialTooltip term="VRP" placement="bottom" align="left" />
                     </td>
                     <td className="py-2.5 px-3 text-amber-300">+6.4 Vol Pts (Rich IV)</td>
                     <td className="py-2.5 px-3 text-amber-300">
                       High implied vol implies expensive options pricing
                     </td>
-                    <td className="py-2.5 px-3 text-slate-300 font-sans text-[11px]">
+                    <td className="py-2.5 px-3 text-slate-300 font-sans text-xs">
                       VRP &gt; 4.0 favours selling defined-risk credit spreads to harvest systematic volatility decay.
                     </td>
                   </tr>
                   <tr>
                     <td className="py-2.5 px-3 font-bold text-emerald-400 flex items-center gap-1">
-                      <span>Theta (Θ) Decay Velocity</span>
-                      <FinancialTooltip term="FCF" />
+                      <MetricTip term="THETA" placement="top" align="left">Theta (Θ) Decay Velocity</MetricTip>
+                      <FinancialTooltip term="FCF" placement="top" align="left" />
                     </td>
                     <td className="py-2.5 px-3 text-white">-$0.064/share/day (30D)</td>
                     <td className="py-2.5 px-3 text-emerald-400">
                       Decay accelerates rapidly within 21 to 45 DTE
                     </td>
-                    <td className="py-2.5 px-3 text-slate-300 font-sans text-[11px]">
+                    <td className="py-2.5 px-3 text-slate-300 font-sans text-xs">
                       Sweet-spot for option selling is 30–45 DTE; captures 70% of theta with minimal tail gamma risk.
                     </td>
                   </tr>
                   <tr>
                     <td className="py-2.5 px-3 font-bold text-rose-400 flex items-center gap-1">
-                      <span>25Δ Put/Call Skew</span>
-                      <FinancialTooltip term="SKEW_25D" />
+                      <MetricTip term="25D SKEW" placement="top" align="left">25Δ Put/Call Skew</MetricTip>
+                      <FinancialTooltip term="SKEW_25D" placement="top" align="left" />
                     </td>
                     <td className="py-2.5 px-3 text-rose-300">+4.2 Vol Pts (Put Bias)</td>
                     <td className="py-2.5 px-3 text-slate-300">
                       Downside puts trade at structural premium to calls
                     </td>
-                    <td className="py-2.5 px-3 text-slate-300 font-sans text-[11px]">
+                    <td className="py-2.5 px-3 text-slate-300 font-sans text-xs">
                       Institutional downside hedging elevates OTM put prices; creates rich entry for Bull Put sellers.
                     </td>
                   </tr>
@@ -1990,7 +1993,7 @@ export default function SingleStockAnalysisPage() {
                 <h3 className="text-sm font-bold uppercase text-cyan-300">
                   Interactive Options Scenario & Payoff Simulator
                 </h3>
-                <p className="text-[11px] text-slate-400 font-sans">
+                <p className="text-xs text-slate-400 font-sans">
                   Select a simulated underlying stock shock to evaluate dealer mechanical reactions and options payoffs
                 </p>
               </div>
@@ -2041,29 +2044,29 @@ export default function SingleStockAnalysisPage() {
               }
 
               return (
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-3 p-3 rounded-lg bg-black/50 border border-slate-800 text-[11px]">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-3 p-3 rounded-lg bg-black/50 border border-slate-800 text-xs">
                   <div>
-                    <span className="text-slate-400 block text-[10px]">Simulated Stock Price</span>
+                    <span className="text-slate-400 block text-xs">Simulated Stock Price</span>
                     <strong className="text-base text-white">${simPrice}</strong>
-                    <span className="text-slate-400 text-[10px] block">
+                    <span className="text-slate-400 text-xs block">
                       Shift: {simShiftPct > 0 ? `+${simShiftPct}%` : `${simShiftPct}%`} from ${spot}
                     </span>
                   </div>
                   <div>
-                    <span className="text-slate-400 block text-[10px]">Market Microstructure State</span>
-                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold border inline-block mt-0.5 ${badgeColor}`}>
+                    <span className="text-slate-400 block text-xs">Market Microstructure State</span>
+                    <span className={`px-2 py-0.5 rounded text-xs font-bold border inline-block mt-0.5 ${badgeColor}`}>
                       {statusText}
                     </span>
-                    <span className="text-slate-400 text-[10px] block mt-1">
+                    <span className="text-slate-400 text-xs block mt-1">
                       Distance to Put Wall: ${Number(simPrice - pWall).toFixed(2)} | Call Wall: ${Number(cWall - simPrice).toFixed(2)}
                     </span>
                   </div>
                   <div className="md:col-span-2">
-                    <span className="text-slate-400 block text-[10px]">Dealer Mechanical Hedging Flow & Options Payoff</span>
+                    <span className="text-slate-400 block text-xs">Dealer Mechanical Hedging Flow & Options Payoff</span>
                     <p className="text-slate-200 font-sans text-xs mt-0.5 leading-snug">
                       <strong className="text-cyan-300">Dealer Flow: </strong>{dealerAction}
                     </p>
-                    <div className="text-emerald-400 font-mono text-[11px] mt-1">
+                    <div className="text-emerald-400 font-mono text-xs mt-1">
                       ► Modeled Impact: <span className="text-white">{payoffImpact}</span>
                     </div>
                   </div>
@@ -2089,18 +2092,18 @@ export default function SingleStockAnalysisPage() {
                     <span>Playbook A: The Systematic VRP Harvest</span>
                     <FinancialTooltip term="VRP" />
                   </span>
-                  <span className="px-2 py-0.5 rounded bg-emerald-950 border border-emerald-500/40 text-emerald-300 text-[10px] font-mono">
+                  <span className="px-2 py-0.5 rounded bg-emerald-950 border border-emerald-500/40 text-emerald-300 text-xs font-mono">
                     30–45 DTE Horizon
                   </span>
                 </div>
                 <div className="p-2.5 rounded bg-black/60 border border-slate-800 font-mono text-emerald-300 text-xs font-bold">
                   ► Bull Put Credit Spread (Sell 25Δ Put @ Put Wall, Buy 10Δ Wing Put)
                 </div>
-                <p className="text-slate-300 leading-relaxed text-[11px]">
+                <p className="text-slate-300 leading-relaxed text-xs">
                   <strong>Edge Mechanics: </strong>
                   When Volatility Risk Premium (VRP) is positive (IV30 &gt; RV21), options overprice actual realized volatility. Anchoring the short put outside the 15-day probable range captures rapid time decay while capping tail risk via the long wing.
                 </p>
-                <div className="flex flex-wrap justify-between gap-2 font-mono text-[11px] text-slate-400 pt-1 border-t border-slate-800">
+                <div className="flex flex-wrap justify-between gap-2 font-mono text-xs text-slate-400 pt-1 border-t border-slate-800">
                   <span>Breakeven: &gt;8% Downside Cushion</span>
                   <span className="text-amber-300 font-bold">Target ROC: 22%–32% in 35 Days</span>
                 </div>
@@ -2113,18 +2116,18 @@ export default function SingleStockAnalysisPage() {
                     <span>Playbook B: Dealer Gamma Squeeze & Call Wall Breakout</span>
                     <FinancialTooltip term="CALL_WALL" />
                   </span>
-                  <span className="px-2 py-0.5 rounded bg-cyan-950 border border-cyan-500/40 text-cyan-300 text-[10px] font-mono">
+                  <span className="px-2 py-0.5 rounded bg-cyan-950 border border-cyan-500/40 text-cyan-300 text-xs font-mono">
                     2–6 Week Horizon
                   </span>
                 </div>
                 <div className="p-2.5 rounded bg-black/60 border border-slate-800 font-mono text-cyan-300 text-xs font-bold">
                   ► Bull Call Debit Spread / Call Diagonal Spread across Call Wall
                 </div>
-                <p className="text-slate-300 leading-relaxed text-[11px]">
+                <p className="text-slate-300 leading-relaxed text-xs">
                   <strong>Edge Mechanics: </strong>
                   When price enters within 2% of the Call Wall with Bullish VAMS and expanding volume, market makers holding short call open interest are forced to purchase underlying shares to hedge accelerating delta, fueling an explosive upside squeeze.
                 </p>
-                <div className="flex flex-wrap justify-between gap-2 font-mono text-[11px] text-slate-400 pt-1 border-t border-slate-800">
+                <div className="flex flex-wrap justify-between gap-2 font-mono text-xs text-slate-400 pt-1 border-t border-slate-800">
                   <span>Trigger: Volume Breakout above ${Number(optionsSurface?.call_wall ?? 72.58).toFixed(2)}</span>
                   <span className="text-amber-300 font-bold">Asymmetry: 3.4 : 1 Risk/Reward</span>
                 </div>
@@ -2137,18 +2140,18 @@ export default function SingleStockAnalysisPage() {
                     <span>Playbook C: Put Wall Floor & Mean-Reversion Pin</span>
                     <FinancialTooltip term="PUT_WALL" />
                   </span>
-                  <span className="px-2 py-0.5 rounded bg-amber-950 border border-amber-500/40 text-amber-300 text-[10px] font-mono">
+                  <span className="px-2 py-0.5 rounded bg-amber-950 border border-amber-500/40 text-amber-300 text-xs font-mono">
                     10–20 Day Swing
                   </span>
                 </div>
                 <div className="p-2.5 rounded bg-black/60 border border-slate-800 font-mono text-amber-300 text-xs font-bold">
                   ► Bull Risk Reversal (Sell OTM Put @ Put Wall, Buy ATM Call)
                 </div>
-                <p className="text-slate-300 leading-relaxed text-[11px]">
+                <p className="text-slate-300 leading-relaxed text-xs">
                   <strong>Edge Mechanics: </strong>
                   In positive dealer gamma regimes, market makers buy underlying shares as spot approaches the Put Wall, creating mechanical floor support. Buying the dip into the Put Wall offers asymmetric upside with defined downside support.
                 </p>
-                <div className="flex flex-wrap justify-between gap-2 font-mono text-[11px] text-slate-400 pt-1 border-t border-slate-800">
+                <div className="flex flex-wrap justify-between gap-2 font-mono text-xs text-slate-400 pt-1 border-t border-slate-800">
                   <span>Floor Level: ${Number(optionsSurface?.put_wall ?? 58.32).toFixed(2)} Support</span>
                   <span className="text-emerald-400 font-bold">Success Rate: ~82% in Quad 1/2/3</span>
                 </div>
@@ -2161,18 +2164,18 @@ export default function SingleStockAnalysisPage() {
                     <span>Playbook D: Zero-Cost Defined-Risk Collar</span>
                     <FinancialTooltip term="NET_DEBT" />
                   </span>
-                  <span className="px-2 py-0.5 rounded bg-purple-950 border border-purple-500/40 text-purple-300 text-[10px] font-mono">
+                  <span className="px-2 py-0.5 rounded bg-purple-950 border border-purple-500/40 text-purple-300 text-xs font-mono">
                     60–90 Day Secular Hedge
                   </span>
                 </div>
                 <div className="p-2.5 rounded bg-black/60 border border-slate-800 font-mono text-purple-300 text-xs font-bold">
                   ► Long 100 Shares + Buy OTM Put (Put Wall) + Sell OTM Call (Call Wall)
                 </div>
-                <p className="text-slate-300 leading-relaxed text-[11px]">
+                <p className="text-slate-300 leading-relaxed text-xs">
                   <strong>Edge Mechanics: </strong>
                   For long-term equity holders during macro regime shifts (e.g. Stagflation Quad 3). Selling the OTM Call at the Call Wall completely pays for the protective OTM Put at the Put Wall, creating 100% downside crash protection for $0 net cash outlay.
                 </p>
-                <div className="flex flex-wrap justify-between gap-2 font-mono text-[11px] text-slate-400 pt-1 border-t border-slate-800">
+                <div className="flex flex-wrap justify-between gap-2 font-mono text-xs text-slate-400 pt-1 border-t border-slate-800">
                   <span>Downside Risk: Capped at Put Wall</span>
                   <span className="text-cyan-300 font-bold">Net Premium Cost: $0.00 (Zero-Cost)</span>
                 </div>
@@ -2185,12 +2188,12 @@ export default function SingleStockAnalysisPage() {
             <div className="rounded-lg border border-slate-800 bg-slate-900/80 p-4 space-y-2.5">
               <div className="flex justify-between items-center font-mono">
                 <span className="text-cyan-400 font-bold uppercase">1–3 Month Tactical Execution Summary</span>
-                <span className="px-2 py-0.5 rounded bg-cyan-950 border border-cyan-500/40 text-cyan-300 text-[11px]">
+                <span className="px-2 py-0.5 rounded bg-cyan-950 border border-cyan-500/40 text-cyan-300 text-xs">
                   Probable Range Routing
                 </span>
               </div>
               <p className="text-slate-300">{dossier?.trade_playbook?.tactical_1_to_3m_stance || "Analyzing tactical posture..."}</p>
-              <div className="p-3 rounded bg-black/40 border border-slate-800 font-mono text-emerald-300 text-[11px]">
+              <div className="p-3 rounded bg-black/40 border border-slate-800 font-mono text-emerald-300 text-xs">
                 ► Primary Playbook: {dossier?.trade_playbook?.tactical_options_trade || "Evaluating options blueprint..."}
               </div>
             </div>
@@ -2198,12 +2201,12 @@ export default function SingleStockAnalysisPage() {
             <div className="rounded-lg border border-slate-800 bg-slate-900/80 p-4 space-y-2.5">
               <div className="flex justify-between items-center font-mono">
                 <span className="text-emerald-400 font-bold uppercase">2–3 Year Secular Thesis & Fair Value</span>
-                <span className="px-2 py-0.5 rounded bg-emerald-950 border border-emerald-500/40 text-emerald-300 text-[11px]">
+                <span className="px-2 py-0.5 rounded bg-emerald-950 border border-emerald-500/40 text-emerald-300 text-xs">
                   Target: {dossier?.trade_playbook?.fair_value_target_range || "N/A"}
                 </span>
               </div>
               <p className="text-slate-300 leading-relaxed">{dossier?.trade_playbook?.secular_2_to_3y_thesis || "Evaluating multi-year secular runway..."}</p>
-              <div className="p-3 rounded bg-black/40 border border-slate-800 font-mono text-slate-300 text-[11px]">
+              <div className="p-3 rounded bg-black/40 border border-slate-800 font-mono text-slate-300 text-xs">
                 Fair Value Target Range: <strong className="text-white">{dossier?.trade_playbook?.fair_value_target_range || "N/A"}</strong>
               </div>
             </div>

@@ -158,7 +158,7 @@ export const RefreshModal: React.FC<RefreshModalProps> = ({
               <h2 className="text-base font-semibold font-mono tracking-wide text-slate-100 flex items-center gap-2">
                 AUTONOMOUS DATA REFRESH
                 <span
-                  className={`text-[10px] uppercase font-mono px-2 py-0.5 rounded-full border ${
+                  className={`text-xs uppercase font-mono px-2 py-0.5 rounded-full border ${
                     status === "COMPLETED"
                       ? "bg-emerald-950/80 text-emerald-400 border-emerald-700/60"
                       : status === "FAILED"
@@ -190,7 +190,7 @@ export const RefreshModal: React.FC<RefreshModalProps> = ({
 
         {/* Progress Bar & Stage Indicator */}
         <div className="p-6 border-b border-slate-800/80 bg-slate-950/40 space-y-4">
-          <div className="flex items-center justify-between text-xs font-mono">
+          <div className="flex items-center justify-between text-sm font-mono">
             <span className="text-cyan-400 flex items-center gap-1.5 font-medium">
               <Activity className="h-3.5 w-3.5 animate-pulse" />
               STAGE: {currentStage}
@@ -213,7 +213,7 @@ export const RefreshModal: React.FC<RefreshModalProps> = ({
           </div>
 
           {/* Pipeline Checklist */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 pt-2 text-[11px] font-mono">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 pt-2 text-sm font-mono">
             <div
               className={`p-2 rounded border flex items-center gap-1.5 ${
                 progress >= 25
@@ -262,17 +262,17 @@ export const RefreshModal: React.FC<RefreshModalProps> = ({
           {diffReport && (
             <div className="p-4 rounded-xl bg-gradient-to-br from-cyan-950/40 to-slate-900/80 border border-cyan-500/40 space-y-4">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-mono uppercase text-cyan-400 font-bold flex items-center gap-1.5">
+                <span className="text-sm font-mono uppercase text-cyan-400 font-bold flex items-center gap-1.5">
                   <Sparkles className="h-4 w-4" />
                   WHAT CHANGED SINCE LAST REFRESH
                 </span>
-                <span className="text-[11px] font-mono text-slate-400">{diffReport.refresh_date}</span>
+                <span className="text-xs font-mono text-slate-400">{diffReport.refresh_date}</span>
               </div>
 
               {/* Quant Deltas Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs font-mono">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm font-mono">
                 <div className="p-3 rounded-lg bg-slate-900/80 border border-slate-800">
-                  <div className="text-slate-400 text-[11px]">US Net Liquidity Shift</div>
+                  <div className="text-slate-400 text-xs">US Net Liquidity Shift</div>
                   <div className="text-base font-bold text-slate-100 mt-1 flex items-center gap-2">
                     ${diffReport.quantitative_deltas?.net_liquidity?.current_bn}B
                     <span
@@ -294,7 +294,7 @@ export const RefreshModal: React.FC<RefreshModalProps> = ({
                 </div>
 
                 <div className="p-3 rounded-lg bg-slate-900/80 border border-slate-800">
-                  <div className="text-slate-400 text-[11px]">Quad 2 Probability Shift</div>
+                  <div className="text-slate-400 text-xs">Quad 2 Probability Shift</div>
                   <div className="text-base font-bold text-slate-100 mt-1 flex items-center gap-2">
                     {diffReport.quantitative_deltas?.quad_probabilities?.quad_2_reflation_pct}%
                     <span className="text-xs px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-400">
@@ -307,14 +307,14 @@ export const RefreshModal: React.FC<RefreshModalProps> = ({
               {/* Top Call-Outs */}
               {diffReport.top_conviction_call_outs && (
                 <div className="space-y-2">
-                  <div className="text-[11px] font-mono uppercase text-slate-400 font-semibold">
+                  <div className="text-xs font-mono uppercase text-slate-400 font-semibold">
                     Top Institutional Conviction Tilts:
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs font-mono">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm font-mono">
                     {diffReport.top_conviction_call_outs.map((c: any, i: number) => (
                       <div key={i} className="p-2 rounded bg-slate-900/60 border border-slate-800 flex items-start gap-2">
                         <span className="font-bold text-cyan-400">${c.ticker}</span>
-                        <div className="text-slate-300 text-[11px]">
+                        <div className="text-slate-300 text-xs">
                           <span className="text-slate-400">[{c.stance}]:</span> {c.driver}
                         </div>
                       </div>
@@ -326,8 +326,8 @@ export const RefreshModal: React.FC<RefreshModalProps> = ({
               {/* Narrative Highlights */}
               {diffReport.narrative_highlights && (
                 <div className="pt-2 border-t border-slate-800/80">
-                  <div className="text-[11px] font-mono uppercase text-slate-400 mb-1.5">Key Strategy Takeaways:</div>
-                  <ul className="space-y-1 text-xs text-slate-300 font-mono">
+                  <div className="text-xs font-mono uppercase text-slate-400 mb-1.5">Key Strategy Takeaways:</div>
+                  <ul className="space-y-1 text-sm text-slate-300 font-mono">
                     {diffReport.narrative_highlights.map((h: string, idx: number) => (
                       <li key={idx} className="flex items-start gap-1.5">
                         <ArrowRight className="h-3.5 w-3.5 text-cyan-400 shrink-0 mt-0.5" />
@@ -341,7 +341,7 @@ export const RefreshModal: React.FC<RefreshModalProps> = ({
           )}
 
           {/* Terminal Logs */}
-          <div className="rounded-xl bg-black/60 border border-slate-800 p-3 font-mono text-[11px] space-y-1 max-h-48 overflow-y-auto">
+          <div className="rounded-xl bg-black/60 border border-slate-800 p-3 font-mono text-xs space-y-1 max-h-48 overflow-y-auto">
             <div className="flex items-center gap-1.5 text-slate-500 pb-1 border-b border-slate-800/60">
               <Terminal className="h-3.5 w-3.5 text-cyan-500" />
               <span>LIVE LOG STREAM</span>
@@ -356,13 +356,13 @@ export const RefreshModal: React.FC<RefreshModalProps> = ({
 
         {/* Footer */}
         <div className="px-6 py-3 border-t border-slate-800 bg-slate-900/80 flex items-center justify-between">
-          <span className="text-[11px] font-mono text-slate-500">
+          <span className="text-xs font-mono text-slate-500">
             {status === "COMPLETED" ? "All engines calibrated to latest data." : "Autonomous background execution active."}
           </span>
           <button
             id="dismiss-refresh-modal-button"
             onClick={onClose}
-            className="px-4 py-1.5 rounded-lg font-mono text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition"
+            className="px-4 py-1.5 rounded-lg font-mono text-sm font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition"
           >
             {status === "COMPLETED" ? "Close & View Dashboard" : "Close Window"}
           </button>

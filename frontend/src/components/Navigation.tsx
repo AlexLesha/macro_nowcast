@@ -13,7 +13,6 @@ const NAV_ITEMS_ROW_1 = [
   { label: "Liquidity & Allocation", href: "/liquidity-allocation" },
   { label: "Outliers", href: "/outliers" },
   { label: "Stock Analysis", href: "/stock-analysis" },
-  { label: "🔬 Sources Test", href: "/sources-test" },
 ];
 
 const NAV_ITEMS_ROW_2 = [
@@ -142,25 +141,25 @@ export const Navigation: React.FC = () => {
           {/* TOP UTILITY BAR: Brand & Regime Left | Date, API Status, Refresh & Export Moved Higher & Aligned Right */}
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800/80 pb-2">
             <div className="flex items-center gap-3">
-              <Link href="/" className="text-base md:text-lg font-bold tracking-tight text-white hover:opacity-90 transition">
+              <Link href="/" className="text-base font-bold tracking-tight text-white hover:opacity-90 transition">
                 MacroPulse <span className="text-cyan-400">Alpha</span>
               </Link>
-              <span className="hidden sm:inline-block px-2.5 py-0.5 rounded bg-blue-500/15 border border-blue-500/30 text-blue-300 font-mono text-[11px]">
+              <span className="hidden sm:inline-block px-2.5 py-0.5 rounded bg-blue-500/15 border border-blue-500/30 text-blue-300 font-mono text-xs">
                 {liveHeaderBadge}
               </span>
               <Link
-                href="/stock-analysis"
-                className={`hidden md:inline-flex items-center px-2 py-0.5 rounded border text-[11px] font-mono transition ${pathname === "/stock-analysis"
+                href="/sources-test"
+                className={`hidden md:inline-flex items-center px-2 py-0.5 rounded border text-xs font-mono transition ${pathname === "/sources-test"
                   ? "bg-cyan-600/30 border-cyan-400 text-cyan-300 font-semibold"
                   : "bg-slate-900/60 border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700"
                   }`}
               >
-                Stock Analysis
+                🔬Lab
               </Link>
             </div>
 
             {/* Date, API Status, Refresh & Export aligned flush with right edge of content table */}
-            <div className="flex flex-wrap items-center gap-2 font-mono text-xs">
+            <div className="flex flex-wrap items-center gap-2 font-mono text-sm">
               <span className="px-2.5 py-1 rounded bg-slate-900 border border-slate-800 text-slate-300">
                 {displayDate || "2026-10-26"}
               </span>
@@ -215,7 +214,7 @@ export const Navigation: React.FC = () => {
                   type="button"
                   title={`Decrease font size (${fontScale}%)`}
                   onClick={() => adjustFontSize(-5)}
-                  className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white font-mono text-xs font-bold transition active:scale-95"
+                  className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white font-mono text-sm font-bold transition active:scale-95"
                 >
                   A-
                 </button>
@@ -223,7 +222,7 @@ export const Navigation: React.FC = () => {
                   type="button"
                   title={`Increase font size (${fontScale}%)`}
                   onClick={() => adjustFontSize(+5)}
-                  className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white font-mono text-xs font-bold transition active:scale-95"
+                  className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white font-mono text-sm font-bold transition active:scale-95"
                 >
                   A+
                 </button>
@@ -232,7 +231,7 @@ export const Navigation: React.FC = () => {
           </div>
 
           {/* 2-LINE MAIN NAVIGATION MENU (Aligned to full width of content table) */}
-          <nav className="space-y-1.5 font-mono text-xs">
+          <nav className="space-y-1.5 font-mono text-sm">
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5">
               {NAV_ITEMS_ROW_1.map((item) => {
                 const active = pathname === item.href;
