@@ -202,6 +202,8 @@ async def analyze_stock_endpoint(req: StockAnalyzeRequest):
 @app.get("/api/stock/analyze")
 @app.get("/api/v1/stock/analysis/{ticker}")
 @app.get("/api/stock/analysis/{ticker}")
+@app.get("/api/v1/stock/xray/{ticker}")
+@app.get("/api/stock/xray/{ticker}")
 async def analyze_stock_get_endpoint(
     ticker: str = "ENPH",
     regime: Optional[str] = None,

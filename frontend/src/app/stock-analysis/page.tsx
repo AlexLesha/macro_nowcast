@@ -577,6 +577,16 @@ export default function SingleStockAnalysisPage() {
 
   useEffect(() => {
     fetchGeminiHealth();
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const urlTicker = params.get("ticker");
+      if (urlTicker && urlTicker.trim()) {
+        const clean = urlTicker.trim().toUpperCase();
+        setTickerInput(clean);
+        fetchAnalysis(clean);
+        return;
+      }
+    }
     fetchAnalysis("ENPH");
   }, []);
 

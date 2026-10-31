@@ -1462,6 +1462,8 @@ def get_macro_scenarios(db: Session = Depends(get_db)):
 # ----------------------------------------------------
 # Single-Stock Macro-Fundamental X-Ray & Audited SEC EDGAR 12Q
 # ----------------------------------------------------
+@api_router.get("/v1/stock/analysis/{ticker}")
+@api_router.get("/stock/analysis/{ticker}")
 @api_router.get("/v1/stock/xray/{ticker}")
 @api_router.get("/stock/xray/{ticker}")
 def get_single_stock_xray(

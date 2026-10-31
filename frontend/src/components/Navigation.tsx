@@ -157,15 +157,6 @@ export const Navigation: React.FC = () => {
               >
                 Stock Analysis
               </Link>
-              <Link
-                href="/stock-xray"
-                className={`hidden md:inline-flex items-center px-2 py-0.5 rounded border text-[11px] font-mono transition ${pathname === "/stock-xray"
-                  ? "bg-purple-600/30 border-purple-400 text-purple-300 font-semibold"
-                  : "bg-slate-900/60 border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700"
-                  }`}
-              >
-                Stock X-Ray
-              </Link>
             </div>
 
             {/* Date, API Status, Refresh & Export aligned flush with right edge of content table */}
