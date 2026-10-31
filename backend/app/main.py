@@ -157,21 +157,26 @@ class StockAnalyzeRequest(BaseModel):
     quad: Optional[str] = None
 
 
+@app.get("/api/v1/stock/groq-status")
+@app.get("/api/stock/groq-status")
+@app.get("/api/v1/stock/llm-status")
 @app.get("/api/v1/stock/gemini-status")
 @app.get("/api/stock/gemini-status")
-async def get_gemini_api_status():
-    """Probes Gemini 2.5 Flash API health with zero token overhead."""
+async def get_groq_api_status():
+    """Probes Unified Groq (Llama 3.3 70B) API health with zero token overhead."""
     try:
-        from backend.app.quant_engine.stock_llm_analyzer import check_gemini_api_health
+        from backend.app.quant_engine.stock_llm_analyzer import check_groq_api_health
     except ImportError:
-        from app.quant_engine.stock_llm_analyzer import check_gemini_api_health
-    return await check_gemini_api_health()
+        from app.quant_engine.stock_llm_analyzer import check_groq_api_health
+    return await check_groq_api_health()
+
+get_gemini_api_status = get_groq_api_status
 
 
 @app.post("/api/v1/stock/analyze")
 @app.post("/api/stock/analyze")
 async def analyze_stock_endpoint(req: StockAnalyzeRequest):
-    """Runs the unified quantitative + Gemini 2.5 Flash forensic analysis for any ticker."""
+    """Runs the unified quantitative + Groq Llama 3.3 70B forensic analysis for any ticker."""
     if not req.regime or not req.quad or req.quad == "Quad 2":
         try:
             from app.quant_engine.macro_nowcast import compute_growth_nowcast, compute_inflation_nowcast, compute_quads_and_base_effects
@@ -209,7 +214,7 @@ async def analyze_stock_get_endpoint(
     regime: Optional[str] = None,
     quad: Optional[str] = None,
 ):
-    """GET endpoint for unified quantitative + SEC EDGAR XBRL + Gemini 2.5 Flash forensic analysis."""
+    """GET endpoint for unified quantitative + SEC EDGAR XBRL + Groq Llama 3.3 70B forensic analysis."""
     if not regime or not quad or quad == "Quad 2":
         try:
             from app.quant_engine.macro_nowcast import compute_growth_nowcast, compute_inflation_nowcast, compute_quads_and_base_effects

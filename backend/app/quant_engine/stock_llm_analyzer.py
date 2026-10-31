@@ -1,5 +1,5 @@
 """
-Universal Single-Stock Quantitative + Gemini 2.5 Flash Forensic Dossier Engine
+Universal Single-Stock Quantitative + Groq Llama 3.3 70B Forensic Dossier Engine
 ===============================================================================
 Architecture:
 1. Full 77 GICS Industries dictionary in `PEER_UNIVERSES` (5 benchmark peers per industry).
@@ -9,7 +9,7 @@ Architecture:
    Hedgeye 3 Pods (Revenue RoC, Operating Margins, Capital Efficiency ROE/ROIC) via Finnhub.
 5. 12-Quarter Historical Financial Walk (Revenue, Net Income, OCF, FCF, Cash, Debt, Coverage, ROIC)
    via Polygon.io `/vX/reference/financials` with 7-day SQLite persistence.
-6. Live Gemini 2.5 Flash qualitative synthesis merged with deterministic SEC EDGAR / Quant fallback.
+6. Live Groq Llama 3.3 70B qualitative synthesis merged with deterministic SEC EDGAR / Quant fallback.
 """
 
 import asyncio
@@ -49,7 +49,8 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-GEMINI_MODEL = "gemini-2.5-flash"
+GROQ_MODEL = "llama-3.3-70b-versatile"
+GEMINI_MODEL = GROQ_MODEL
 
 # Initialize persistent SQLite 7-Day TTL Cache Manager
 _DB_CACHE = StockFundamentalsCacheManager()
@@ -752,54 +753,94 @@ AUDITED_STOCK_PROFILES: Dict[str, Dict[str, Any]] = {
 
 
 # ==============================================================================
-# GEMINI 2.5 FLASH HEALTH CHECK (ZERO TOKEN OVERHEAD)
+# UNIFIED GROQ LLM GATEWAY HEALTH CHECK (ZERO TOKEN OVERHEAD)
 # ==============================================================================
-async def check_gemini_api_health() -> Dict[str, Any]:
-    """Probes Gemini 2.5 Flash API health with zero token generation overhead."""
-    api_key = os.getenv("GEMINI_API_KEY", "").strip()
+async def check_groq_api_health() -> Dict[str, Any]:
+    """Probes Unified Groq LLM Gateway health with zero token generation overhead."""
+    try:
+        from app.llm_gateway import llm_gateway
+    except ImportError:
+        try:
+            from backend.app.llm_gateway import llm_gateway
+        except ImportError:
+            llm_gateway = None
+
+    if llm_gateway and llm_gateway.is_configured():
+        health = await llm_gateway.probe_health()
+        if health.get("status") == "ONLINE":
+            return {
+                "status": "ONLINE",
+                "color": "green",
+                "model": "llama-3.3-70b-versatile",
+                "label": "Groq Llama-3.3 Ready",
+                "message": "Groq Llama 3.3 70B API Online",
+            }
+        elif health.get("status") == "QUOTA_EXCEEDED":
+            return {
+                "status": "QUOTA_EXCEEDED",
+                "color": "red",
+                "model": "llama-3.3-70b-versatile",
+                "label": "QUOTA EXCEEDED (429)",
+                "message": "Groq Rate Limit Exceeded",
+            }
+
+    api_key = os.getenv("GROQ_API_KEY", "").strip()
+    if not api_key:
+        try:
+            from app.config import settings
+            api_key = (getattr(settings, "GROQ_API_KEY", "") or getattr(settings, "LLM_API_KEY", "")).strip()
+        except Exception:
+            pass
+
     if not api_key:
         return {
             "status": "NO_KEY",
             "color": "red",
-            "model": GEMINI_MODEL,
-            "message": "GEMINI_API_KEY not configured in environment.",
+            "model": "llama-3.3-70b-versatile",
+            "label": "No Key (Offline Mock)",
+            "message": "GROQ_API_KEY not configured in environment.",
         }
 
-    format_warning = None
-    if not api_key.startswith("AIza"):
-        format_warning = (
-            f"Note: GEMINI_API_KEY starts with '{api_key[:3]}...' rather than standard Google AI Studio 'AIzaSy...'. "
-            "Engine automatically runs in Verified Quant + 7-Day TTL Cache Mode if OAuth/Vertex token is unsupported."
-        )
-
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}?key={api_key}"
     try:
         async with httpx.AsyncClient(timeout=4.0) as client:
-            resp = await client.get(url)
+            resp = await client.get(
+                "https://api.groq.com/openai/v1/models",
+                headers={"Authorization": f"Bearer {api_key}"}
+            )
             if resp.status_code == 200:
                 return {
                     "status": "ONLINE",
                     "color": "green",
-                    "model": GEMINI_MODEL,
-                    "message": "Gemini 2.5 Flash API Online",
-                    "format_warning": format_warning,
+                    "model": "llama-3.3-70b-versatile",
+                    "label": "Groq Llama-3.3 Ready",
+                    "message": "Groq Llama 3.3 70B API Online",
+                }
+            elif resp.status_code == 429:
+                return {
+                    "status": "QUOTA_EXCEEDED",
+                    "color": "red",
+                    "model": "llama-3.3-70b-versatile",
+                    "label": "QUOTA EXCEEDED (429)",
+                    "message": "Groq Quota Exceeded (HTTP 429)",
                 }
             return {
                 "status": "AUTH_ERROR",
-                "color": "amber",
-                "model": GEMINI_MODEL,
+                "color": "red",
+                "model": "llama-3.3-70b-versatile",
+                "label": f"Key Error ({resp.status_code})",
                 "http_status": resp.status_code,
-                "message": "Verified Quant + 7-Day TTL Cache Active",
-                "format_warning": format_warning,
+                "message": f"Groq Authentication Error (HTTP {resp.status_code})",
             }
     except Exception as exc:
         return {
             "status": "OFFLINE",
             "color": "amber",
-            "model": GEMINI_MODEL,
-            "message": f"Verified Quant Mode ({exc})",
-            "format_warning": format_warning,
+            "model": "llama-3.3-70b-versatile",
+            "label": "Network Timeout",
+            "message": f"Groq Network Timeout ({exc})",
         }
+
+check_gemini_api_health = check_groq_api_health
 
 
 # ==============================================================================

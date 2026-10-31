@@ -1,7 +1,7 @@
 """
 backend/app/config.py
 Centralized API Key Registry & Multi-Provider Data Failover Hub for MacroPulse Alpha.
-Includes registered institutional keys for FRED, Finnhub, Tiingo, Polygon, Gemini, CoinGecko, and EIA.
+Includes registered institutional keys for FRED, Finnhub, Tiingo, Polygon, Groq (Llama 3.3 70B), Gemini, CoinGecko, and EIA.
 """
 
 import os
@@ -61,12 +61,14 @@ class Settings:
         or os.getenv("POLYGON_API_KEY")
         or ""
     ).strip()
+    GROQ_API_KEY: str = (os.getenv("GROQ_API_KEY") or "").strip()
+    GROQ_MODEL: str = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile").strip()
     GEMINI_API_KEY: str = (
         os.getenv("GEMINI_API_KEY")
         or os.getenv("OPENAI_OR_GEMINI_API_KEY")
         or ""
     ).strip()
-    LLM_API_KEY: str = GEMINI_API_KEY
+    LLM_API_KEY: str = GROQ_API_KEY or GEMINI_API_KEY
     COINGECKO_API_KEY: str = (os.getenv("COINGECKO_API_KEY") or "").strip()
     EIA_API_KEY: str = (os.getenv("EIA_API_KEY") or "").strip()
 

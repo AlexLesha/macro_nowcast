@@ -208,7 +208,7 @@ async def run_refresh_pipeline_stream() -> AsyncGenerator[str, None]:
                 "stage": 4,
                 "step": "llm_synthesis",
                 "status": "RUNNING",
-                "message": "Extracting structured macro intelligence and tickers via Gemini...",
+                "message": "Extracting structured macro intelligence and tickers via Groq (Llama 3.3 70B)...",
                 "progress_pct": 90,
             }
             refresh_orchestrator.logs.append(p4)
@@ -216,7 +216,7 @@ async def run_refresh_pipeline_stream() -> AsyncGenerator[str, None]:
             yield f"data: {json.dumps(p4)}\n\n"
 
             synthesizer = LLMStrategySynthesizer()
-            structured_delta = synthesizer.synthesize(raw_sweep, current_math_snapshot)
+            structured_delta = await synthesizer.synthesize(raw_sweep, current_math_snapshot)
 
             # Stage 5: Commit to Database & Broadcast
             try:

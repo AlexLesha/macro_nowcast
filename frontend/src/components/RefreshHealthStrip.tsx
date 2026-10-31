@@ -14,7 +14,8 @@ export interface RefreshHealthPayload {
   backend_api: ComponentStatus;
   macro_data: ComponentStatus;
   market_feeds: ComponentStatus;
-  gemini_ai: ComponentStatus & { last_run_tokens?: number; calls_today?: number };
+  groq_ai?: ComponentStatus & { last_run_tokens?: number; calls_today?: number };
+  gemini_ai?: ComponentStatus & { last_run_tokens?: number; calls_today?: number };
 }
 
 const DOT_STYLES: Record<"green" | "amber" | "red", string> = {
@@ -52,7 +53,8 @@ export function RefreshHealthStrip({ apiBaseUrl }: { apiBaseUrl?: string }) {
         backend_api: { color: "red", label: "API Offline / Waking" },
         macro_data: { color: "amber", label: "Macro: Standby" },
         market_feeds: { color: "amber", label: "Markets: Standby" },
-        gemini_ai: { color: "amber", label: "Gemini: Unreachable" },
+        groq_ai: { color: "amber", label: "Groq: Unreachable" },
+        gemini_ai: { color: "amber", label: "Groq: Unreachable" },
       });
     } finally {
       setIsChecking(false);
@@ -65,11 +67,12 @@ export function RefreshHealthStrip({ apiBaseUrl }: { apiBaseUrl?: string }) {
 
   if (!health) return null;
 
-  const items = [
-    { key: "API", ...health.backend_api },
-    { key: "Macro", ...health.macro_data },
-    { key: "Markets", ...health.market_feeds },
-    { key: "Gemini AI", ...health.gemini_ai },
+  const aiStatus: ComponentStatus = health.groq_ai || health.gemini_ai || { color: "amber", label: "Groq: Unchecked" };
+  const items: { key: string; color: "green" | "amber" | "red"; label: string; last_error?: string | null }[] = [
+    { key: "API", color: health.backend_api.color, label: health.backend_api.label, last_error: health.backend_api.last_error },
+    { key: "Macro", color: health.macro_data.color, label: health.macro_data.label, last_error: health.macro_data.last_error },
+    { key: "Markets", color: health.market_feeds.color, label: health.market_feeds.label, last_error: health.market_feeds.last_error },
+    { key: "Groq AI", color: aiStatus.color, label: aiStatus.label, last_error: aiStatus.last_error },
   ];
 
   return (
@@ -93,7 +96,7 @@ export function RefreshHealthStrip({ apiBaseUrl }: { apiBaseUrl?: string }) {
         onClick={() => checkHealth(true)}
         disabled={isChecking}
         className="text-xs text-cyan-400 hover:text-cyan-300 underline decoration-dotted disabled:opacity-50"
-        title="Re-check API & Gemini key status (0 tokens)"
+        title="Re-check API & Groq key status (0 tokens)"
       >
         {isChecking ? "Checking..." : "Check Status"}
       </button>

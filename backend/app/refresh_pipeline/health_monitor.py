@@ -1,6 +1,6 @@
 """
 backend/app/refresh_pipeline/health_monitor.py
-Zero-token health and Gemini quota diagnostics for the Refresh Data status window.
+Zero-token health and Groq (Llama 3.3 70B) diagnostics for the Refresh Data status window.
 """
 
 import os
@@ -12,14 +12,14 @@ import httpx
 TrafficColor = Literal["green", "amber", "red"]
 
 class RefreshHealthTracker:
-    """Tracks component status and Gemini API quota/token usage in-memory with zero token overhead."""
+    """Tracks component status and Groq LLM API quota/token usage in-memory with zero token overhead."""
     def __init__(self):
         self.state: Dict[str, Any] = {
             "last_checked_utc": None,
             "backend_api": {"color": "green", "label": "Online (Render)"},
             "macro_data": {"color": "green", "label": "FRED / Treasury Ready"},
             "market_feeds": {"color": "green", "label": "yfinance / CBOE Ready"},
-            "gemini_ai": {
+            "groq_ai": {
                 "color": "amber",
                 "label": "Unchecked",
                 "last_run_tokens": 0,
@@ -27,6 +27,8 @@ class RefreshHealthTracker:
                 "last_error": None
             }
         }
+        self.state["gemini_ai"] = self.state["groq_ai"]
+        self.state["llm_ai"] = self.state["groq_ai"]
         self._last_probe_ts = 0.0
 
     def record_macro_status(self, ok: bool, detail: str = "Live"):
@@ -41,32 +43,37 @@ class RefreshHealthTracker:
             "label": f"Markets: {detail}" if ok else f"Markets Cached ({detail})"
         }
 
-    def record_gemini_run(self, success: bool, tokens_used: int = 0, error_msg: Optional[str] = None):
+    def record_groq_run(self, success: bool, tokens_used: int = 0, error_msg: Optional[str] = None):
         """Called by synthesizer.py after a single-batch extraction attempt."""
-        gem = self.state["gemini_ai"]
+        groq = self.state["groq_ai"]
         if success:
-            gem["calls_today"] = gem.get("calls_today", 0) + 1
-            gem["last_run_tokens"] = tokens_used
-            gem["last_error"] = None
-            gem["color"] = "green"
-            gem["label"] = f"OK ({tokens_used:,} tok | {gem['calls_today']} runs)"
+            groq["calls_today"] = groq.get("calls_today", 0) + 1
+            groq["last_run_tokens"] = tokens_used
+            groq["last_error"] = None
+            groq["color"] = "green"
+            groq["label"] = f"Groq Ready ({tokens_used:,} tok | {groq['calls_today']} runs)"
         else:
             err_str = str(error_msg or "Unknown Error")
-            gem["last_error"] = err_str[:120]
+            groq["last_error"] = err_str[:120]
             if "429" in err_str or "quota" in err_str.lower() or "exhausted" in err_str.lower():
-                gem["color"] = "red"
-                gem["label"] = "QUOTA EXCEEDED (429)"
+                groq["color"] = "red"
+                groq["label"] = "QUOTA EXCEEDED (429)"
             elif "400" in err_str or "401" in err_str or "403" in err_str or "key" in err_str.lower():
-                gem["color"] = "red"
-                gem["label"] = "INVALID API KEY"
+                groq["color"] = "red"
+                groq["label"] = "INVALID API KEY"
             else:
-                gem["color"] = "red"
-                gem["label"] = "API Error (Fallback Used)"
+                groq["color"] = "red"
+                groq["label"] = "API Error (Fallback Used)"
+
+        self.state["gemini_ai"] = groq
+        self.state["llm_ai"] = groq
+
+    record_gemini_run = record_groq_run
 
     async def probe_statuses(self, force: bool = False) -> Dict[str, Any]:
         """
         Runs a lightweight, zero-token probe (cached for 60s unless forced)
-        to verify FRED CSV reachability and Gemini API key validity.
+        to verify FRED CSV reachability and Groq API key validity.
         """
         now = time.time()
         if not force and (now - self._last_probe_ts) < 60 and self.state.get("last_checked_utc"):
@@ -75,41 +82,35 @@ class RefreshHealthTracker:
         self._last_probe_ts = now
         self.state["last_checked_utc"] = datetime.now(timezone.utc).isoformat()
 
-        api_key = os.getenv("GEMINI_API_KEY", "").strip() or os.getenv("OPENAI_OR_GEMINI_API_KEY", "").strip()
+        api_key = os.getenv("GROQ_API_KEY", "").strip()
         if not api_key:
             try:
                 from app.config import settings
-                api_key = getattr(settings, "GEMINI_API_KEY", "") or getattr(settings, "LLM_API_KEY", "") or ""
+                api_key = (getattr(settings, "GROQ_API_KEY", "") or getattr(settings, "LLM_API_KEY", "")).strip()
             except Exception:
                 pass
 
         if not api_key:
-            self.state["gemini_ai"]["color"] = "amber"
-            self.state["gemini_ai"]["label"] = "No Key (Offline Mock)"
-        elif self.state["gemini_ai"]["color"] != "red":
-            # Zero-token metadata check against Gemini models endpoint
+            self.state["groq_ai"] = {"color": "amber", "label": "No Key (Offline Mock)"}
+        else:
             try:
                 async with httpx.AsyncClient(timeout=4.0) as client:
                     r = await client.get(
-                        f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash?key={api_key}"
+                        "https://api.groq.com/openai/v1/models",
+                        headers={"Authorization": f"Bearer {api_key}"}
                     )
                     if r.status_code == 200:
-                        tok = self.state["gemini_ai"].get("last_run_tokens", 0)
-                        runs = self.state["gemini_ai"].get("calls_today", 0)
-                        self.state["gemini_ai"]["color"] = "green"
-                        self.state["gemini_ai"]["label"] = (
-                            f"Ready ({tok:,} tok | {runs} runs)" if runs > 0 else "Key Valid (0 tok used)"
-                        )
+                        self.state["groq_ai"] = {"color": "green", "label": "Groq Llama-3.3 Ready"}
                     elif r.status_code == 429:
-                        self.state["gemini_ai"]["color"] = "red"
-                        self.state["gemini_ai"]["label"] = "QUOTA EXCEEDED (429)"
+                        self.state["groq_ai"] = {"color": "red", "label": "QUOTA EXCEEDED (429)"}
                     else:
-                        self.state["gemini_ai"]["color"] = "red"
-                        self.state["gemini_ai"]["label"] = f"Key Error (HTTP {r.status_code})"
+                        self.state["groq_ai"] = {"color": "red", "label": f"Key Error ({r.status_code})"}
             except Exception:
-                self.state["gemini_ai"]["color"] = "amber"
-                self.state["gemini_ai"]["label"] = "Network Timeout"
+                self.state["groq_ai"] = {"color": "amber", "label": "Network Timeout"}
 
+        # Maintain gemini_ai and llm_ai for frontend backward compatibility
+        self.state["gemini_ai"] = self.state["groq_ai"]
+        self.state["llm_ai"] = self.state["groq_ai"]
         return self.state
 
 # Singleton tracker instance

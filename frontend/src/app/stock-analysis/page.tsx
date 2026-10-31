@@ -498,7 +498,7 @@ export default function SingleStockAnalysisPage() {
   const [activeTicker, setActiveTicker] = useState<string>("ENPH");
   const [loading, setLoading] = useState<boolean>(false);
   const [data, setData] = useState<any>(() => buildSynthesizedAnalysisPayload("ENPH"));
-  const [geminiStatus, setGeminiStatus] = useState<any>(null);
+  const [groqStatus, setGroqStatus] = useState<any>(null);
   const [walkViewMode, setWalkViewMode] = useState<ViewMode>("BOTH");
   const [macroRegime, setMacroRegime] = useState<string>("STAGFLATION (Quad 3)");
   const [activeQuad, setActiveQuad] = useState<string>("Quad 3");
@@ -565,18 +565,18 @@ export default function SingleStockAnalysisPage() {
     }
   };
 
-  const fetchGeminiHealth = async () => {
+  const fetchGroqHealth = async () => {
     try {
-      const res = await fetch(getApiUrl("/api/v1/stock/gemini-status"));
+      const res = await fetch(getApiUrl("/api/v1/stock/groq-status"));
       if (res.ok) {
         const json = await res.json();
-        setGeminiStatus(json);
+        setGroqStatus(json);
       }
     } catch { }
   };
 
   useEffect(() => {
-    fetchGeminiHealth();
+    fetchGroqHealth();
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
       const urlTicker = params.get("ticker");
@@ -699,20 +699,20 @@ export default function SingleStockAnalysisPage() {
                 <span className="px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 text-xs font-mono">
                   Continuous Long-Scroll View
                 </span>
-                {geminiStatus && (
+                {groqStatus && (
                   <span
-                    className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-mono border ${geminiStatus.color === "green"
+                    className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-mono border ${groqStatus.color === "green"
                         ? "bg-emerald-950/40 border-emerald-500/40 text-emerald-300"
                         : "bg-amber-950/40 border-amber-500/40 text-amber-300"
                       }`}
-                    title={geminiStatus.format_warning || geminiStatus.message}
+                    title={groqStatus.format_warning || groqStatus.message}
                   >
                     <span
-                      className={`h-1.5 w-1.5 rounded-full ${geminiStatus.color === "green" ? "bg-emerald-400" : "bg-amber-400"
+                      className={`h-1.5 w-1.5 rounded-full ${groqStatus.color === "green" ? "bg-emerald-400" : "bg-amber-400"
                         }`}
                     />
-                    {geminiStatus.status === "ONLINE"
-                      ? "Gemini 2.5 Flash Online"
+                    {groqStatus.status === "ONLINE"
+                      ? (groqStatus.label || "Groq Llama-3.3 Ready")
                       : "Verified Quant Mode"}
                   </span>
                 )}

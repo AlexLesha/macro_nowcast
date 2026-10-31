@@ -297,13 +297,15 @@ def analyze_options_chain(
     # Top 8 Strikes by Net Gamma concentration
     top_strikes = []
     for st in sorted(strike_gex_map.keys(), key=lambda k: abs(strike_gex_map[k]["net_gex"]), reverse=True)[:8]:
+        call_oi_val = strike_gex_map[st]["call_oi"]
+        put_oi_val = strike_gex_map[st]["put_oi"]
         top_strikes.append({
             "strike": round(float(st), 2),
             "net_gex_millions": round(strike_gex_map[st]["net_gex"], 2),
             "call_gex_millions": round(strike_gex_map[st]["call_gex"], 2),
             "put_gex_millions": round(strike_gex_map[st]["put_gex"], 2),
-            "open_interest_calls": int(strike_gex_map[st]["call_oi"]),
-            "open_interest_puts": int(strike_gex_map[st]["put_oi"]),
+            "open_interest_calls": int(call_oi_val) if pd.notna(call_oi_val) and not np.isnan(float(call_oi_val)) else 0,
+            "open_interest_puts": int(put_oi_val) if pd.notna(put_oi_val) and not np.isnan(float(put_oi_val)) else 0,
         })
 
     return {

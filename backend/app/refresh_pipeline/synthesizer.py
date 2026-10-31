@@ -1,6 +1,6 @@
 """
 backend/app/refresh_pipeline/synthesizer.py
-Token-optimized single batch LLM extraction schema and prompt execution for Gemini API.
+Token-optimized single batch LLM extraction schema and prompt execution for Unified Groq Gateway (Llama 3.3 70B).
 """
 
 import os
@@ -9,11 +9,15 @@ import logging
 from typing import List, Dict, Any, Optional, Literal
 from datetime import datetime, timezone
 from pydantic import BaseModel, Field
-import google.generativeai as genai
 from sqlalchemy.orm import Session
 
 from app.models.db_models import IntelligenceDelta, RegimeSnapshot
 from app.config import settings
+
+try:
+    from app.llm_gateway import llm_gateway
+except ImportError:
+    from backend.app.llm_gateway import llm_gateway
 
 try:
     from app.refresh_pipeline.health_monitor import health_tracker
@@ -30,15 +34,15 @@ logger = logging.getLogger(__name__)
 class AuthorIntelligence(BaseModel):
     author_name: Literal["Keith McCullough", "Darius Dale", "Aahan Menon", "Warren Pies"]
     firm: Literal["Hedgeye", "42 Macro", "Prometheus Research", "3Fourteen Research"]
-    has_recent_update: bool = Field(description="True if net-new posts or videos were found since last_refresh_date")
-    stated_quad_or_regime: Optional[str] = Field(description="Explicitly mentioned Quad (1-4), GRID regime (Goldilocks/Reflation/Inflation/Deflation), or macro cycle")
-    growth_view: Optional[str] = Field(description="Current stance on real/nominal GDP, corporate earnings, or consumer health")
-    inflation_view: Optional[str] = Field(description="Current stance on CPI/PCE, shelter/rent, wage growth, or oil/energy")
-    policy_liquidity_view: Optional[str] = Field(description="Stance on Fed rates, Treasury debt issuance, bank SLR deregulation, or Fed-Treasury Accord 2.0")
+    has_recent_update: bool = Field(default=False, description="True if net-new posts or videos were found since last_refresh_date")
+    stated_quad_or_regime: Optional[str] = Field(default=None, description="Explicitly mentioned Quad (1-4), GRID regime (Goldilocks/Reflation/Inflation/Deflation), or macro cycle")
+    growth_view: Optional[str] = Field(default=None, description="Current stance on real/nominal GDP, corporate earnings, or consumer health")
+    inflation_view: Optional[str] = Field(default=None, description="Current stance on CPI/PCE, shelter/rent, wage growth, or oil/energy")
+    policy_liquidity_view: Optional[str] = Field(default=None, description="Stance on Fed rates, Treasury debt issuance, bank SLR deregulation, or Fed-Treasury Accord 2.0")
     bullish_tickers: List[str] = Field(default_factory=list, description="All stocks, ETFs, commodities, or currencies recommended long or overweight (no truncation)")
     bearish_tickers: List[str] = Field(default_factory=list, description="All assets recommended short, underweight, or avoid (no truncation)")
-    key_verbatim_quote: Optional[str] = Field(description="Notable direct quote or core thesis claim")
-    source_url: Optional[str] = Field(description="Direct URL to tweet, YouTube video, podcast, or article")
+    key_verbatim_quote: Optional[str] = Field(default=None, description="Notable direct quote or core thesis claim")
+    source_url: Optional[str] = Field(default=None, description="Direct URL to tweet, YouTube video, podcast, or article")
 
 class SpeculationIdea(BaseModel):
     order_of_effect: Literal["1st Order (Direct)", "2nd Order (Infrastructure/Enabler)", "3rd Order (Downstream/Policy)"]
@@ -68,76 +72,52 @@ class UnifiedRefreshBatchOutput(BaseModel):
 
 class LLMStrategySynthesizer:
     def __init__(self, api_key: Optional[str] = None):
-        self.api_key = api_key or os.getenv("GEMINI_API_KEY") or getattr(settings, "GEMINI_API_KEY", None) or getattr(settings, "LLM_API_KEY", None)
-        if self.api_key:
-            try:
-                genai.configure(api_key=self.api_key)
-            except Exception as e:
-                logger.warning(f"Could not configure genai: {e}")
+        self.gateway = llm_gateway
+        if api_key:
+            self.gateway.api_key = api_key
 
-    def synthesize(self, raw_sweep_data: dict, current_math_snapshot: dict) -> UnifiedRefreshBatchOutput:
-        """Runs the single batch extraction prompt against Gemini with Pydantic JSON enforcement."""
-        if not self.api_key:
-            health_tracker.record_gemini_run(False, error_msg="GEMINI_API_KEY not set")
-            # Safe mock fallback if no API key is present
-            return self._build_offline_mock(raw_sweep_data)
+    async def synthesize(self, raw_sweep_data: dict, current_math_snapshot: dict) -> UnifiedRefreshBatchOutput:
+        prompt = f"""
+Analyze the following macroeconomic data snapshot and recent institutional commentary.
+Synthesize the authors' views, identify trade convictions, and categorize speculative opportunities:
+
+Current Math Snapshot:
+{json.dumps(current_math_snapshot, indent=2)}
+
+Raw Commentary & Ingested Media:
+{json.dumps(raw_sweep_data, indent=2)}
+"""
+        system_instruction = (
+            "You are an institutional macro research director synthesizing views from Keith McCullough (Hedgeye), "
+            "Darius Dale (42 Macro), Aahan Menon (Prometheus), and Warren Pies (3Fourteen)."
+        )
 
         try:
-            model = genai.GenerativeModel(
-                model_name="gemini-2.5-flash",
-                generation_config={
-                    "response_mime_type": "application/json",
-                    "temperature": 0.1,
-                }
+            parsed_dict = await self.gateway.complete(
+                prompt=prompt,
+                system_instruction=system_instruction,
+                response_json_schema=UnifiedRefreshBatchOutput,
+                temperature=0.15,
             )
+            if hasattr(self.gateway, "last_tokens_used"):
+                health_tracker.record_groq_run(True, tokens_used=self.gateway.last_tokens_used)
 
-            prompt = f"""
-You are the Lead Macro Quant Strategist for "MacroPulse Alpha".
-Your mission is to analyze newly harvested public commentary from our 4 research leads:
-1. Keith McCullough (Hedgeye Risk Management)
-2. Darius Dale (42 Macro)
-3. Aahan Menon (Prometheus Research)
-4. Warren Pies (3Fourteen Research)
-
-Harvest Window: Since {raw_sweep_data.get('since_date', '')} to {raw_sweep_data.get('harvest_timestamp', '')}
-
-CURRENT DETERMINISTIC QUANT ENGINE STATUS (DO NOT RECALCULATE, USE AS GROUND TRUTH):
-- US Quantitative Quad: {current_math_snapshot.get('us_monthly_quad', 'Quad 2 / Quad 3')}
-- Top-Down GRID Regime: {current_math_snapshot.get('grid_regime', 'Goldilocks -> Reflation Watch')}
-- US Net Liquidity: ${current_math_snapshot.get('net_liquidity_usd_bn', '6140')} Billion
-- 3Fourteen MOVE vs VIX Co-Signer: {current_math_snapshot.get('vol_cosigner', 'MOVE elevated / Yield Pressure')}
-
-RAW HARVESTED COMMENTARY (FILTERED ACROSS X, YOUTUBE, BLOGS & NEWS):
-{raw_sweep_data.get('raw_text', '')}
-
-TASK:
-Extract structured intelligence conforming exactly to the requested JSON schema.
-Critical Guidelines:
-1. TICKERS: Extract EVERY ticker, ETF, or commodity mentioned—do NOT truncate or limit to 2 tickers! Separate them cleanly into bullish_tickers and bearish_tickers.
-2. REGIMES: Identify each author's explicitly stated Quad, GRID, or macro regime call. Note if they disagree with market consensus.
-3. SPECULATION (Tabs 4 & 5): Map individual stock mentions (e.g., TPL, CBOE, NVDA, ANET, JPM, CEG, MPWR, LMT) into:
-   - 1st Order (Direct beneficiary)
-   - 2nd Order (Infrastructure / supply chain enabler)
-   - 3rd Order (Policy, deregulation, or wealth flow monetizer)
-4. FORWARD POLICY (Tab 6): Extract forward catalysts (Fed-Treasury Accord 2.0, bank SLR deregulation, real yield thresholds, residential construction layoff alerts).
-5. WHAT CHANGED: Write a 3 to 5 bullet executive summary in crisp Markdown describing key shifts since {str(raw_sweep_data.get('since_date', ''))[:10]}.
-
-Output MUST be valid JSON adhering strictly to the schema.
-"""
-            response = model.generate_content(prompt)
-            tokens_used = 0
-            if hasattr(response, "usage_metadata") and response.usage_metadata:
-                tokens_used = getattr(response.usage_metadata, "total_token_count", 0)
-            health_tracker.record_gemini_run(True, tokens_used=tokens_used)
-            data = json.loads(response.text)
-            return UnifiedRefreshBatchOutput(**data)
+            if isinstance(parsed_dict, UnifiedRefreshBatchOutput):
+                return parsed_dict
+            elif isinstance(parsed_dict, dict):
+                return UnifiedRefreshBatchOutput(**parsed_dict)
+            elif isinstance(parsed_dict, str):
+                return UnifiedRefreshBatchOutput(**json.loads(parsed_dict))
+            else:
+                raise ValueError(f"Unexpected completion data type: {type(parsed_dict)}")
         except Exception as e:
-            health_tracker.record_gemini_run(False, error_msg=str(e))
-            logger.warning(f"[Synthesizer] LLM extraction error: {e}. Falling back to baseline structure.")
-            return self._build_offline_mock(raw_sweep_data)
+            health_tracker.record_groq_run(False, error_msg=str(e))
+            logger.error(f"Synthesis fallback triggered: {e}")
+            return self._build_offline_fallback(current_math_snapshot)
 
-    def _build_offline_mock(self, raw_sweep_data: dict) -> UnifiedRefreshBatchOutput:
+    def _build_offline_fallback(self, current_math_snapshot: Optional[dict] = None) -> UnifiedRefreshBatchOutput:
         """Graceful offline fallback that preserves rich pre-seeded data when no API key is provided."""
+        quad = (current_math_snapshot or {}).get("us_monthly_quad", "Quad 2 / Quad 3 Oscillation")
         return UnifiedRefreshBatchOutput(
             refresh_timestamp_utc=datetime.now(timezone.utc).isoformat(),
             authors=[
@@ -145,7 +125,7 @@ Output MUST be valid JSON adhering strictly to the schema.
                     author_name="Keith McCullough",
                     firm="Hedgeye",
                     has_recent_update=True,
-                    stated_quad_or_regime="Quad 2 / Quad 3 Oscillation",
+                    stated_quad_or_regime=quad,
                     growth_view="US Nominal GDP running hot at 8.2% QoQ, but watch European/German deceleration into Quad 4.",
                     inflation_view="September CPI (+0.6% MoM / 3.7% YoY) confirms sticky inflation base comparisons.",
                     policy_liquidity_view="Treasury relying on T-Bills to avoid long-end auction indigestion; Fed trapped into higher-for-longer.",
@@ -268,6 +248,8 @@ Output MUST be valid JSON adhering strictly to the schema.
 - **Warren Pies (3Fourteen)**: Residential Construction Payrolls remain above recession trigger thresholds; `FCTE` ETF maintains top overweight in Permian royalties (`TPL`) and exchange infrastructure (`CBOE`).
 - **Aahan Menon (Prometheus)**: Household dissaving continues flowing into NIPA corporate profits, keeping Kalecki-Levy profit momentum in positive territory."""
         )
+
+    _build_offline_mock = _build_offline_fallback
 
 # =====================================================================
 # STRATEGY SYNTHESIZER (BACKWARD COMPATIBILITY & DB RECORD PERSISTENCE)
