@@ -559,34 +559,48 @@ export function MetricTip({
   );
 }
 
-export function RankMedal({ rank }: { rank?: number }) {
+export function RankMedal({
+  rank,
+  showAll = false,
+  className = "",
+}: {
+  rank?: number;
+  showAll?: boolean;
+  className?: string;
+}) {
   if (rank === 1) {
     return (
       <span
-        title="Rank 1: Gold (Best-in-Peer-Group)"
-        className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber-500/20 border border-amber-400 text-amber-300 text-xs font-bold shadow-sm shadow-amber-500/30 mr-1.5"
+        className={`inline-flex items-center justify-center shrink-0 w-[18px] h-[18px] rounded-full border border-amber-400 bg-amber-400/10 text-amber-300 text-[10px] font-mono font-bold leading-none select-none shadow-sm shadow-amber-500/20 ${className}`}
       >
-        🥇
+        1
       </span>
     );
   }
   if (rank === 2) {
     return (
       <span
-        title="Rank 2: Silver"
-        className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-slate-400/20 border border-slate-300 text-slate-200 text-xs font-bold shadow-sm mr-1.5"
+        className={`inline-flex items-center justify-center shrink-0 w-[18px] h-[18px] rounded-full border border-slate-500 bg-slate-700/30 text-slate-300 text-[10px] font-mono font-bold leading-none select-none shadow-sm ${className}`}
       >
-        🥈
+        2
       </span>
     );
   }
   if (rank === 3) {
     return (
       <span
-        title="Rank 3: Bronze"
-        className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-[#78350f]/40 border border-[#b45309] text-[#f59e0b] text-xs font-bold shadow-sm mr-1.5"
+        className={`inline-flex items-center justify-center shrink-0 w-[18px] h-[18px] rounded-full border border-[#c2410c] bg-orange-950/40 text-[#f97316] text-[10px] font-mono font-bold leading-none select-none shadow-sm ${className}`}
       >
-        🥉
+        3
+      </span>
+    );
+  }
+  if (showAll && typeof rank === "number" && rank > 3) {
+    return (
+      <span
+        className={`inline-flex items-center justify-center shrink-0 w-[18px] h-[18px] rounded-full border border-slate-800 bg-slate-900/60 text-slate-500 text-[10px] font-mono font-bold leading-none select-none ${className}`}
+      >
+        {rank}
       </span>
     );
   }

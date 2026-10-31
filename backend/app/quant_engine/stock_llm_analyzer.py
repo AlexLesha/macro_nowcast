@@ -1105,20 +1105,20 @@ def _annotate_peer_medals(peers: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         p["rank"] = r
         if r == 1:
             p["medal"] = "GOLD"
-            p["medal_icon"] = "🥇"
-            p["medal_badge"] = "🥇 Gold (1st)"
+            p["medal_icon"] = "1"
+            p["medal_badge"] = "1"
         elif r == 2:
             p["medal"] = "SILVER"
-            p["medal_icon"] = "🥈"
-            p["medal_badge"] = "🥈 Silver (2nd)"
+            p["medal_icon"] = "2"
+            p["medal_badge"] = "2"
         elif r == 3:
             p["medal"] = "BRONZE"
-            p["medal_icon"] = "🥉"
-            p["medal_badge"] = "🥉 Bronze (3rd)"
+            p["medal_icon"] = "3"
+            p["medal_badge"] = "3"
         else:
             p["medal"] = None
             p["medal_icon"] = ""
-            p["medal_badge"] = f"{r}th"
+            p["medal_badge"] = f"{r}"
 
     return peers
 

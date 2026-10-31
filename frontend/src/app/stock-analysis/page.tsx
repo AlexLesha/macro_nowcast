@@ -276,20 +276,20 @@ function buildSynthesizedAnalysisPayload(
   const peers = scoredPeers.map((p: any) => {
     const rank = sortedPeers.findIndex((sp) => sp.ticker === p.ticker) + 1;
     let medal = null;
-    let medal_badge = `${rank}th`;
+    let medal_badge = `${rank}`;
     let medal_icon = "";
     if (rank === 1) {
       medal = "GOLD";
-      medal_icon = "🥇";
-      medal_badge = "🥇 Gold (1st)";
+      medal_icon = "1";
+      medal_badge = "1";
     } else if (rank === 2) {
       medal = "SILVER";
-      medal_icon = "🥈";
-      medal_badge = "🥈 Silver (2nd)";
+      medal_icon = "2";
+      medal_badge = "2";
     } else if (rank === 3) {
       medal = "BRONZE";
-      medal_icon = "🥉";
-      medal_badge = "🥉 Bronze (3rd)";
+      medal_icon = "3";
+      medal_badge = "3";
     }
     return {
       ...p,
@@ -1380,7 +1380,7 @@ export default function SingleStockAnalysisPage() {
                   <strong className="text-cyan-400">
                     {data?.gics_industry || headerStrip?.gics_industry || "Clean Technology & Solar MLPE"}
                   </strong>{" "}
-                  (77 GICS Classification • Direction-Aware Dynamic Medals)
+                  (77 GICS Classification • Direction-Aware Dynamic Rankings)
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -1399,7 +1399,6 @@ export default function SingleStockAnalysisPage() {
               <table className="w-full text-left text-xs font-mono">
                 <thead className="bg-slate-900 text-slate-400 border-b border-slate-800">
                   <tr>
-                    <th className="py-2.5 px-3">Rank & Medals</th>
                     <th className="py-2.5 px-3">Ticker</th>
                     <th className="py-2.5 px-3">Company</th>
                     <th className="py-2.5 px-3">Mkt Cap ($B)</th>
@@ -1510,69 +1509,65 @@ export default function SingleStockAnalysisPage() {
                                 : "hover:bg-slate-900/40"
                             }
                           >
-                            <td className="py-2.5 px-3">
-                              {compRank === 1 ? (
-                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-400 shadow-sm shadow-amber-500/30">
-                                  🥇 Gold (1st)
-                                </span>
-                              ) : compRank === 2 ? (
-                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-400/20 text-slate-200 border border-slate-300 shadow-sm">
-                                  🥈 Silver (2nd)
-                                </span>
-                              ) : compRank === 3 ? (
-                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-[#78350f]/40 border border-[#b45309] text-[#f59e0b] shadow-sm">
-                                  🥉 Bronze (3rd)
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] text-slate-400 bg-slate-900 border border-slate-800">
-                                  {compRank}th
-                                </span>
-                              )}
-                            </td>
-                            <td className="py-2.5 px-3">
-                              <span className={isCurrent ? "text-cyan-300 font-bold" : "text-white"}>{peer.ticker}</span>
-                              {isCurrent && (
-                                <span className="ml-2 text-[10px] text-cyan-400 border border-cyan-500/40 px-1 rounded font-mono">
-                                  ANALYZED
-                                </span>
-                              )}
+                            <td className="py-2.5 px-3 whitespace-nowrap">
+                              <div className="inline-flex items-center gap-2 whitespace-nowrap">
+                                <RankMedal rank={compRank} showAll={true} />
+                                <span className={isCurrent ? "text-cyan-300 font-bold" : "text-white"}>{peer.ticker}</span>
+                                {isCurrent && (
+                                  <span className="text-[10px] text-cyan-400 border border-cyan-500/40 px-1 rounded font-mono">
+                                    ANALYZED
+                                  </span>
+                                )}
+                              </div>
                             </td>
                             <td className="py-2.5 px-3 text-slate-200">{peer.name}</td>
-                            <td className="py-2.5 px-3 text-slate-300">${peer.market_cap_bn.toFixed(1)}B</td>
-                            <td className="py-2.5 px-3 text-right">
-                              <RankMedal rank={ranksEV[peer.ticker]} />
-                              <span>{peer.ev_ebitda > 0 ? `${peer.ev_ebitda.toFixed(1)}x` : "—"}</span>
+                            <td className="py-2.5 px-3 text-slate-300 whitespace-nowrap">${peer.market_cap_bn.toFixed(1)}B</td>
+                            <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                              <div className="inline-flex items-center justify-end gap-1.5 whitespace-nowrap">
+                                <RankMedal rank={ranksEV[peer.ticker]} />
+                                <span>{peer.ev_ebitda > 0 ? `${peer.ev_ebitda.toFixed(1)}x` : "—"}</span>
+                              </div>
                             </td>
-                            <td className="py-2.5 px-3 text-right text-cyan-300">
+                            <td className="py-2.5 px-3 text-right whitespace-nowrap text-cyan-300">
                               {peer.pe > 0 ? `${peer.pe.toFixed(1)}x` : "—"}
                             </td>
-                            <td className="py-2.5 px-3 text-right">
-                              <RankMedal rank={ranksFCF[peer.ticker]} />
-                              <span className={peer.fcf_conv > 70 ? "text-emerald-400" : peer.fcf_conv < 0 ? "text-rose-400" : "text-amber-400"}>
-                                {peer.fcf_conv.toFixed(1)}%
-                              </span>
+                            <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                              <div className="inline-flex items-center justify-end gap-1.5 whitespace-nowrap">
+                                <RankMedal rank={ranksFCF[peer.ticker]} />
+                                <span className={peer.fcf_conv > 70 ? "text-emerald-400" : peer.fcf_conv < 0 ? "text-rose-400" : "text-amber-400"}>
+                                  {peer.fcf_conv.toFixed(1)}%
+                                </span>
+                              </div>
                             </td>
-                            <td className="py-2.5 px-3 text-right">
-                              <RankMedal rank={ranksDebt[peer.ticker]} />
-                              <span className={peer.net_debt_ebitda <= 0 ? "text-emerald-400" : peer.net_debt_ebitda > 3 ? "text-rose-400" : "text-slate-300"}>
-                                {peer.net_debt_ebitda.toFixed(1)}x
-                              </span>
+                            <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                              <div className="inline-flex items-center justify-end gap-1.5 whitespace-nowrap">
+                                <RankMedal rank={ranksDebt[peer.ticker]} />
+                                <span className={peer.net_debt_ebitda <= 0 ? "text-emerald-400" : peer.net_debt_ebitda > 3 ? "text-rose-400" : "text-slate-300"}>
+                                  {peer.net_debt_ebitda.toFixed(1)}x
+                                </span>
+                              </div>
                             </td>
-                            <td className="py-2.5 px-3 text-right">
-                              <RankMedal rank={ranksROE[peer.ticker]} />
-                              <span className="text-blue-300">{peer.roe.toFixed(1)}%</span>
+                            <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                              <div className="inline-flex items-center justify-end gap-1.5 whitespace-nowrap">
+                                <RankMedal rank={ranksROE[peer.ticker]} />
+                                <span className="text-blue-300">{peer.roe.toFixed(1)}%</span>
+                              </div>
                             </td>
-                            <td className="py-2.5 px-3 text-right">
-                              <RankMedal rank={ranksRev[peer.ticker]} />
-                              <span className={peer.rev_growth_yoy >= 0 ? "text-emerald-400" : "text-rose-400"}>
-                                {peer.rev_growth_yoy > 0 ? "+" : ""}{peer.rev_growth_yoy.toFixed(1)}%
-                              </span>
+                            <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                              <div className="inline-flex items-center justify-end gap-1.5 whitespace-nowrap">
+                                <RankMedal rank={ranksRev[peer.ticker]} />
+                                <span className={peer.rev_growth_yoy >= 0 ? "text-emerald-400" : "text-rose-400"}>
+                                  {peer.rev_growth_yoy > 0 ? "+" : ""}{peer.rev_growth_yoy.toFixed(1)}%
+                                </span>
+                              </div>
                             </td>
-                            <td className="py-2.5 px-3 text-right">
-                              <RankMedal rank={ranksGM[peer.ticker]} />
-                              <span>{peer.gross_margin.toFixed(1)}%</span>
+                            <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                              <div className="inline-flex items-center justify-end gap-1.5 whitespace-nowrap">
+                                <RankMedal rank={ranksGM[peer.ticker]} />
+                                <span>{peer.gross_margin.toFixed(1)}%</span>
+                              </div>
                             </td>
-                            <td className="py-2.5 px-3">
+                            <td className="py-2.5 px-3 whitespace-nowrap">
                               <span className="px-2 py-0.5 rounded bg-slate-900 border border-slate-700 text-slate-200 text-[10px]">
                                 {peer.valuation_verdict}
                               </span>
