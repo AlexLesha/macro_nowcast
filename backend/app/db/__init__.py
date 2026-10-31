@@ -43,4 +43,10 @@ def init_db():
     except ImportError:
         import backend.app.models.db_models
     Base.metadata.create_all(bind=engine)
+    try:
+        from app.models.gics_seed import seed_gics_industries
+    except ImportError:
+        from backend.app.models.gics_seed import seed_gics_industries
+    with SessionLocal() as db:
+        seed_gics_industries(db)
 

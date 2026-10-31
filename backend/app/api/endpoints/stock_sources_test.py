@@ -138,9 +138,17 @@ class YahooFinanceOptionBClient:
                 history_12q = edgar_facts.get("quarterly_12q", [])
 
                 latency = int((time.perf_counter() - t0) * 1000)
-                mcap_bn = round((live_price * 132.3) / 1e3, 2)
-                cash_bn = 1.48
-                debt_bn = 1.31
+
+                overview: Dict[str, Any] = {}
+                try:
+                    overview = await asyncio.to_thread(SingleStockXRayEngine.fetch_company_overview, None, clean_ticker)
+                except Exception:
+                    overview = {}
+
+                mcap_bn = overview.get("market_cap_bn")
+                comp_name = overview.get("company_name") or edgar_facts.get("entity_name", clean_ticker)
+                sector_name = overview.get("sector") or "Unclassified"
+                ind_name = overview.get("industry") or "Unclassified Industry"
 
                 status_label = (
                     "ONLINE (MASSIVE V3 OPTIONS + SEC EDGAR XBRL)"
@@ -160,20 +168,20 @@ class YahooFinanceOptionBClient:
                         f"Market price via query1.finance.yahoo.com/v7/finance/download."
                     ).strip(),
                     "header_strip": {
-                        "company_name": edgar_facts.get("entity_name", clean_ticker),
+                        "company_name": comp_name,
                         "live_price": round(float(live_price), 2),
                         "day_range": day_range,
                         "market_cap_bn": mcap_bn,
-                        "enterprise_value_bn": round(mcap_bn + (debt_bn - cash_bn), 2),
-                        "gics_sector": "Solar Energy Technology",
-                        "gics_industry": "Clean Energy Hardware",
-                        "beta": 1.58,
-                        "short_interest_pct_float": 11.8,
-                        "institutional_ownership_pct": 88.2,
-                        "total_cash_bn": cash_bn,
-                        "total_debt_bn": debt_bn,
-                        "net_debt_m": -165.0,
-                        "net_debt_to_ebitda": 0.0,
+                        "enterprise_value_bn": None,
+                        "gics_sector": sector_name,
+                        "gics_industry": ind_name,
+                        "beta": None,
+                        "short_interest_pct_float": None,
+                        "institutional_ownership_pct": None,
+                        "total_cash_bn": None,
+                        "total_debt_bn": None,
+                        "net_debt_m": None,
+                        "net_debt_to_ebitda": None,
                     },
                     "historical_12q": history_12q,
                 }
@@ -310,12 +318,23 @@ class PolygonV1FinancialsClient:
                     if used_edgar_fallback
                     else "ONLINE (MASSIVE V1 INCOME STATEMENTS ACTIVE)"
                 )
+                overview: Dict[str, Any] = {}
+                try:
+                    overview = await asyncio.to_thread(SingleStockXRayEngine.fetch_company_overview, None, clean_ticker)
+                except Exception:
+                    overview = {}
+
+                comp_name = overview.get("company_name", clean_ticker)
+                mcap_bn = overview.get("market_cap_bn")
+                sector_name = overview.get("sector") or "Unclassified"
+                ind_name = overview.get("industry") or "Unclassified Industry"
+
                 return {
                     "source_id": "polygon",
                     "source_name": "3. Massive REST v1 Income Statements",
                     "status": status_str,
                     "latency_ms": latency,
-                    "rate_limit_policy": "Bearer Auth (MASSIVE_API_KEY || POLYGON_API_KEY) + SEC EDGAR Fallback",
+                    "rate_limit_policy": "Bearer Auth (MASSIVE_API_KEY) + SEC EDGAR Fallback",
                     "latest_quarter_reported": latest_p,
                     "data_scope": (
                         "https://api.massive.com/stocks/financials/v1/income-statements "
@@ -323,18 +342,19 @@ class PolygonV1FinancialsClient:
                         "with automatic SEC EDGAR XBRL fallback."
                     ),
                     "header_strip": {
+                        "company_name": comp_name,
                         "live_price": prev_close,
-                        "market_cap_bn": round((prev_close * 132.3) / 1000.0, 2),
-                        "enterprise_value_bn": round((prev_close * 132.3 + (1315 - 1480)) / 1000.0, 2),
-                        "gics_sector": "Technology",
-                        "gics_industry": "Electrical Components & Equipment",
-                        "beta": 1.58,
-                        "short_interest_pct_float": 11.8,
-                        "institutional_ownership_pct": 88.2,
-                        "total_cash_bn": 1.48,
-                        "total_debt_bn": 1.31,
-                        "net_debt_m": -165.0,
-                        "net_debt_to_ebitda": 0.0,
+                        "market_cap_bn": mcap_bn,
+                        "enterprise_value_bn": None,
+                        "gics_sector": sector_name,
+                        "gics_industry": ind_name,
+                        "beta": None,
+                        "short_interest_pct_float": None,
+                        "institutional_ownership_pct": None,
+                        "total_cash_bn": None,
+                        "total_debt_bn": None,
+                        "net_debt_m": None,
+                        "net_debt_to_ebitda": None,
                     },
                     "historical_12q": history_12q,
                 }

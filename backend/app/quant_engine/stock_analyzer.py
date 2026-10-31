@@ -18,21 +18,29 @@ import httpx
 import numpy as np
 import pandas as pd
 import yfinance as yf
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
+from sqlalchemy.orm import Session
 
 logger = logging.getLogger("macropulse.stock_analyzer")
 
 try:
-    from backend.app.quant_engine.forty_two_macro_engine import FortyTwoMacroEngine, DR_MO_56_UNIVERSE
-    from backend.app.quant_engine.hedgeye_quad_matrix import HEDGEYE_EMPIRICAL_BACKTEST
-except ImportError:
+    from app.models.db_models import GicsIndustry
+    from app.db import SessionLocal
     from app.quant_engine.forty_two_macro_engine import FortyTwoMacroEngine, DR_MO_56_UNIVERSE
     from app.quant_engine.hedgeye_quad_matrix import HEDGEYE_EMPIRICAL_BACKTEST
+except ImportError:
+    from backend.app.models.db_models import GicsIndustry
+    from backend.app.db import SessionLocal
+    from backend.app.quant_engine.forty_two_macro_engine import FortyTwoMacroEngine, DR_MO_56_UNIVERSE
+    from backend.app.quant_engine.hedgeye_quad_matrix import HEDGEYE_EMPIRICAL_BACKTEST
 
 try:
-    from backend.app.config import settings
-except ImportError:
     from app.config import settings
+except ImportError:
+    from backend.app.config import settings
+
+MASSIVE_BASE_URL = "https://api.massive.com"
+MASSIVE_API_KEY = (os.getenv("MASSIVE_API_KEY") or getattr(settings, "MASSIVE_API_KEY", "") or "").strip()
 
 
 def fetch_finnhub_fundamentals_and_revisions(ticker: str) -> Dict[str, Any]:
@@ -122,6 +130,78 @@ SECTOR_ETFS = {
     "XLC": "Communication Services",
 }
 
+# Standard SIC classification mapping to (GICS Sector, GICS Industry / Sub-Industry)
+# Grounded in official SEC EDGAR submissions CIK metadata (https://data.sec.gov/submissions/CIK{cik10}.json)
+SIC_SECTOR_MAP: Dict[str, Tuple[str, str]] = {
+    # Real Estate - SIC 6798 specifically mapped to GICS: Real Estate • Equity REITs
+    "6798": ("Real Estate", "Equity Real Estate Investment Trusts (REITs)"),
+    "6500": ("Real Estate", "Real Estate"),
+    "6512": ("Real Estate", "Operators of Nonresidential Buildings"),
+    "6513": ("Real Estate", "Operators of Apartment Buildings"),
+    # Information Technology
+    "7372": ("Information Technology", "Prepackaged Software"),
+    "7370": ("Information Technology", "Computer Programming, Data Processing, Etc."),
+    "7371": ("Information Technology", "Computer Programming Services"),
+    "7373": ("Information Technology", "Computer Integrated Systems Design"),
+    "7374": ("Information Technology", "Computer Processing & Data Preparation"),
+    "3571": ("Information Technology", "Electronic Computers"),
+    "3572": ("Information Technology", "Computer Storage Devices"),
+    "3674": ("Information Technology", "Semiconductors & Semiconductor Equipment"),
+    "3672": ("Information Technology", "Printed Circuit Boards"),
+    "3670": ("Information Technology", "Electronic Components & Accessories"),
+    # Energy
+    "1311": ("Energy", "Crude Petroleum & Natural Gas"),
+    "1381": ("Energy", "Drilling Oil & Gas Wells"),
+    "1389": ("Energy", "Oil & Gas Field Services"),
+    "2911": ("Energy", "Petroleum Refining"),
+    # Financials
+    "6021": ("Financials", "National Commercial Banks"),
+    "6022": ("Financials", "State Commercial Banks"),
+    "6029": ("Financials", "Commercial Banks, NEC"),
+    "6035": ("Financials", "Savings Institution, Federally Chartered"),
+    "6211": ("Financials", "Security Brokers, Dealers & Flotation Companies"),
+    "6282": ("Financials", "Investment Advice"),
+    "6311": ("Financials", "Life Insurance"),
+    "6321": ("Financials", "Accident & Health Insurance"),
+    "6331": ("Financials", "Fire, Marine & Casualty Insurance"),
+    # Utilities
+    "4911": ("Utilities", "Electric Services"),
+    "4922": ("Utilities", "Natural Gas Transmission"),
+    "4923": ("Utilities", "Natural Gas Transmission & Distribution"),
+    "4931": ("Utilities", "Electric & Other Services Combined"),
+    "4941": ("Utilities", "Water Supply"),
+    # Health Care
+    "2834": ("Health Care", "Pharmaceutical Preparations"),
+    "2836": ("Health Care", "Biological Products, Except Diagnostic"),
+    "3841": ("Health Care", "Surgical & Medical Instruments"),
+    "3842": ("Health Care", "Orthopedic, Prosthetic & Surgical Appliances"),
+    "8000": ("Health Care", "Health Services"),
+    # Consumer Discretionary
+    "3711": ("Consumer Discretionary", "Motor Vehicles & Passenger Car Bodies"),
+    "3714": ("Consumer Discretionary", "Motor Vehicle Parts & Accessories"),
+    "5311": ("Consumer Discretionary", "Department Stores"),
+    "5812": ("Consumer Discretionary", "Eating Places (Restaurants)"),
+    "5961": ("Consumer Discretionary", "Catalog & Mail-Order Houses (E-Commerce)"),
+    # Consumer Staples
+    "2000": ("Consumer Staples", "Food and Kindred Products"),
+    "2080": ("Consumer Staples", "Beverages"),
+    "5411": ("Consumer Staples", "Grocery Stores"),
+    # Industrials
+    "3531": ("Industrials", "Construction Machinery & Equipment"),
+    "3721": ("Industrials", "Aircraft"),
+    "4011": ("Industrials", "Railroads, Line-Haul Operating"),
+    "4512": ("Industrials", "Air Transportation, Scheduled"),
+    "4213": ("Industrials", "Trucking, Except Local"),
+    # Materials
+    "2800": ("Materials", "Chemicals & Allied Products"),
+    "3312": ("Materials", "Steel Works, Blast Furnaces & Rolling Mills"),
+    "1000": ("Materials", "Metal Mining"),
+    # Communication Services
+    "4813": ("Communication Services", "Telephone Communications (No Radiotelephone)"),
+    "4841": ("Communication Services", "Cable & Other Pay Television Services"),
+    "7375": ("Communication Services", "Information Retrieval Services"),
+}
+
 STYLE_FACTOR_ETFS = {
     "MTUM": "Momentum",
     "IWF": "Secular Growth",
@@ -146,23 +226,267 @@ MACRO_BENCHMARKS = {
 class SingleStockXRayEngine:
     """Evaluates any stock ticker across Sector-Aware Accounting, Live EPS Revisions, Cash Conversion & Alpha/Beta OLS."""
 
-    _CIK_MAP_CACHE: Dict[str, str] = {
-        "ENPH": "0001463101",
-        "NVDA": "0001045810",
-        "CAT": "0000018230",
-        "TSLA": "0001318605",
-        "XOM": "0000034088",
-        "JPM": "0000019617",
-    }
+    _CIK_MAP_CACHE: Dict[str, str] = {}
+
+    @classmethod
+    def resolve_cik(cls, ticker: str) -> Optional[str]:
+        """Resolves ticker to 10-digit zero-padded CIK string using SEC company_tickers.json with in-memory caching."""
+        clean_t = ticker.strip().upper()
+        if clean_t in cls._CIK_MAP_CACHE:
+            return cls._CIK_MAP_CACHE[clean_t]
+        try:
+            with httpx.Client(headers=SEC_EDGAR_HEADERS, timeout=8.0) as client:
+                r_map = client.get("https://www.sec.gov/files/company_tickers.json")
+                if r_map.status_code == 200:
+                    for _, item in r_map.json().items():
+                        t_sym = str(item.get("ticker", "")).upper()
+                        cik_str = str(item.get("cik_str", "")).zfill(10)
+                        if t_sym:
+                            cls._CIK_MAP_CACHE[t_sym] = cik_str
+        except Exception as e:
+            logger.warning(f"Error resolving CIK for {clean_t}: {e}")
+        return cls._CIK_MAP_CACHE.get(clean_t)
+
+    @classmethod
+    def resolve_industry_from_db(
+        cls, db: Session, sic_code: Optional[str], raw_industry: Optional[str]
+    ) -> Dict[str, str]:
+        """Resolves Sector, Industry, and Benchmark ETF directly from the DB gics_industries table."""
+        # Special case for SIC 6798 (Real Estate Investment Trusts)
+        if sic_code and str(sic_code).strip() == "6798":
+            raw_lower = (raw_industry or "").lower()
+            if "mortgage" in raw_lower:
+                match = db.query(GicsIndustry).filter_by(industry_code="402040").first()
+                if match:
+                    return {
+                        "sector": match.sector_name,
+                        "industry": match.industry_name,
+                        "industry_group": match.industry_group_name,
+                        "benchmark_etf": match.benchmark_etf or "XLF",
+                    }
+            else:
+                match = (
+                    db.query(GicsIndustry).filter_by(industry_code="601080").first()
+                    or db.query(GicsIndustry).filter_by(industry_code="601010").first()
+                )
+                if match:
+                    return {
+                        "sector": match.sector_name,
+                        "industry": match.industry_name,
+                        "industry_group": match.industry_group_name,
+                        "benchmark_etf": match.benchmark_etf or "XLRE",
+                    }
+
+        # 1. Match by SIC code if available
+        if sic_code:
+            clean_sic = str(sic_code).strip()
+            all_inds = db.query(GicsIndustry).all()
+            for row in all_inds:
+                if row.sic_prefixes:
+                    prefixes = [p.strip() for p in row.sic_prefixes.split(",")]
+                    if any(clean_sic.startswith(p) or p == clean_sic for p in prefixes):
+                        return {
+                            "sector": row.sector_name,
+                            "industry": row.industry_name,
+                            "industry_group": row.industry_group_name,
+                            "benchmark_etf": row.benchmark_etf or "SPY",
+                        }
+
+        # 2. Match by industry name substring
+        if raw_industry:
+            match = (
+                db.query(GicsIndustry)
+                .filter(
+                    (GicsIndustry.industry_name.ilike(f"%{raw_industry}%"))
+                    | (GicsIndustry.industry_group_name.ilike(f"%{raw_industry}%"))
+                )
+                .first()
+            )
+            if match:
+                return {
+                    "sector": match.sector_name,
+                    "industry": match.industry_name,
+                    "industry_group": match.industry_group_name,
+                    "benchmark_etf": match.benchmark_etf or "SPY",
+                }
+
+        return {
+            "sector": "Unclassified",
+            "industry": raw_industry or "Unclassified Industry",
+            "industry_group": "General",
+            "benchmark_etf": "SPY",
+        }
+
+    @classmethod
+    def fetch_company_overview(cls, db: Optional[Session], ticker: str) -> Dict[str, Any]:
+        """Fetches metadata from Massive /v3/reference/tickers/{ticker}, resolving against gics_industries."""
+        clean_t = ticker.strip().upper()
+        if db is None:
+            with SessionLocal() as db_session:
+                return cls.fetch_company_overview(db_session, clean_t)
+
+        api_key = cls._get_massive_api_key()
+        if not api_key:
+            raise ValueError("MASSIVE_API_KEY is not configured in environment variables.")
+
+        headers = {"Authorization": f"Bearer {api_key}"}
+        url = f"{MASSIVE_BASE_URL}/v3/reference/tickers/{clean_t}"
+
+        with httpx.Client(timeout=8.0) as client:
+            resp = client.get(url, headers=headers)
+            if resp.status_code == 404:
+                raise ValueError(f"Ticker '{clean_t}' not found in Massive API database.")
+            elif resp.status_code in (401, 403):
+                raise PermissionError(
+                    f"Massive API access denied (HTTP {resp.status_code}). Check MASSIVE_API_KEY entitlement."
+                )
+            elif resp.status_code != 200:
+                raise RuntimeError(f"Massive API returned HTTP {resp.status_code}: {resp.text}")
+
+            data = resp.json().get("results", {})
+            sic_code = data.get("sic_code")
+            sic_desc = data.get("sic_description")
+
+            # Resolve against the database
+            gics = cls.resolve_industry_from_db(db, sic_code=sic_code, raw_industry=sic_desc)
+            mcap = data.get("market_cap")
+
+            cik_val = str(data.get("cik", "")).zfill(10) if data.get("cik") else cls.resolve_cik(clean_t)
+
+            return {
+                "ticker": clean_t,
+                "company_name": data.get("name", clean_t),
+                "sector": gics["sector"],
+                "industry": gics["industry"],
+                "industry_group": gics["industry_group"],
+                "benchmark_etf": gics["benchmark_etf"],
+                "market_cap_bn": round(mcap / 1e9, 2) if mcap else None,
+                "cik": cik_val,
+                "source": "MASSIVE_V3_REFERENCE",
+            }
+
+    @classmethod
+    def fetch_12q_financials(cls, ticker: str, cik: Optional[str]) -> List[Dict[str, Any]]:
+        """Pulls 12 consecutive quarters from Massive /stocks/financials/v1/*; falls back to SEC EDGAR facts."""
+        clean_t = ticker.strip().upper()
+        api_key = cls._get_massive_api_key()
+        if api_key:
+            headers = {"Authorization": f"Bearer {api_key}"}
+            params = {"tickers": clean_t, "timeframe": "quarterly", "limit": 12, "sort": "period_end.desc"}
+
+            quarters: List[Dict[str, Any]] = []
+            try:
+                with httpx.Client(timeout=8.0) as client:
+                    r_inc = client.get(f"{MASSIVE_BASE_URL}/stocks/financials/v1/income-statements", headers=headers, params=params)
+                    r_bal = client.get(f"{MASSIVE_BASE_URL}/stocks/financials/v1/balance-sheets", headers=headers, params=params)
+                    r_cf = client.get(f"{MASSIVE_BASE_URL}/stocks/financials/v1/cash-flow-statements", headers=headers, params=params)
+
+                    if r_inc.status_code == 200 and r_bal.status_code == 200 and r_cf.status_code == 200:
+                        inc_res = r_inc.json().get("results", [])
+                        bal_res = {r["period_end"]: r for r in r_bal.json().get("results", [])}
+                        cf_res = {r["period_end"]: r for r in r_cf.json().get("results", [])}
+
+                        for inc in inc_res:
+                            p_end = inc.get("period_end")
+                            b = bal_res.get(p_end, {})
+                            c = cf_res.get(p_end, {})
+
+                            rev = float(inc.get("revenue") or 0.0)
+                            gp = float(inc.get("gross_profit") or 0.0)
+                            oi = float(inc.get("operating_income") or 0.0)
+                            ni = float(inc.get("consolidated_net_income_loss") or inc.get("net_income_loss_attributable_common_shareholders") or 0.0)
+                            ocf = float(c.get("net_cash_from_operating_activities") or 0.0)
+                            capex = abs(float(c.get("capital_expenditures") or 0.0))
+                            cash = float(b.get("cash_and_equivalents") or 0.0)
+                            debt = float(b.get("debt_current") or 0.0) + float(b.get("long_term_debt") or 0.0)
+                            cl = float(b.get("total_current_liabilities") or 0.0)
+
+                            quarters.append({
+                                "period_end": p_end,
+                                "fiscal_label": f"{inc.get('fiscal_year', '')} Q{inc.get('fiscal_quarter', '')}".strip(),
+                                "period": f"Q{inc.get('fiscal_quarter', '')} '{str(inc.get('fiscal_year', ''))[-2:]}".strip(),
+                                "form": "10-Q" if inc.get("fiscal_quarter") else "10-K",
+                                "revenue": rev,
+                                "revenue_m": round(rev / 1e6, 1),
+                                "gross_profit": gp,
+                                "gross_margin_pct": round(gp / rev * 100.0, 2) if rev > 0 else 0.0,
+                                "operating_income": oi,
+                                "operating_margin_pct": round(oi / rev * 100.0, 2) if rev > 0 else 0.0,
+                                "net_income": ni,
+                                "ocf": ocf,
+                                "capex": capex,
+                                "fcf": ocf - capex,
+                                "cash_and_equiv": cash,
+                                "total_debt": debt,
+                                "net_debt": debt - cash,
+                                "quick_ratio": round(cash / cl, 2) if cl > 0 else None,
+                                "source": "MASSIVE_V1_FINANCIALS",
+                            })
+                        if quarters:
+                            return quarters
+            except Exception as e:
+                logger.warning(f"Massive financials fetch failed for {clean_t}: {e}")
+
+        # Fallback to SEC EDGAR facts if Massive fundamentals are un-entitled or empty
+        edgar = cls.fetch_sec_edgar_12q_financials(clean_t)
+        return edgar.get("quarters", [])
+
+    @classmethod
+    def fetch_sec_company_metadata(cls, cik10: str) -> Dict[str, Any]:
+        """Retrieves real company name, SIC code, and business classification directly from SEC EDGAR Submissions API."""
+        url = f"https://data.sec.gov/submissions/CIK{cik10}.json"
+        meta: Dict[str, Any] = {"entity_name": None, "sector": "Other", "industry": "General"}
+        try:
+            with httpx.Client(headers=SEC_EDGAR_HEADERS, timeout=8.0) as client:
+                resp = client.get(url)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    meta["entity_name"] = data.get("name")
+                    sic = str(data.get("sic", "")).strip()
+                    sic_desc = (data.get("sicDescription") or "").strip()
+
+                    if sic in SIC_SECTOR_MAP:
+                        meta["sector"], meta["industry"] = SIC_SECTOR_MAP[sic]
+                    else:
+                        if sic_desc:
+                            meta["industry"] = sic_desc
+                        if sic:
+                            try:
+                                sic_num = int(sic)
+                                if 6500 <= sic_num <= 6799:
+                                    meta["sector"] = "Real Estate" if (sic_num == 6798 or 6500 <= sic_num <= 6553) else "Financials"
+                                elif 6000 <= sic_num <= 6499:
+                                    meta["sector"] = "Financials"
+                                elif 4900 <= sic_num <= 4999:
+                                    meta["sector"] = "Utilities"
+                                elif (1300 <= sic_num <= 1399) or (2900 <= sic_num <= 2999):
+                                    meta["sector"] = "Energy"
+                                elif (7370 <= sic_num <= 7379) or (3570 <= sic_num <= 3579) or (3670 <= sic_num <= 3679):
+                                    meta["sector"] = "Information Technology"
+                                elif (2830 <= sic_num <= 2839) or (3840 <= sic_num <= 3859) or (8000 <= sic_num <= 8099):
+                                    meta["sector"] = "Health Care"
+                                elif 4800 <= sic_num <= 4899:
+                                    meta["sector"] = "Communication Services"
+                                elif (2000 <= sic_num <= 2199) or (5400 <= sic_num <= 5499):
+                                    meta["sector"] = "Consumer Staples"
+                                elif (3711 <= sic_num <= 3716) or (5200 <= sic_num <= 5999) or (7000 <= sic_num <= 7299):
+                                    meta["sector"] = "Consumer Discretionary"
+                                elif (1000 <= sic_num <= 1499) or (2800 <= sic_num <= 2829) or (3300 <= sic_num <= 3399):
+                                    meta["sector"] = "Materials"
+                                elif (1500 <= sic_num <= 1799) or (3500 <= sic_num <= 3599) or (3700 <= sic_num <= 3799) or (4000 <= sic_num <= 4799):
+                                    meta["sector"] = "Industrials"
+                            except ValueError:
+                                pass
+        except Exception as e:
+            logger.warning(f"Error fetching SEC company metadata for CIK {cik10}: {e}")
+        return meta
 
     @staticmethod
-    def _get_massive_or_polygon_api_key() -> str:
-        """Resolves MASSIVE_API_KEY || POLYGON_API_KEY from environment or settings."""
+    def _get_massive_api_key() -> str:
+        """Resolves MASSIVE_API_KEY from environment or settings."""
         return (
             os.getenv("MASSIVE_API_KEY")
-            or os.getenv("POLYGON_API_KEY")
             or getattr(settings, "MASSIVE_API_KEY", "")
-            or getattr(settings, "POLYGON_API_KEY", "")
             or ""
         ).strip()
 
@@ -184,16 +508,7 @@ class SingleStockXRayEngine:
         try:
             with httpx.Client(headers=SEC_EDGAR_HEADERS, timeout=12.0) as client:
                 # 1. Resolve Ticker -> 10-digit CIK
-                if clean_t not in cls._CIK_MAP_CACHE:
-                    r_map = client.get("https://www.sec.gov/files/company_tickers.json")
-                    if r_map.status_code == 200:
-                        for _, item in r_map.json().items():
-                            t_sym = str(item.get("ticker", "")).upper()
-                            cik_str = str(item.get("cik_str", "")).zfill(10)
-                            if t_sym:
-                                cls._CIK_MAP_CACHE[t_sym] = cik_str
-
-                cik10 = cls._CIK_MAP_CACHE.get(clean_t)
+                cik10 = cls.resolve_cik(clean_t)
                 if not cik10:
                     result["status"] = "CIK_NOT_FOUND"
                     return result
@@ -612,13 +927,13 @@ class SingleStockXRayEngine:
         Queries Massive's active v1 income statements endpoint:
           https://api.massive.com/stocks/financials/v1/income-statements?ticker={ticker}&limit=12&sort=period_end.desc
         Header authentication:
-          Authorization: Bearer {MASSIVE_API_KEY || POLYGON_API_KEY}
+          Authorization: Bearer {MASSIVE_API_KEY}
         Reads directly from the `results` array containing `revenue`, `operating_income`,
         `cost_of_revenue`, and `diluted_earnings_per_share`.
         Falls back cleanly to `cls.fetch_sec_edgar_xbrl_facts(ticker)` when no paid Massive subscription is active.
         """
         clean_t = ticker.strip().upper()
-        api_key = cls._get_massive_or_polygon_api_key()
+        api_key = cls._get_massive_api_key()
         if api_key:
             url = (
                 f"https://api.massive.com/stocks/financials/v1/income-statements"
@@ -812,25 +1127,82 @@ class SingleStockXRayEngine:
     @classmethod
     def analyze_ticker(
         cls,
+        ticker: Any,
+        active_market_regime: Optional[str] = None,
+        active_economic_quad: Optional[str] = None,
+        db: Optional[Session] = None,
+    ) -> Dict[str, Any]:
+        """Analyzes any user-supplied ticker dynamically. Zero mock fallbacks."""
+        # Handle polymorphic signature: (db, ticker, regime, quad) or (ticker, regime, quad, db)
+        if isinstance(ticker, Session):
+            db_session = ticker
+            ticker = active_market_regime
+            active_market_regime = active_economic_quad
+            active_economic_quad = db
+            db = db_session
+
+        if db is None:
+            with SessionLocal() as db_session:
+                return cls._analyze_ticker_with_db(
+                    db=db_session,
+                    ticker=str(ticker),
+                    active_market_regime=active_market_regime,
+                    active_economic_quad=active_economic_quad,
+                )
+        return cls._analyze_ticker_with_db(
+            db=db,
+            ticker=str(ticker),
+            active_market_regime=active_market_regime,
+            active_economic_quad=active_economic_quad,
+        )
+
+    @classmethod
+    def _analyze_ticker_with_db(
+        cls,
+        db: Session,
         ticker: str,
         active_market_regime: Optional[str] = None,
-        active_economic_quad: Optional[str] = None
+        active_economic_quad: Optional[str] = None,
     ) -> Dict[str, Any]:
+        clean_ticker = str(ticker).strip().upper()
+        if not clean_ticker:
+            raise ValueError("No ticker symbol provided.")
+
+        # 1. Fetch Company Overview (Massive -> GICS DB Resolution)
+        # Raises ValueError(f"Ticker '{clean_ticker}' not found in Massive API database.") if not in Massive
+        overview = cls.fetch_company_overview(db, clean_ticker)
+
+        # 2. Derive macro regime/quad if not provided
         if not active_market_regime or not active_economic_quad or active_economic_quad == "Quad 2":
             try:
-                from app.quant_engine.macro_nowcast import compute_growth_nowcast, compute_inflation_nowcast, compute_quads_and_base_effects
+                from app.quant_engine.macro_nowcast import (
+                    compute_growth_nowcast,
+                    compute_inflation_nowcast,
+                    compute_quads_and_base_effects,
+                )
                 g = compute_growth_nowcast()
                 inf = compute_inflation_nowcast()
                 q_data = compute_quads_and_base_effects(g, inf)
-                active_economic_quad = active_economic_quad if (active_economic_quad and active_economic_quad != "Quad 2") else q_data.get("current_quad", "Quad 3")
-                active_market_regime = active_market_regime if (active_market_regime and active_market_regime != "REFLATION") else q_data.get("current_regime", "STAGFLATION")
+                active_economic_quad = (
+                    active_economic_quad
+                    if (active_economic_quad and active_economic_quad != "Quad 2")
+                    else q_data.get("current_quad", "Quad 3")
+                )
+                active_market_regime = (
+                    active_market_regime
+                    if (active_market_regime and active_market_regime != "REFLATION")
+                    else q_data.get("current_regime", "STAGFLATION")
+                )
             except Exception:
                 active_economic_quad = active_economic_quad or "Quad 3"
                 active_market_regime = active_market_regime or "STAGFLATION"
 
-        clean_ticker = ticker.strip().upper()
-        tk = yf.Ticker(clean_ticker)
+        # 3. Fetch 12-Quarter Financial Statements (Massive with SEC EDGAR fallback)
+        cik10 = overview.get("cik") or cls.resolve_cik(clean_ticker)
+        quarters_12q = cls.fetch_12q_financials(clean_ticker, cik10)
+        pod2_unit_economics = cls._compute_pod2_unit_economics_from_12q(quarters_12q)
 
+        # 4. Fetch Market Price & Compute Rolling OLS Alpha / Beta
         benchmark_tickers = (
             [clean_ticker]
             + list(SECTOR_ETFS.keys())
@@ -856,47 +1228,63 @@ class SingleStockXRayEngine:
             if not csv_px.empty and "Close" in csv_px.columns:
                 close_df[clean_ticker] = csv_px["Close"]
             else:
-                return cls._generate_fallback_stock_profile(clean_ticker, active_market_regime, active_economic_quad)
+                raise ValueError(f"No price history found for ticker '{clean_ticker}'.")
 
         stock_close = close_df[clean_ticker].dropna()
-        if len(stock_close) < 20:
-            return cls._generate_fallback_stock_profile(clean_ticker, active_market_regime, active_economic_quad)
+        if len(stock_close) < 5:
+            raise ValueError(f"Insufficient trading history for ticker '{clean_ticker}'.")
 
+        curr_px = round(float(stock_close.iloc[-1]), 2)
+        prev_px = float(stock_close.iloc[-2]) if len(stock_close) > 1 else curr_px
+        px_chg_pct = round(((curr_px - prev_px) / prev_px) * 100.0, 2)
         vams_pr = FortyTwoMacroEngine.compute_vams_and_probable_range(stock_close)
         rsi_14d = cls._compute_rsi(stock_close, 14)
 
-        # 1. Empirical Sector/Factor DNA + Dynamic Rolling OLS Alpha (α) vs Beta (R^2)
         factor_dna = cls._compute_factor_and_alpha_beta_ols(
             clean_ticker, close_df, active_market_regime, active_economic_quad
         )
 
-        # 2. Fetch Massive REST v1 Income Statements (https://api.massive.com/stocks/financials/v1/income-statements)
-        #    with automatic SEC EDGAR 12Q XBRL fallback
-        edgar_12q = cls.fetch_sec_edgar_12q_financials(clean_ticker)
-        massive_12q = cls.fetch_massive_income_statements(clean_ticker, limit=12)
-        quarters_12q = (
-            list(reversed(massive_12q))
-            if massive_12q and massive_12q[-1].get("source") == "massive_v1_income_statements"
-            else edgar_12q.get("quarters", [])
-        )
-        pod2_unit_economics = cls._compute_pod2_unit_economics_from_12q(quarters_12q)
-        options_snapshot = cls.fetch_massive_options_snapshot(clean_ticker)
-
-        info, q_fin, q_bal, q_cf, eps_trend_df, eps_rev_df = {}, pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
+        # 5. Extract Live Market Stats (Strictly Null-Safe, Zero Fabricated Defaults)
+        tk = yf.Ticker(clean_ticker)
+        info = {}
         try:
             info = tk.info or {}
         except Exception:
-            pass
-        if not info and (quarters_12q or massive_12q):
-            latest_q = quarters_12q[0] if quarters_12q else massive_12q[-1]
+            info = {}
+
+        sector = overview.get("sector") or info.get("sector") or "Unclassified"
+        industry = overview.get("industry") or info.get("industry") or "Unclassified Industry"
+        entity_name = overview.get("company_name") or info.get("shortName") or info.get("longName") or clean_ticker
+        benchmark_etf = overview.get("benchmark_etf") or "SPY"
+
+        mkt_cap_bn = overview.get("market_cap_bn") or (
+            round(info.get("marketCap") / 1e9, 2) if info.get("marketCap") else None
+        )
+        ev_bn = round(info.get("enterpriseValue") / 1e9, 2) if info.get("enterpriseValue") else None
+        raw_fpe = info.get("forwardPE")
+        fwd_pe_val = round(float(raw_fpe), 1) if (raw_fpe is not None and float(raw_fpe) > 0) else None
+
+        options_snapshot = cls.fetch_massive_options_snapshot(clean_ticker)
+
+        if not info and quarters_12q:
+            latest_q = quarters_12q[0]
             rev_ann = float(latest_q.get("revenue", 0.0) or 0.0) * 4.0
             op_ann = float(latest_q.get("operating_income", 0.0) or 0.0) * 4.0
             cor_ann = float(latest_q.get("cost_of_revenue", 0.0) or 0.0) * 4.0
             info = {
-                "longName": edgar_12q.get("entity_name") or clean_ticker,
+                "longName": entity_name,
                 "operatingMargins": (op_ann / rev_ann) if rev_ann > 0 else 0.18,
                 "grossMargins": ((rev_ann - cor_ann) / rev_ann) if rev_ann > 0 else 0.42,
             }
+
+        if "sector" not in info or not info["sector"]:
+            info["sector"] = sector
+        if "industry" not in info or not info["industry"]:
+            info["industry"] = industry
+        if "longName" not in info or not info["longName"]:
+            info["longName"] = entity_name
+
+        q_fin, q_bal, q_cf, eps_trend_df, eps_rev_df = pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
         try:
             q_fin = tk.quarterly_income_stmt if hasattr(tk, "quarterly_income_stmt") else tk.quarterly_financials
             q_bal = tk.quarterly_balance_sheet
@@ -909,20 +1297,13 @@ class SingleStockXRayEngine:
         except Exception:
             pass
 
-        # 3. Live Forward EPS Revisions & Analyst Breadth
+        # Sub-engines
         eps_revisions = cls._compute_live_eps_revisions(info, eps_trend_df, eps_rev_df)
-
-        # 4. True SBC-Adjusted Cash Conversion & Sloan Accruals Quality (with automatic SEC EDGAR XBRL fallback)
         cash_conversion = cls._compute_cash_conversion_and_sloan_accruals(clean_ticker, info, q_fin, q_bal, q_cf)
-
-        # 5. Sector-Aware Accounting Template Router (5 Distinct Sector Models)
-        sector_template = cls._compute_sector_aware_template(
-            info, q_fin, q_bal, q_cf, factor_dna, cash_conversion
-        )
-
-        # 6. Interest Rate Stress, 3 Pods & Final Multi-Faceted Actionable Verdict
+        sector_template = cls._compute_sector_aware_template(info, q_fin, q_bal, q_cf, factor_dna, cash_conversion)
         rate_sensitivity = cls._compute_interest_rate_and_debt_stress(info, q_fin, q_bal, factor_dna.get("macro_sensitivities", {}))
         pods_123 = cls._compute_hedgeye_3_pods_and_base_effects(info, q_fin, q_bal, q_cf)
+
         if quarters_12q and pod2_unit_economics:
             q0 = quarters_12q[0]
             if pod2_unit_economics.get("rev_growth_yoy_pct") is not None:
@@ -939,7 +1320,6 @@ class SingleStockXRayEngine:
                 pods_123["pod_2_margins"]["operating_leverage_state"] = pod2_unit_economics.get("operating_leverage_state", "EXPANDING")
 
         quality_valuation = cls._compute_fcte_quality_and_42m_valuation(info, pods_123, rate_sensitivity, cash_conversion)
-
         verdict = cls._compute_composite_verdict(
             clean_ticker, info, active_market_regime, active_economic_quad,
             vams_pr, rsi_14d, factor_dna, rate_sensitivity, pods_123,
@@ -949,33 +1329,50 @@ class SingleStockXRayEngine:
         spy_beta_126d = float(
             factor_dna.get("macro_sensitivities", {}).get("SPY", {}).get("beta_6m")
             or info.get("beta")
-            or 1.35
+            or 1.0
         )
-        short_float_pct = round(float(info.get("shortPercentOfFloat", 0.032) or 0.032) * 100.0, 2) if float(info.get("shortPercentOfFloat", 0) or 0) <= 1.0 else round(float(info.get("shortPercentOfFloat", 3.2)), 2)
-        days_to_cover = round(float(info.get("shortRatio", 1.8) or 1.8), 1)
-        inst_own_pct = round(float(info.get("heldPercentInstitutions", 0.785) or 0.785) * 100.0, 1) if float(info.get("heldPercentInstitutions", 0) or 0) <= 1.0 else round(float(info.get("heldPercentInstitutions", 78.5)), 1)
+        short_float_pct = (
+            round(float(info.get("shortPercentOfFloat", 0.0) or 0.0) * 100.0, 2)
+            if float(info.get("shortPercentOfFloat", 0) or 0) <= 1.0
+            else round(float(info.get("shortPercentOfFloat", 0)), 2)
+        ) if info.get("shortPercentOfFloat") is not None else None
+        days_to_cover = round(float(info.get("shortRatio")), 1) if info.get("shortRatio") is not None else None
+        inst_own_pct = (
+            round(float(info.get("heldPercentInstitutions", 0.0) or 0.0) * 100.0, 1)
+            if float(info.get("heldPercentInstitutions", 0) or 0) <= 1.0
+            else round(float(info.get("heldPercentInstitutions", 0)), 1)
+        ) if info.get("heldPercentInstitutions") is not None else None
 
-        spot_price = float(info.get("currentPrice") or info.get("regularMarketPrice") or vams_pr.get("price") or 50.0)
-        mcap_val = round((info.get("marketCap", 0) or 0) / 1e9, 2)
-        if mcap_val <= 0:
-            mcap_val = 10.0
-        comp_name = info.get("longName") or info.get("shortName") or edgar_12q.get("entity_name") or clean_ticker
-        ind_name = info.get("industry") or "Clean Technology & Solar MLPE"
-        ev_ebitda_val = float(quality_valuation.get("ev_to_ebitda") or info.get("enterpriseToEbitda") or 15.0)
-        pe_val = float(quality_valuation.get("forward_pe") or info.get("forwardPE") or 18.0)
-        fcf_yield_val = float(cash_conversion.get("fcf_yield_pct") or 4.5)
-        net_debt_ebitda_val = float(rate_sensitivity.get("net_debt_to_ebitda") or 0.2)
-        roe_raw = float(info.get("returnOnEquity", 0.18) or 0.18)
-        roe_val = round(roe_raw * 100.0 if abs(roe_raw) <= 1.5 else roe_raw, 1)
-        rev_growth_val = float(pod2_unit_economics.get("rev_growth_yoy_pct") or 12.0)
-        gm_raw = float(pod2_unit_economics.get("gross_margin_pct") or (info.get("grossMargins", 0.45) or 0.45) * 100 or 45.0)
-        gross_margin_val = round(gm_raw if gm_raw > 1.0 else gm_raw * 100.0, 1)
+        spot_price = float(info.get("currentPrice") or info.get("regularMarketPrice") or curr_px)
+
+        raw_ev_ebitda = quality_valuation.get("ev_to_ebitda") or info.get("enterpriseToEbitda")
+        ev_ebitda_val = round(float(raw_ev_ebitda), 1) if raw_ev_ebitda is not None else None
+
+        raw_pe = fwd_pe_val if fwd_pe_val is not None else (
+            quality_valuation.get("forward_pe") or (round(float(info.get("trailingPE")), 1) if info.get("trailingPE") is not None else None)
+        )
+        pe_val = round(float(raw_pe), 1) if raw_pe is not None else None
+
+        raw_fcf_yield = cash_conversion.get("fcf_yield_pct") or quality_valuation.get("fcf_yield_pct")
+        fcf_yield_val = round(float(raw_fcf_yield), 1) if raw_fcf_yield is not None else None
+
+        raw_nd_ebitda = rate_sensitivity.get("net_debt_to_ebitda")
+        net_debt_ebitda_val = round(float(raw_nd_ebitda), 2) if raw_nd_ebitda is not None else None
+
+        raw_roe = info.get("returnOnEquity") or (pods_123.get("pod_3_capital_allocation", {}).get("roe_pct") if pods_123 else None)
+        roe_val = round(float(raw_roe) * 100.0 if abs(float(raw_roe)) <= 1.5 else float(raw_roe), 1) if raw_roe is not None else None
+
+        raw_rev_growth = pod2_unit_economics.get("rev_growth_yoy_pct")
+        rev_growth_val = round(float(raw_rev_growth), 1) if raw_rev_growth is not None else None
+
+        raw_gm = pod2_unit_economics.get("gross_margin_pct") or (info.get("grossMargins") * 100.0 if info.get("grossMargins") is not None else None)
+        gross_margin_val = round(float(raw_gm) if float(raw_gm) > 1.0 else float(raw_gm) * 100.0, 1) if raw_gm is not None else None
 
         peers_cohort = cls._generate_peer_scorecard(
             clean_ticker=clean_ticker,
-            company_name=comp_name,
-            industry=ind_name,
-            mcap_bn=mcap_val,
+            company_name=entity_name,
+            industry=industry,
+            mcap_bn=mkt_cap_bn,
             ev_ebitda=ev_ebitda_val,
             pe=pe_val,
             fcf_yield=fcf_yield_val,
@@ -989,7 +1386,7 @@ class SingleStockXRayEngine:
             clean_ticker=clean_ticker,
             spot_price=spot_price,
             beta=spy_beta_126d,
-            mcap_bn=mcap_val,
+            mcap_bn=mkt_cap_bn or 10.0,
             active_market_regime=active_market_regime,
             active_economic_quad=active_economic_quad,
             options_snapshot=options_snapshot,
@@ -998,12 +1395,17 @@ class SingleStockXRayEngine:
         return {
             "status": "ok",
             "ticker": clean_ticker,
-            "cik": edgar_12q.get("cik"),
-            "entity_name": edgar_12q.get("entity_name"),
-            "company_name": info.get("longName") or info.get("shortName") or edgar_12q.get("entity_name") or clean_ticker,
-            "gics_sector": info.get("sector", "Unknown"),
-            "gics_industry": info.get("industry", "Unknown"),
-            "market_cap_bn": round((info.get("marketCap", 0) or 0) / 1e9, 2),
+            "cik": cik10,
+            "entity_name": entity_name,
+            "company_name": entity_name,
+            "gics_sector": sector,
+            "gics_industry": industry,
+            "benchmark_etf": benchmark_etf,
+            "market_cap_bn": mkt_cap_bn,
+            "enterprise_value_bn": ev_bn,
+            "forward_pe": fwd_pe_val,
+            "live_price": curr_px,
+            "price_change_pct": px_chg_pct,
             "active_market_regime": active_market_regime,
             "active_economic_quad": active_economic_quad,
             "macro_regime": f"{active_market_regime} ({active_economic_quad})",
@@ -1013,12 +1415,11 @@ class SingleStockXRayEngine:
             "days_to_cover": days_to_cover,
             "institutional_own_pct": inst_own_pct,
             "source_financials": (
-                "MASSIVE_V1_INCOME_STATEMENTS"
-                if massive_12q and massive_12q[-1].get("source") == "massive_v1_income_statements"
-                else "SEC_EDGAR_XBRL_10Q_10K_FALLBACK"
+                "MASSIVE_V1_FINANCIALS"
+                if quarters_12q and quarters_12q[0].get("source") == "MASSIVE_V1_FINANCIALS"
+                else "SEC_EDGAR_XBRL_10Q_10K"
             ),
-            "data_scope": "https://api.massive.com/stocks/financials/v1/income-statements (revenue, operating_income, cost_of_revenue, diluted_earnings_per_share) with automatic SEC EDGAR XBRL fallback.",
-            "edgar_status": edgar_12q.get("status"),
+            "data_scope": "Massive REST v3 & v1 with SEC EDGAR XBRL fallback.",
             "financial_walk_12q": quarters_12q,
             "pod2_unit_economics": pod2_unit_economics,
             "verdict": verdict,
@@ -1030,7 +1431,6 @@ class SingleStockXRayEngine:
             "interest_rate_and_earnings_sensitivity": rate_sensitivity,
             "hedgeye_3_pods": pods_123,
             "quality_and_valuation": quality_valuation,
-            "massive_income_statements_12q": massive_12q,
             "massive_options_snapshot": options_snapshot,
             "peers": peers_cohort,
             "peer_valuations": peers_cohort,
@@ -1043,14 +1443,14 @@ class SingleStockXRayEngine:
         clean_ticker: str,
         company_name: str,
         industry: str,
-        mcap_bn: float,
-        ev_ebitda: float,
-        pe: float,
-        fcf_yield: float,
-        net_debt_ebitda: float,
-        roe: float,
-        rev_growth: float,
-        gross_margin: float,
+        mcap_bn: Optional[float],
+        ev_ebitda: Optional[float],
+        pe: Optional[float],
+        fcf_yield: Optional[float],
+        net_debt_ebitda: Optional[float],
+        roe: Optional[float],
+        rev_growth: Optional[float],
+        gross_margin: Optional[float],
     ) -> List[Dict[str, Any]]:
         """Generates dynamic 5-peer valuation benchmarking with medal ranks for any ticker input."""
         try:
@@ -1071,13 +1471,20 @@ class SingleStockXRayEngine:
         universe: List[str] = list(PEER_UNIVERSES.get(industry, []))
         resolved_ind = industry
         if not universe:
+            clean_ind_lower = industry.lower()
+            for ind, peers in PEER_UNIVERSES.items():
+                if ind.lower() in clean_ind_lower or clean_ind_lower in ind.lower():
+                    universe = list(peers)
+                    resolved_ind = ind
+                    break
+        if not universe:
             for ind, peers in PEER_UNIVERSES.items():
                 if clean_ticker in peers:
                     universe = list(peers)
                     resolved_ind = ind
                     break
         if not universe:
-            universe = ["ENPH", "FSLR", "SEDG", "NXT", "RUN"]
+            universe = ["SPY", "QQQ", "IWM", "DIA", "XLK"]
 
         peer_syms = [s for s in universe if s != clean_ticker][:4]
 
@@ -1672,17 +2079,24 @@ class SingleStockXRayEngine:
         rate_sens: Dict[str, Any],
         cash_conv: Dict[str, Any]
     ) -> Dict[str, Any]:
-        forward_pe = float(info.get("forwardPE", 0) or info.get("trailingPE", 20) or 20)
+        raw_fpe = info.get("forwardPE") or info.get("trailingPE")
+        forward_pe = round(float(raw_fpe), 1) if raw_fpe is not None else None
+
         fcf = float(info.get("freeCashflow", 0) or 0)
         shares = float(info.get("sharesOutstanding", 1) or 1)
-        market_cap = float(info.get("marketCap", 1) or 1)
+        market_cap = float(info.get("marketCap", 0) or 0)
         fcf_per_share = round(fcf / shares, 2) if shares > 0 else 0.0
-        fcf_yield_pct = round((fcf / market_cap) * 100.0, 2) if market_cap > 0 else 0.0
-        pe_to_fcf = round(forward_pe / fcf_per_share, 2) if fcf_per_share > 0.1 else 15.0
-        fcte_score = round(min(98.0, max(25.0, 55.0 + (fcf_yield_pct * 3.0) + (15.0 if cash_conv.get("true_fcf_conversion_pct", 0) >= 75 else 0.0))), 1)
+        fcf_yield_pct = round((fcf / market_cap) * 100.0, 2) if market_cap > 0 else None
+        pe_to_fcf = (
+            round(forward_pe / fcf_per_share, 2)
+            if (forward_pe is not None and fcf_per_share > 0.1)
+            else None
+        )
+        fcf_y_val = fcf_yield_pct or 0.0
+        fcte_score = round(min(98.0, max(25.0, 55.0 + (fcf_y_val * 3.0) + (15.0 if cash_conv.get("true_fcf_conversion_pct", 0) >= 75 else 0.0))), 1)
         return {
-            "forward_pe": round(forward_pe, 1),
-            "fcf_per_share_usd": fcf_per_share,
+            "forward_pe": forward_pe,
+            "fcf_per_share_usd": fcf_per_share if fcf != 0 else None,
             "fcf_yield_pct": fcf_yield_pct,
             "pe_to_fcf_per_share_ratio": pe_to_fcf,
             "fcte_quality_score_100": fcte_score,
@@ -1747,232 +2161,4 @@ class SingleStockXRayEngine:
             "eps_revision_and_pods_score": rev_score,
             "quality_and_cash_conversion_score": qual_score,
             "plain_english_thesis": plain_thesis,
-        }
-
-    @classmethod
-    def _generate_fallback_stock_profile(
-        cls,
-        ticker: str,
-        active_market_regime: str,
-        active_economic_quad: str
-    ) -> Dict[str, Any]:
-        """Provides verified fallback fundamental and quant metrics for common tickers or offline modes."""
-        profiles = {
-            "NVDA": {
-                "name": "NVIDIA Corporation", "sector": "Information Technology", "industry": "Semiconductors",
-                "mcap_bn": 3450.0, "price": 142.50, "vams_state": 1, "vams_label": "BULLISH", "prob_low": 136.20, "prob_high": 151.80, "rsi": 74.0,
-                "sec_etf": "XLK", "sec_name": "Information Technology", "sec_corr": 0.84, "sec_beta": 1.45,
-                "fac_etf": "MTUM", "fac_name": "Momentum", "fac_corr": 0.88, "fac_beta": 1.35,
-                "debt_bn": 11.5, "cash_bn": 34.8, "eps_shock": 0.8, "rev_yoy": 122.0, "accel_bps": 240, "g_margin": 75.0, "op_margin": 62.0, "op_delta": 450,
-                "roe": 115.0, "roa": 68.0, "fpe": 32.5, "fcf_ps": 2.45, "fcf_yield": 1.7, "quality": 92.0,
-                "j_alpha": 18.5, "r2": 68.0, "sbc_bn": 4.2, "fcf_conv": 86.0, "erb": 0.65
-            },
-            "TPL": {
-                "name": "Texas Pacific Land Corporation", "sector": "Energy", "industry": "Oil & Gas E&P",
-                "mcap_bn": 28.5, "price": 1280.00, "vams_state": 1, "vams_label": "BULLISH", "prob_low": 1210.00, "prob_high": 1365.00, "rsi": 66.0,
-                "sec_etf": "XLE", "sec_name": "Energy", "sec_corr": 0.74, "sec_beta": 1.10,
-                "fac_etf": "QUAL", "fac_name": "Quality", "fac_corr": 0.65, "fac_beta": 0.95,
-                "debt_bn": 0.0, "cash_bn": 0.85, "eps_shock": 1.2, "rev_yoy": 28.5, "accel_bps": 120, "g_margin": 88.0, "op_margin": 84.0, "op_delta": 180,
-                "roe": 54.0, "roa": 48.0, "fpe": 38.0, "fcf_ps": 19.8, "fcf_yield": 2.6, "quality": 96.0,
-                "j_alpha": 12.0, "r2": 52.0, "sbc_bn": 0.02, "fcf_conv": 98.0, "erb": 0.40
-            },
-            "JPM": {
-                "name": "JPMorgan Chase & Co.", "sector": "Financials", "industry": "Diversified Banking",
-                "mcap_bn": 640.0, "price": 224.50, "vams_state": 1, "vams_label": "BULLISH", "prob_low": 218.00, "prob_high": 234.00, "rsi": 62.0,
-                "sec_etf": "XLF", "sec_name": "Financials", "sec_corr": 0.89, "sec_beta": 1.05,
-                "fac_etf": "IWD", "fac_name": "Value", "fac_corr": 0.81, "fac_beta": 0.98,
-                "debt_bn": 380.0, "cash_bn": 540.0, "eps_shock": 2.4, "rev_yoy": 11.2, "accel_bps": 80, "g_margin": 100.0, "op_margin": 41.0, "op_delta": 120,
-                "roe": 17.5, "roa": 1.3, "fpe": 12.8, "fcf_ps": 14.2, "fcf_yield": 6.3, "quality": 78.0,
-                "j_alpha": 4.5, "r2": 76.0, "sbc_bn": 1.8, "fcf_conv": 82.0, "erb": 0.35
-            },
-            "CAT": {
-                "name": "Caterpillar Inc.", "sector": "Industrials", "industry": "Heavy Machinery",
-                "mcap_bn": 190.0, "price": 388.00, "vams_state": 1, "vams_label": "BULLISH", "prob_low": 372.00, "prob_high": 405.00, "rsi": 58.0,
-                "sec_etf": "XLI", "sec_name": "Industrials", "sec_corr": 0.85, "sec_beta": 1.18,
-                "fac_etf": "IWD", "fac_name": "Value", "fac_corr": 0.76, "fac_beta": 1.02,
-                "debt_bn": 37.0, "cash_bn": 6.5, "eps_shock": -2.1, "rev_yoy": 6.8, "accel_bps": 40, "g_margin": 38.0, "op_margin": 21.0, "op_delta": 90,
-                "roe": 56.0, "roa": 11.5, "fpe": 16.5, "fcf_ps": 19.5, "fcf_yield": 5.0, "quality": 76.0,
-                "j_alpha": 3.8, "r2": 72.0, "sbc_bn": 0.6, "fcf_conv": 88.0, "erb": 0.15
-            },
-            "TSLA": {
-                "name": "Tesla, Inc.", "sector": "Consumer Discretionary", "industry": "Automobile Manufacturers",
-                "mcap_bn": 720.0, "price": 228.00, "vams_state": 0, "vams_label": "NEUTRAL", "prob_low": 210.00, "prob_high": 252.00, "rsi": 51.0,
-                "sec_etf": "XLY", "sec_name": "Consumer Discretionary", "sec_corr": 0.72, "sec_beta": 1.85,
-                "fac_etf": "SPHB", "fac_name": "High Beta", "fac_corr": 0.84, "fac_beta": 1.95,
-                "debt_bn": 7.8, "cash_bn": 33.6, "eps_shock": 0.4, "rev_yoy": 7.8, "accel_bps": -140, "g_margin": 18.0, "op_margin": 7.5, "op_delta": -220,
-                "roe": 14.5, "roa": 6.5, "fpe": 68.0, "fcf_ps": 1.25, "fcf_yield": 0.5, "quality": 62.0,
-                "j_alpha": -2.5, "r2": 64.0, "sbc_bn": 2.1, "fcf_conv": 65.0, "erb": -0.25
-            }
-        }
-
-        p = profiles.get(ticker, {
-            "name": f"{ticker} Corporation", "sector": "Information Technology", "industry": "General Diversified",
-            "mcap_bn": 85.0, "price": 150.00, "vams_state": 1, "vams_label": "BULLISH", "prob_low": 142.00, "prob_high": 160.00, "rsi": 55.0,
-            "sec_etf": "XLK", "sec_name": "Information Technology", "sec_corr": 0.75, "sec_beta": 1.10,
-            "fac_etf": "MTUM", "fac_name": "Momentum", "fac_corr": 0.70, "fac_beta": 1.05,
-            "debt_bn": 8.0, "cash_bn": 12.0, "eps_shock": 0.2, "rev_yoy": 15.0, "accel_bps": 50, "g_margin": 52.0, "op_margin": 22.0, "op_delta": 80,
-            "roe": 24.0, "roa": 12.0, "fpe": 24.0, "fcf_ps": 4.5, "fcf_yield": 3.0, "quality": 74.0,
-            "j_alpha": 4.0, "r2": 60.0, "sbc_bn": 0.5, "fcf_conv": 80.0, "erb": 0.20
-        })
-
-        top_sec = {
-            "etf": p["sec_etf"], "name": p["sec_name"], "corr_6m": p["sec_corr"], "beta_6m": p["sec_beta"],
-            "regime_fit": "BULLISH", "quad_ev_pct": 1.0, "quad_win_rate_pct": 81.0
-        }
-        top_fac = {
-            "etf": p["fac_etf"], "name": p["fac_name"], "corr_6m": p["fac_corr"], "beta_6m": p["fac_beta"],
-            "regime_fit": "BULLISH", "quad_ev_pct": 0.8, "quad_win_rate_pct": 77.0
-        }
-
-        sector_tmpl = {
-            "template_name": f"Template (Sector-Aware): {p['sector']}",
-            "primary_metric_label": "Core Sector Multiplier",
-            "primary_metric_value": f"P/E: {p['fpe']}x | FCF Yield: {p['fcf_yield']}%",
-            "secondary_metric_label": "Capital Efficiency & Quality",
-            "secondary_metric_value": f"ROE: {p['roe']}% | Accruals: Low (-1.2%)",
-            "sector_specific_verdict": "Verified Institutional Profile with Sector-Aware Parameters.",
-        }
-
-        cash_conv = {
-            "operating_cash_flow_bn": round(p["mcap_bn"] * (p["fcf_yield"] / 100.0) * 1.3, 2),
-            "gaap_fcf_bn": round(p["mcap_bn"] * (p["fcf_yield"] / 100.0), 2),
-            "stock_based_comp_bn": p.get("sbc_bn", 0.5),
-            "true_owner_fcf_ex_sbc_bn": round(p["mcap_bn"] * (p["fcf_yield"] / 100.0) - p.get("sbc_bn", 0.5), 2),
-            "true_fcf_conversion_pct": p.get("fcf_conv", 80.0),
-            "sloan_accrual_ratio_pct": -1.4,
-            "capex_to_dda_depletion_ratio": 0.88,
-            "sec_edgar_xbrl_verified": True,
-            "earnings_quality_flag": "HIGH CASH QUALITY (Low Accruals & Strong True FCF Conversion)",
-        }
-
-        eps_rev = {
-            "eps_revision_30d_pct": 2.4,
-            "eps_revision_90d_pct": 5.1,
-            "analysts_up_30d": 8,
-            "analysts_down_30d": 2,
-            "net_revision_breadth_ratio": p.get("erb", 0.4),
-            "revision_status": "STRONG UPWARD REVISION MOMENTUM (Analysts Raising NTM EPS)",
-        }
-
-        alpha_decomp = {
-            "systematic_macro_factor_r2_pct": p.get("r2", 65.0),
-            "idiosyncratic_residual_share_pct": round(100.0 - p.get("r2", 65.0), 1),
-            "jensens_alpha_annualized_pct": p.get("j_alpha", 5.0),
-            "idiosyncratic_information_ratio": 0.85,
-            "alpha_vs_beta_classification": "SUPER-COMPOUNDER (Strong Macro Beta Tailwind + Positive Idiosyncratic Alpha)" if p.get("j_alpha", 5.0) > 0 else "MACRO BETA VEHICLE",
-        }
-
-        edgar_12q = cls.fetch_sec_edgar_12q_financials(ticker)
-        quarters_12q = edgar_12q.get("quarters", [])
-        pod2_unit_economics = cls._compute_pod2_unit_economics_from_12q(quarters_12q)
-
-        return {
-            "status": "ok",
-            "ticker": ticker,
-            "cik": edgar_12q.get("cik"),
-            "entity_name": edgar_12q.get("entity_name") or p["name"],
-            "company_name": edgar_12q.get("entity_name") or p["name"],
-            "gics_sector": p["sector"],
-            "gics_industry": p["industry"],
-            "market_cap_bn": p["mcap_bn"],
-            "active_market_regime": active_market_regime,
-            "active_economic_quad": active_economic_quad,
-            "macro_regime": f"{active_market_regime} ({active_economic_quad})",
-            "beta_126d": p.get("sec_beta", 1.35),
-            "vams_state": p.get("vams_label", "BULLISH"),
-            "short_float_pct": 2.8,
-            "days_to_cover": 1.6,
-            "institutional_own_pct": 79.4,
-            "source_financials": "SEC_EDGAR_XBRL_10Q_10K",
-            "edgar_status": edgar_12q.get("status"),
-            "financial_walk_12q": quarters_12q,
-            "pod2_unit_economics": pod2_unit_economics,
-            "verdict": {
-                "composite_score_100": 82.5 if p["vams_state"] == 1 else 61.0,
-                "setup_priority_category": "PRIORITY 2: HIGH-ALPHA TREND COMPOUNDER" if p["vams_state"] == 1 else "PRIORITY 1: UNLOVED BOTTOMING PIVOT",
-                "dr_mo_proper_action": "LONG: Max Position (Strong Macro + Bullish VAMS)" if p["vams_state"] == 1 else "LONG: Half Position (Bullish Macro + Neutral VAMS)",
-                "macro_regime_alignment_score": 100.0,
-                "technical_vams_score": 90.0 if p["vams_state"] == 1 else 55.0,
-                "eps_revision_and_pods_score": 90.0 if p["accel_bps"] >= 0 else 60.0,
-                "quality_and_cash_conversion_score": p["quality"],
-                "plain_english_thesis": (
-                    f"{ticker} empirically trades closest to {p['sec_name']} (${p['sec_etf']}, r={p['sec_corr']}) "
-                    f"and the {p['fac_name']} factor (${p['fac_etf']}, r={p['fac_corr']}). "
-                    f"In {active_market_regime} ({active_economic_quad}), its Pod 1 revenue growth is {p['rev_yoy']}% YoY "
-                    f"({'ACCELERATING' if p['accel_bps'] >= 0 else 'DECELERATING'}), with True FCF Conversion at {p.get('fcf_conv', 80.0)}%."
-                ),
-            },
-            "vams_and_probable_range": {
-                "price": p["price"],
-                "vams_state": p["vams_state"],
-                "vams_label": p["vams_label"],
-                "prob_low": p["prob_low"],
-                "prob_high": p["prob_high"],
-                "range_position_pct": 52.0,
-                "status_flag": "IN_RANGE",
-                "fwd_5d_when_below_low_pct": 0.9,
-                "fwd_5d_when_above_high_pct": -0.2,
-                "mean_21d_max_dd_bullish_pct": -2.2,
-                "mean_21d_max_dd_neutral_pct": -3.8,
-                "mean_21d_max_dd_bearish_pct": -4.0,
-                "rsi_14d": p["rsi"],
-            },
-            "factor_and_sector_dna": {
-                "primary_empirical_sector": top_sec,
-                "primary_empirical_style_factor": top_fac,
-                "top_3_sectors": [top_sec],
-                "top_4_style_factors": [top_fac],
-                "macro_sensitivities": {
-                    "SPY": {"label": "S&P 500 Market Beta", "corr_6m": 0.82, "beta_6m": 1.25},
-                    "TLT": {"label": "Long Duration Bonds", "corr_6m": -0.28, "beta_6m": -0.45},
-                    "TIP": {"label": "TIPS / Real Yield Proxy", "corr_6m": -0.15, "beta_6m": -0.20},
-                    "UUP": {"label": "US Dollar (DXY)", "corr_6m": -0.18, "beta_6m": -0.32},
-                    "USO": {"label": "Crude Oil / Energy", "corr_6m": 0.22, "beta_6m": 0.35},
-                    "GLD": {"label": "Gold / Debasement", "corr_6m": 0.12, "beta_6m": 0.18},
-                },
-                "alpha_beta_decomposition": alpha_decomp,
-            },
-            "sector_aware_accounting": sector_tmpl,
-            "forward_eps_revisions": eps_rev,
-            "cash_conversion_and_accruals": cash_conv,
-            "interest_rate_and_earnings_sensitivity": {
-                "total_debt_bn": p["debt_bn"],
-                "total_cash_bn": p["cash_bn"],
-                "net_debt_to_ebitda": 0.0 if p["cash_bn"] > p["debt_bn"] else round((p["debt_bn"] - p["cash_bn"]) / max(1.0, p["debt_bn"] * 0.4), 2),
-                "interest_coverage_x": 45.0 if p["cash_bn"] > p["debt_bn"] else 12.5,
-                "effective_interest_rate_pct": 3.8,
-                "est_eps_impact_from_plus_100bps_rates_pct": p["eps_shock"],
-                "bond_price_corr_6m": -0.28,
-                "implied_10y_yield_corr_6m": 0.28,
-                "rate_regime_character": f"PRO-CYCLICAL / {active_market_regime or 'STAGFLATION'} (Benefits from nominal growth impulses in {active_economic_quad or 'Quad 3'})",
-                "balance_sheet_verdict": "NET CASH FORTRESS (Earns more interest on cash than it pays on debt when rates rise)" if p["cash_bn"] >= p["debt_bn"] else "INVESTMENT-GRADE RESILIENT (Low refinancing risk)",
-            },
-            "hedgeye_3_pods": {
-                "pod_1_revenue": {
-                    "rev_yoy_pct": p["rev_yoy"],
-                    "prior_qtr_rev_yoy_pct": p["rev_yoy"] - (p["accel_bps"] / 100.0),
-                    "rev_acceleration_bps": p["accel_bps"],
-                    "status": "ACCELERATING" if p["accel_bps"] >= 0 else "DECELERATING",
-                    "forward_base_effect": "EASY VALLEY (Favorable comps from 1Y ago)" if p["accel_bps"] >= 0 else "MODERATE BASE",
-                },
-                "pod_2_margins": {
-                    "gross_margin_pct": p["g_margin"],
-                    "operating_margin_pct": p["op_margin"],
-                    "operating_margin_yoy_change_bps": p["op_delta"],
-                    "inflation_passthrough": "STRONG PRICING POWER (Margins expanding faster than unit costs)" if p["op_delta"] >= 0 else "MARGIN COMPRESSION",
-                },
-                "pod_3_capital_allocation": {
-                    "roe_pct": p["roe"],
-                    "roa_pct": p["roa"],
-                    "earnings_growth_yoy_pct": p["rev_yoy"] * 1.2,
-                },
-            },
-            "quality_and_valuation": {
-                "forward_pe": p["fpe"],
-                "fcf_per_share_usd": p["fcf_ps"],
-                "fcf_yield_pct": p["fcf_yield"],
-                "pe_to_fcf_per_share_ratio": round(p["fpe"] / max(0.1, p["fcf_ps"]), 2),
-                "fcte_quality_score_100": p["quality"],
-                "quality_tier": "ELITE COMPOUNDER (Top FCTE Tier)" if p["quality"] >= 75 else "SOLID QUALITY",
-            },
         }

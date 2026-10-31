@@ -204,3 +204,24 @@ class IntelligenceDelta(Base):
             "extracted_json": self.extracted_json,
             "affected_tickers": self.affected_tickers,
         }
+
+
+class GicsIndustry(Base):
+    """Stores the official GICS 4-level taxonomy (11 Sectors, 25 Industry Groups, 74/77 Industries)."""
+    __tablename__ = "gics_industries"
+
+    industry_code = Column(String(16), primary_key=True, index=True) # e.g. "453010", "601010"
+    sector_name = Column(String(64), nullable=False, index=True)     # e.g. "Information Technology"
+    industry_group_name = Column(String(64), nullable=False)        # e.g. "Semiconductors & Semiconductor Equipment"
+    industry_name = Column(String(64), nullable=False, index=True)   # e.g. "Semiconductors"
+    benchmark_etf = Column(String(16), nullable=True)               # e.g. "XLK", "XLRE", "XLE"
+    sic_prefixes = Column(String(128), nullable=True)               # e.g. "6798" for REITs, "3674" for Semis
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "industry_code": self.industry_code,
+            "sector": self.sector_name,
+            "industry_group": self.industry_group_name,
+            "industry": self.industry_name,
+            "benchmark_etf": self.benchmark_etf,
+        }

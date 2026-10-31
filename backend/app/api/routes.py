@@ -1738,8 +1738,10 @@ def get_macro_scenarios(db: Session = Depends(get_db)):
 def get_single_stock_xray(
     ticker: str,
     regime: Optional[str] = None,
-    quad: Optional[str] = None
+    quad: Optional[str] = None,
+    db: Session = Depends(get_db),
 ):
+    clean_t = ticker.strip().upper()
     if not regime or not quad or quad == "Quad 2":
         try:
             from app.quant_engine.macro_nowcast import compute_growth_nowcast, compute_inflation_nowcast, compute_quads_and_base_effects
@@ -1756,10 +1758,34 @@ def get_single_stock_xray(
         active_regime = regime
 
     try:
-        from backend.app.quant_engine.stock_analyzer import SingleStockXRayEngine
-    except ImportError:
         from app.quant_engine.stock_analyzer import SingleStockXRayEngine
-    return _sanitize_floats(SingleStockXRayEngine.analyze_ticker(ticker, active_market_regime=active_regime, active_economic_quad=active_quad))
+    except ImportError:
+        from backend.app.quant_engine.stock_analyzer import SingleStockXRayEngine
+
+    try:
+        data = SingleStockXRayEngine.analyze_ticker(
+            db=db,
+            ticker=clean_t,
+            active_market_regime=active_regime,
+            active_economic_quad=active_quad,
+        )
+        return _sanitize_floats(data)
+    except ValueError as e:
+        logger.warning(f"Ticker validation error for {clean_t}: {e}")
+        raise HTTPException(status_code=404 if "not found" in str(e).lower() else 400, detail=str(e))
+    except PermissionError as e:
+        logger.error(f"Entitlement error for {clean_t}: {e}")
+        raise HTTPException(status_code=403, detail=str(e))
+    except Exception as e:
+        logger.error(f"Stock analysis error for {clean_t}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Stock analysis error for '{clean_t}': {str(e)}")
+
+
+@api_router.post("/v1/stock/analyze")
+@api_router.post("/stock/analyze")
+def post_stock_analyze(payload: Dict[str, Any], db: Session = Depends(get_db)):
+    t = payload.get("ticker") or payload.get("symbol") or ""
+    return get_single_stock_xray(ticker=t, db=db)
 
 
 @api_router.get("/v1/stock/edgar-12q/{ticker}")

@@ -88,13 +88,38 @@ function normalizeFinancialQuarterRow(item: any): any {
  * with clean fallback to SEC EDGAR XBRL (`SingleStockXRayEngine.fetch_sec_edgar_xbrl_facts` equivalent)
  * and Yahoo v7 Public Daily OHLCV CSV download (`query1.finance.yahoo.com/v7/finance/download`).
  */
+export async function testMassiveFinancials(ticker: string) {
+  const apiKey = process.env.NEXT_PUBLIC_MASSIVE_API_KEY || "";
+  if (!apiKey) {
+    return { status: "error", message: "MASSIVE_API_KEY is not defined in client environment." };
+  }
+  const url = `https://api.massive.com/stocks/financials/v1/income-statements?tickers=${ticker}&limit=4&sort=period_end.desc&apiKey=${apiKey}`;
+  const res = await fetch(url);
+  if (!res.ok) {
+    return {
+      status: "error",
+      http_status: res.status,
+      message: `Massive API returned HTTP ${res.status} (${res.statusText})`
+    };
+  }
+  const json = await res.json();
+  return { status: "ok", results: json.results || [] };
+}
+
+export async function testYahooSession(ticker: string) {
+  const res = await fetch(getApiUrl(`/api/v1/stock/analysis/${ticker}`));
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: res.statusText }));
+    return { status: "error", message: err.message || err.detail || `Upstream fetch failed (${res.status})` };
+  }
+  return await res.json();
+}
+
 async function fetchMassiveAndFallbackSources(ticker: string): Promise<Record<string, any>> {
   const cleanTicker = ticker.trim().toUpperCase();
   const massiveBearerKey =
     process.env.NEXT_PUBLIC_MASSIVE_API_KEY ||
     process.env.MASSIVE_API_KEY ||
-    process.env.NEXT_PUBLIC_POLYGON_API_KEY ||
-    process.env.POLYGON_API_KEY ||
     "";
   const hasMassiveKey = Boolean(process.env.NEXT_PUBLIC_MASSIVE_API_KEY || process.env.MASSIVE_API_KEY);
 
@@ -227,23 +252,23 @@ async function fetchMassiveAndFallbackSources(ticker: string): Promise<Record<st
       source_name: "3. Massive REST v1 Income Statements",
       status: massiveRows.length > 0 ? "ONLINE (MASSIVE V1 ACTIVE)" : "ONLINE (SEC EDGAR XBRL FALLBACK)",
       latency_ms: massiveLatency || 120,
-      rate_limit_policy: "Bearer Auth (MASSIVE_API_KEY || POLYGON_API_KEY)",
+      rate_limit_policy: "Bearer Auth (MASSIVE_API_KEY)",
       latest_quarter_reported: finalRows[finalRows.length - 1]?.period || "Q3 '26",
       data_scope: `${optionsScope} • Income statements via api.massive.com/stocks/financials/v1/income-statements`,
       header_strip: {
         company_name: entityName,
         live_price: livePrice,
-        market_cap_bn: typeof livePrice === "number" ? Number(((livePrice * 132.3) / 1000).toFixed(2)) : "N/A",
-        enterprise_value_bn: typeof livePrice === "number" ? Number(((livePrice * 132.3 - 165) / 1000).toFixed(2)) : "N/A",
-        gics_sector: "Technology / Clean Energy",
-        gics_industry: "Semiconductors & Solar MLPE",
-        beta: 1.58,
-        short_interest_pct_float: 11.8,
-        institutional_ownership_pct: 88.2,
-        total_cash_bn: 1.48,
-        total_debt_bn: 1.31,
-        net_debt_m: -165.0,
-        net_debt_to_ebitda: 0.0,
+        market_cap_bn: "N/A",
+        enterprise_value_bn: "N/A",
+        gics_sector: "N/A",
+        gics_industry: "N/A",
+        beta: "N/A",
+        short_interest_pct_float: "N/A",
+        institutional_ownership_pct: "N/A",
+        total_cash_bn: "N/A",
+        total_debt_bn: "N/A",
+        net_debt_m: "N/A",
+        net_debt_to_ebitda: "N/A",
       },
       historical_12q: finalRows,
     },

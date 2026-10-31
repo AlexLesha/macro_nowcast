@@ -21,483 +21,14 @@ import {
   calculateDynamicRanks,
 } from "@/components/FinancialTooltip";
 
-const QUICK_TICKERS = ["ENPH", "NVDA", "TPL", "JPM", "CEG", "CAT"];
-
 type ViewMode = "BOTH" | "GRAPHS" | "TABLE";
 
-const CIK_LOOKUP: Record<string, string> = {
-  ENPH: "0001463101",
-  NVDA: "0001045810",
-  CAT: "0000018230",
-  TPL: "0001811074",
-  JPM: "0000019617",
-  CEG: "0001868275",
-  TSLA: "0001318605",
-};
-
-function buildSynthesizedAnalysisPayload(
-  tickerRaw: string,
-  sourcesTestJson?: any,
-  activeRegime: string = "STAGFLATION",
-  activeQuad: string = "Quad 3"
-): any {
-  const dynamicMacroRegime = `${activeRegime} (${activeQuad})`;
-  const ticker = tickerRaw.toUpperCase().trim();
-  const massiveSrc = sourcesTestJson?.sources?.polygon;
-  const secSrc = sourcesTestJson?.sources?.sec_edgar;
-  const yahooSrc = sourcesTestJson?.sources?.yfinance;
-
-  const parseNum = (v: any, fallback: number): number => {
-    if (typeof v === "number" && !isNaN(v)) return v;
-    if (typeof v === "string") {
-      const cleaned = v.replace(/[^0-9.-]/g, "");
-      const n = parseFloat(cleaned);
-      if (!isNaN(n)) return n;
-    }
-    return fallback;
-  };
-
-  const defaultProfiles: Record<string, any> = {
-    ENPH: {
-      name: "Enphase Energy, Inc.",
-      sector: "Information Technology",
-      industry: "Clean Technology & Solar MLPE",
-      sectorEtf: "TAN",
-      styleEtf: "QUAL",
-      price: 24.99,
-      mcapBn: 3.31,
-      evBn: 2.98,
-      pe: 21.4,
-      evEbitda: 18.2,
-      beta: 1.48,
-      shortFloat: 11.4,
-      daysToCover: 3.8,
-      instOwn: 84.6,
-      insiderOwn: 2.8,
-      roe: 24.5,
-      roic: 21.8,
-      fcfYield: 5.2,
-      cashM: 1645.0,
-      debtM: 1320.0,
-    },
-    NVDA: {
-      name: "NVIDIA Corporation",
-      sector: "Information Technology",
-      industry: "Semiconductors & Semiconductor Equipment",
-      sectorEtf: "SMH",
-      styleEtf: "MTUM",
-      price: 142.5,
-      mcapBn: 3450.0,
-      evBn: 3423.7,
-      pe: 32.5,
-      evEbitda: 28.4,
-      beta: 1.45,
-      shortFloat: 1.2,
-      daysToCover: 1.1,
-      instOwn: 67.4,
-      insiderOwn: 4.2,
-      roe: 115.0,
-      roic: 74.2,
-      fcfYield: 2.4,
-      cashM: 38480.0,
-      debtM: 8460.0,
-    },
-    CAT: {
-      name: "Caterpillar Inc.",
-      sector: "Industrials",
-      industry: "Machinery",
-      sectorEtf: "XLI",
-      styleEtf: "IWD",
-      price: 388.0,
-      mcapBn: 190.0,
-      evBn: 220.6,
-      pe: 16.5,
-      evEbitda: 12.8,
-      beta: 1.18,
-      shortFloat: 2.1,
-      daysToCover: 2.2,
-      instOwn: 71.8,
-      insiderOwn: 0.4,
-      roe: 56.0,
-      roic: 22.6,
-      fcfYield: 5.0,
-      cashM: 7120.0,
-      debtM: 37720.0,
-    },
-  };
-
-  const base = defaultProfiles[ticker] || {
-    name: massiveSrc?.header_strip?.company_name || secSrc?.header_strip?.company_name || `${ticker} Corp.`,
-    sector: massiveSrc?.header_strip?.gics_sector || secSrc?.header_strip?.gics_sector || "Information Technology",
-    industry: massiveSrc?.header_strip?.gics_industry || secSrc?.header_strip?.gics_industry || "Semiconductors & Semiconductor Equipment",
-    sectorEtf: "XLK",
-    styleEtf: "QUAL",
-    price: 85.0,
-    mcapBn: 24.5,
-    evBn: 23.8,
-    pe: 21.0,
-    evEbitda: 15.6,
-    beta: 1.28,
-    shortFloat: 3.4,
-    daysToCover: 2.1,
-    instOwn: 78.5,
-    insiderOwn: 1.8,
-    roe: 22.4,
-    roic: 18.6,
-    fcfYield: 4.4,
-    cashM: 1850.0,
-    debtM: 1150.0,
-  };
-
-  const livePrice = parseNum(
-    massiveSrc?.header_strip?.live_price ?? yahooSrc?.header_strip?.live_price,
-    base.price
-  );
-  const liveMcapBn = parseNum(
-    massiveSrc?.header_strip?.market_cap_bn ?? yahooSrc?.header_strip?.market_cap_bn,
-    base.mcapBn
-  );
-  const liveBeta = parseNum(
-    massiveSrc?.header_strip?.beta ?? massiveSrc?.header_strip?.beta_126d ?? yahooSrc?.header_strip?.beta_126d,
-    base.beta
-  );
-  const livePe = parseNum(
-    massiveSrc?.header_strip?.forward_pe ?? yahooSrc?.header_strip?.forward_pe,
-    base.pe
-  );
-
-  // Primary financial series: Massive REST v1 Income Statements (#3 at /sources-test) with automatic SEC EDGAR XBRL fallback
-  const rawSec12q: any[] =
-    Array.isArray(massiveSrc?.historical_12q) && massiveSrc.historical_12q.length > 0
-      ? massiveSrc.historical_12q
-      : Array.isArray(secSrc?.historical_12q) && secSrc.historical_12q.length > 0
-        ? secSrc.historical_12q
-        : [
-          { period: "Q4 '23", fiscal_label: "2023-Q4", period_end: "2023-12-31", form: "10-K", revenue_m: 302.6, rev_yoy_pct: -58.2, gaap_gross_margin_pct: 48.5, gaap_net_income_m: 20.9, operating_cash_flow_m: 35.5, free_cash_flow_m: 15.4, cash_and_equivalents_m: 1690.0, total_debt_m: 1315.0, net_cash_m: 375.0, ebit_interest_coverage: 4.1, roic_pct: 14.2 },
-          { period: "Q1 '24", fiscal_label: "2024-Q1", period_end: "2024-03-31", form: "10-Q", revenue_m: 263.3, rev_yoy_pct: -63.7, gaap_gross_margin_pct: 43.9, gaap_net_income_m: -16.1, operating_cash_flow_m: 49.2, free_cash_flow_m: 41.8, cash_and_equivalents_m: 1630.0, total_debt_m: 1316.0, net_cash_m: 314.0, ebit_interest_coverage: 1.8, roic_pct: 8.4 },
-          { period: "Q2 '24", fiscal_label: "2024-Q2", period_end: "2024-06-30", form: "10-Q", revenue_m: 303.5, rev_yoy_pct: -57.3, gaap_gross_margin_pct: 45.2, gaap_net_income_m: 10.8, operating_cash_flow_m: 127.0, free_cash_flow_m: 117.0, cash_and_equivalents_m: 1650.0, total_debt_m: 1318.0, net_cash_m: 332.0, ebit_interest_coverage: 3.9, roic_pct: 11.6 },
-          { period: "Q3 '24", fiscal_label: "2024-Q3", period_end: "2024-09-30", form: "10-Q", revenue_m: 380.9, rev_yoy_pct: -30.9, gaap_gross_margin_pct: 46.8, gaap_net_income_m: 45.8, operating_cash_flow_m: 170.1, free_cash_flow_m: 161.6, cash_and_equivalents_m: 1770.0, total_debt_m: 1320.0, net_cash_m: 450.0, ebit_interest_coverage: 8.2, roic_pct: 17.8 },
-          { period: "Q4 '24", fiscal_label: "2024-Q4", period_end: "2024-12-31", form: "10-K", revenue_m: 382.7, rev_yoy_pct: 26.5, gaap_gross_margin_pct: 51.8, gaap_net_income_m: 62.2, operating_cash_flow_m: 167.3, free_cash_flow_m: 159.2, cash_and_equivalents_m: 1720.0, total_debt_m: 1320.0, net_cash_m: 400.0, ebit_interest_coverage: 10.5, roic_pct: 22.4 },
-          { period: "Q1 '25", fiscal_label: "2025-Q1", period_end: "2025-03-31", form: "10-Q", revenue_m: 356.1, rev_yoy_pct: 35.2, gaap_gross_margin_pct: 47.2, gaap_net_income_m: 48.4, operating_cash_flow_m: 138.4, free_cash_flow_m: 33.8, cash_and_equivalents_m: 1610.0, total_debt_m: 1320.0, net_cash_m: 290.0, ebit_interest_coverage: 9.8, roic_pct: 19.6 },
-          { period: "Q2 '25", fiscal_label: "2025-Q2", period_end: "2025-06-30", form: "10-Q", revenue_m: 363.2, rev_yoy_pct: 19.7, gaap_gross_margin_pct: 46.9, gaap_net_income_m: 54.2, operating_cash_flow_m: 142.0, free_cash_flow_m: 18.4, cash_and_equivalents_m: 1625.0, total_debt_m: 1320.0, net_cash_m: 305.0, ebit_interest_coverage: 10.6, roic_pct: 20.8 },
-          { period: "Q3 '25", fiscal_label: "2025-Q3", period_end: "2025-09-30", form: "10-Q", revenue_m: 410.4, rev_yoy_pct: 7.7, gaap_gross_margin_pct: 47.8, gaap_net_income_m: 68.5, operating_cash_flow_m: 158.0, free_cash_flow_m: 5.9, cash_and_equivalents_m: 1635.0, total_debt_m: 1320.0, net_cash_m: 315.0, ebit_interest_coverage: 11.2, roic_pct: 21.5 },
-          { period: "Q4 '25", fiscal_label: "2025-Q4", period_end: "2025-12-31", form: "10-K", revenue_m: 343.3, rev_yoy_pct: -10.3, gaap_gross_margin_pct: 44.3, gaap_net_income_m: 46.1, operating_cash_flow_m: 112.0, free_cash_flow_m: 37.8, cash_and_equivalents_m: 1640.0, total_debt_m: 1320.0, net_cash_m: 320.0, ebit_interest_coverage: 10.8, roic_pct: 20.2 },
-          { period: "Q1 '26", fiscal_label: "2026-Q1", period_end: "2026-03-31", form: "10-Q", revenue_m: 282.9, rev_yoy_pct: -20.5, gaap_gross_margin_pct: 35.5, gaap_net_income_m: 22.4, operating_cash_flow_m: 96.4, free_cash_flow_m: 83.0, cash_and_equivalents_m: 1645.0, total_debt_m: 1320.0, net_cash_m: 325.0, ebit_interest_coverage: 9.4, roic_pct: 18.4 },
-        ];
-
-  const normalized12q = rawSec12q.map((q: any, i: number) => {
-    const revM = Number(q.revenue_m ?? (q.revenue ? q.revenue / 1e6 : 350));
-    const gmPct = Number(q.gaap_gross_margin_pct ?? q.gross_margin_pct ?? 46.8);
-    const niM = Number(q.gaap_net_income_m ?? (q.net_income ? q.net_income / 1e6 : revM * 0.16));
-    const ocfM = Number(q.operating_cash_flow_m ?? (q.ocf ? q.ocf / 1e6 : niM * 1.25));
-    const fcfM = Number(q.free_cash_flow_m ?? (q.fcf ? q.fcf / 1e6 : ocfM * 0.88));
-    const cashQ = Number(q.cash_and_equivalents_m ?? base.cashM);
-    const debtQ = Number(q.total_debt_m ?? base.debtM);
-    const netCashQ = Number(q.net_cash_m ?? (cashQ - debtQ));
-    const opIncM = Number(q.operating_income_m ?? (q.operating_income ? q.operating_income / 1e6 : revM * (gmPct / 100) * 0.45));
-    const sbcPct = Number(q.sbc_pct_rev ?? 4.2);
-    const quickR = Number(q.quick_ratio ?? 2.15);
-
-    return {
-      ...q,
-      period_end: q.period_end || `2025-Q${(i % 4) + 1}`,
-      fiscal_label: q.fiscal_label || q.period || `Q${(i % 4) + 1}`,
-      period: q.period || q.fiscal_label || `Q${(i % 4) + 1}`,
-      form: q.form || ((i + 1) % 4 === 0 ? "10-K" : "10-Q"),
-      revenue: q.revenue ?? Math.round(revM * 1e6),
-      revenue_m: Number(revM.toFixed(1)),
-      gross_margin_pct: Number(gmPct.toFixed(1)),
-      gaap_gross_margin_pct: Number(gmPct.toFixed(1)),
-      operating_income: q.operating_income ?? Math.round(opIncM * 1e6),
-      operating_income_m: Number(opIncM.toFixed(1)),
-      gaap_net_income_m: Number(niM.toFixed(1)),
-      operating_cash_flow_m: Number(ocfM.toFixed(1)),
-      fcf: q.fcf ?? Math.round(fcfM * 1e6),
-      free_cash_flow_m: Number(fcfM.toFixed(1)),
-      sbc_pct_rev: sbcPct,
-      net_debt: q.net_debt ?? Math.round((debtQ - cashQ) * 1e6),
-      cash_and_equivalents_m: Number(cashQ.toFixed(1)),
-      total_debt_m: Number(debtQ.toFixed(1)),
-      net_cash_m: Number(netCashQ.toFixed(1)),
-      quick_ratio: quickR,
-      ebit_interest_coverage: Number(q.ebit_interest_coverage ?? 11.4),
-      net_debt_to_ebitda: Number(q.net_debt_to_ebitda ?? (debtQ > cashQ ? 1.2 : -0.45)),
-      roic_pct: Number(q.roic_pct ?? base.roic),
-    };
-  });
-
-  const walkDesc = [...normalized12q].reverse();
-  const qCurr = walkDesc[0] || {};
-  const qYoY = walkDesc[4] || walkDesc[walkDesc.length - 1] || {};
-  const revYoY = qYoY.revenue_m > 0
-    ? Number((((qCurr.revenue_m - qYoY.revenue_m) / qYoY.revenue_m) * 100).toFixed(1))
-    : 14.2;
-  const gmDeltaBps = Math.round(((qCurr.gross_margin_pct || 47.8) - (qYoY.gross_margin_pct || 45.2)) * 100);
-  const t4qFcf = walkDesc.slice(0, 4).reduce((acc, r) => acc + (r.free_cash_flow_m || 0), 0);
-  const t4qNi = walkDesc.slice(0, 4).reduce((acc, r) => acc + (r.gaap_net_income_m || 0), 0);
-  const t4qConv = t4qNi > 0 ? Number(((t4qFcf / t4qNi) * 100).toFixed(1)) : 108.4;
-
-  const cashM = qCurr.cash_and_equivalents_m ?? base.cashM;
-  const debtM = qCurr.total_debt_m ?? base.debtM;
-  const netCashM = Number((cashM - debtM).toFixed(1));
-  const putWall = Number((livePrice * 0.9).toFixed(2));
-  const callWall = Number((livePrice * 1.12).toFixed(2));
-
-  const rawPeers = (massiveSrc?.peer_valuations && massiveSrc.peer_valuations.length > 0)
-    ? massiveSrc.peer_valuations
-    : [
-      { ticker, name: base.name, market_cap_bn: liveMcapBn, ev_ebitda: base.evEbitda, pe: livePe, fcf_yield: base.fcfYield, net_debt_ebitda: netCashM >= 0 ? -0.45 : 1.2, roe: base.roe, rev_growth_yoy_pct: revYoY, gross_margin_pct: qCurr.gross_margin_pct || 47.8, valuation_verdict: "PRIMARY TARGET", is_target: true },
-      { ticker: "FSLR", name: "First Solar, Inc.", market_cap_bn: 21.4, ev_ebitda: 11.8, pe: 13.5, fcf_yield: 4.8, net_debt_ebitda: -0.62, roe: 19.4, rev_growth_yoy_pct: 22.1, gross_margin_pct: 43.5, valuation_verdict: "GARP / QUALITY LEADER", is_target: false },
-      { ticker: "NXT", name: "Nextracker Inc.", market_cap_bn: 6.8, ev_ebitda: 12.4, pe: 15.2, fcf_yield: 6.1, net_debt_ebitda: -0.35, roe: 31.2, rev_growth_yoy_pct: 18.4, gross_margin_pct: 33.8, valuation_verdict: "COMPOUNDER PREMIUM", is_target: false },
-      { ticker: "SEDG", name: "SolarEdge Technologies", market_cap_bn: 1.1, ev_ebitda: 24.5, pe: 28.0, fcf_yield: -4.2, net_debt_ebitda: 2.85, roe: -14.5, rev_growth_yoy_pct: -42.0, gross_margin_pct: 18.2, valuation_verdict: "TURNAROUND / HIGH BETA", is_target: false },
-      { ticker: "RUN", name: "Sunrun Inc.", market_cap_bn: 2.6, ev_ebitda: 19.8, pe: 24.2, fcf_yield: 2.1, net_debt_ebitda: 4.1, roe: 6.8, rev_growth_yoy_pct: 4.2, gross_margin_pct: 24.5, valuation_verdict: "SECTOR INLINE", is_target: false },
-    ];
-
-  const scoredPeers = rawPeers.map((p: any) => {
-    const score =
-      (p.fcf_yield ?? p.fcf_yield_pct ?? 0) * 1.5 +
-      (p.roe ?? p.roic_or_roe_pct ?? 0) * 0.8 +
-      (p.gross_margin_pct ?? 0) * 0.5 +
-      (p.rev_growth_yoy_pct ?? 0) * 0.8 -
-      Math.max(0, p.net_debt_ebitda ?? p.net_debt_to_ebitda ?? 0) * 5.0;
-    return { ...p, composite_rank_score: Number(score.toFixed(2)) };
-  });
-
-  const sortedPeers = [...scoredPeers].sort(
-    (a, b) => (b.composite_rank_score ?? 0) - (a.composite_rank_score ?? 0)
-  );
-
-  const maxGm = Math.max(...scoredPeers.map((p: any) => p.gross_margin_pct ?? 0));
-  const maxFcf = Math.max(...scoredPeers.map((p: any) => p.fcf_yield ?? p.fcf_yield_pct ?? 0));
-  const maxRev = Math.max(...scoredPeers.map((p: any) => p.rev_growth_yoy_pct ?? 0));
-  const maxRoe = Math.max(...scoredPeers.map((p: any) => p.roe ?? p.roic_or_roe_pct ?? 0));
-  const minNd = Math.min(...scoredPeers.map((p: any) => p.net_debt_ebitda ?? p.net_debt_to_ebitda ?? 999));
-
-  const peers = scoredPeers.map((p: any) => {
-    const rank = sortedPeers.findIndex((sp) => sp.ticker === p.ticker) + 1;
-    let medal = null;
-    let medal_badge = `${rank}`;
-    let medal_icon = "";
-    if (rank === 1) {
-      medal = "GOLD";
-      medal_icon = "1";
-      medal_badge = "1";
-    } else if (rank === 2) {
-      medal = "SILVER";
-      medal_icon = "2";
-      medal_badge = "2";
-    } else if (rank === 3) {
-      medal = "BRONZE";
-      medal_icon = "3";
-      medal_badge = "3";
-    }
-    return {
-      ...p,
-      rank,
-      medal,
-      medal_badge,
-      medal_icon,
-      is_margin_leader: p.gross_margin_pct === maxGm && maxGm > 0,
-      is_fcf_leader: (p.fcf_yield ?? p.fcf_yield_pct ?? 0) === maxFcf && maxFcf > 0,
-      is_growth_leader: p.rev_growth_yoy_pct === maxRev && maxRev > 0,
-      is_roe_leader: (p.roe ?? p.roic_or_roe_pct ?? 0) === maxRoe && maxRoe > 0,
-      is_solvency_leader: (p.net_debt_ebitda ?? p.net_debt_to_ebitda ?? 999) === minNd,
-    };
-  });
-
-  return {
-    ticker,
-    cik: CIK_LOOKUP[ticker] || "0001463101",
-    entity_name: base.name,
-    source_financials: "MASSIVE_V1_INCOME_STATEMENTS_WITH_SEC_EDGAR_FALLBACK",
-    data_scope: "https://api.massive.com/stocks/financials/v1/income-statements (revenue, operating_income, cost_of_revenue, diluted_earnings_per_share) with automatic SEC EDGAR XBRL fallback.",
-    edgar_status: "LIVE_SEC_EDGAR_OK",
-    macro_regime: dynamicMacroRegime,
-    beta_126d: liveBeta,
-    vams_state: "BULLISH",
-    short_float_pct: base.shortFloat,
-    days_to_cover: base.daysToCover,
-    institutional_own_pct: base.instOwn,
-    gics_industry: base.industry,
-    as_of_utc: sourcesTestJson?.as_of_utc || new Date().toISOString().slice(0, 16).replace("T", " ") + " UTC",
-    cache_metadata: {
-      ttl_days: 7,
-      cache_hit: true,
-      response_time_ms: massiveSrc?.latency_ms || secSrc?.latency_ms || 14,
-      badge_label: "Massive v1 Income Statements + SEC EDGAR XBRL Fallback",
-    },
-    financial_walk_12q: walkDesc,
-    historical_12q: normalized12q,
-    historical_12_quarters: normalized12q,
-    pod2_unit_economics: {
-      rev_growth_yoy_pct: revYoY,
-      gross_margin_delta_yoy_bps: gmDeltaBps,
-      operating_leverage_pct: Number((revYoY * 0.65).toFixed(1)),
-      trailing_4q_fcf_total: Math.round(t4qFcf * 1e6),
-      trailing_4q_fcf_conversion_pct: t4qConv,
-      operating_leverage_state: gmDeltaBps >= 0 ? "EXPANDING" : "COMPRESSING",
-    },
-    solvency_matrix: {
-      cash_and_equivalents_m: cashM,
-      total_debt_m: debtM,
-      net_cash_m: netCashM,
-      net_debt_to_ebitda: netCashM >= 0 ? -0.68 : 1.25,
-      interest_coverage_x: qCurr.ebit_interest_coverage || 11.4,
-      status: netCashM >= 0 ? "NET CASH FORTRESS" : "INVESTMENT GRADE",
-    },
-    header_ribbon: {
-      line_1_identity_and_valuation: {
-        gics_sector: base.sector,
-        gics_industry: base.industry,
-        live_price: livePrice,
-        price_change_1d_pct: -0.84,
-        market_cap_bn: liveMcapBn,
-        enterprise_value_bn: Number((liveMcapBn - netCashM / 1000).toFixed(2)),
-        forward_pe: livePe,
-      },
-      line_2_risk_and_ownership: {
-        beta_126d: liveBeta,
-        short_float_pct: base.shortFloat,
-        short_ratio_days: base.daysToCover,
-        institutional_ownership_pct: base.instOwn,
-        insider_ownership_pct: base.insiderOwn,
-        rsi_14d: 52.4,
-        vams_state_label: "BULLISH",
-      },
-      line_3_macro_and_regime: {
-        macro_regime_label: dynamicMacroRegime,
-        cacri_pct: 19.0,
-        cacri_status: "CONTAINED",
-        primary_sector_etf: `$${base.sectorEtf}`,
-        primary_style_etf: `$${base.styleEtf}`,
-        dr_mo_signal: "ACCUMULATE ON VOLATILITY",
-      },
-    },
-    peer_valuations: peers,
-    peer_benchmarks: {
-      peer_group_name: `${base.industry} (77 GICS Classification)`,
-      peers,
-      peer_averages: {
-        forward_pe: 20.5,
-        ev_to_ebitda: 17.3,
-        price_to_sales: 4.2,
-        fcf_yield_pct: 4.1,
-        rev_growth_yoy_pct: 11.4,
-        gross_margin_pct: 37.6,
-        operating_margin_pct: 18.2,
-        roic_or_roe_pct: 21.8,
-      },
-      relative_valuation_verdict: `${ticker} trades at ${livePe}x Forward P/E backed by SEC EDGAR verified ${qCurr.gross_margin_pct || 47.8}% GAAP gross margins and $${(cashM / 1000).toFixed(2)}B cash.`,
-    },
-    options_surface: {
-      put_wall: putWall,
-      call_wall: callWall,
-      metrics_6: [
-        { id: "atm_iv", label: "30D ATM Implied Vol & IV Rank", value: "54.2% IV (64th %ile)", subvalue: "Elevated premium supports selling OTM vertical spreads", tone: "cyan" },
-        { id: "vrp_spread", label: "Volatility Risk Premium (VRP)", value: "+6.4 Vol Pts (IV > RV)", subvalue: "30D Implied Vol trades rich vs 20D Realized Vol (47.8%)", tone: "emerald" },
-        { id: "skew_25d", label: "25-Delta Put-Call Skew", value: "+4.8% Put Skew", subvalue: "Institutional downside hedging creates rich put credit spreads", tone: "amber" },
-        { id: "dealer_gex", label: "Dealer Gamma Exposure (Net GEX)", value: "LONG GAMMA (+$48M/1%)", subvalue: "Dealers buy dips & sell rips between Put and Call Walls", tone: "emerald" },
-        { id: "put_wall", label: "Institutional Put Wall Support", value: `$${putWall.toFixed(2)} (-10.0%)`, subvalue: "Highest open-interest put strike; primary mechanical floor", tone: "cyan" },
-        { id: "call_wall", label: "Institutional Call Wall Magnet", value: `$${callWall.toFixed(2)} (+12.0%)`, subvalue: "Primary upside gamma pin & covered-call overwrite target", tone: "amber" },
-      ],
-      tactical_setups: [
-        {
-          name: `Setup #1: High-Probability Put Credit Spread at $${putWall.toFixed(0)} Put Wall`,
-          horizon: "30–45 DTE (Income / Bullish)",
-          structure: `SELL ${ticker} 45D $${putWall.toFixed(0)} Put / BUY $${(putWall * 0.92).toFixed(0)} Put`,
-          breakeven_and_cushion: `Breakeven: $${(putWall * 0.975).toFixed(2)} (12.2% Downside Cushion)`,
-          max_return_on_risk: "31.5% Max Return on Risk (74% PoP)",
-          rationale: `Harvests +6.4 vol pts VRP and 64th percentile IV Rank while anchoring short strike at the $${putWall.toFixed(2)} institutional Put Wall.`,
-        },
-        {
-          name: `Setup #2: Asymmetrical Call Debit Spread Toward $${callWall.toFixed(0)} Call Wall`,
-          horizon: "60–90 DTE (Directional Upside)",
-          structure: `BUY ${ticker} 60D $${(livePrice * 1.02).toFixed(0)} Call / SELL $${callWall.toFixed(0)} Call`,
-          breakeven_and_cushion: `Max Risk Capped at Net Debit ($${(livePrice * 0.032).toFixed(2)}/sh)`,
-          max_return_on_risk: "2.8x Upside Payoff Ratio",
-          rationale: `Captures ${dynamicMacroRegime} multiple expansion toward the $${callWall.toFixed(2)} Call Wall while mitigating vega decay.`,
-        },
-      ],
-    },
-    quant_xray: {
-      factor_and_sector_dna: {
-        primary_empirical_sector: { name: base.sector, etf: base.sectorEtf, corr_6m: 0.78, beta_6m: liveBeta },
-        primary_empirical_style_factor: { name: "Quality / Momentum Factor", etf: base.styleEtf, corr_6m: 0.72 },
-        alpha_beta_decomposition: { systematic_macro_factor_r2_pct: 68, jensens_alpha_annualized_pct: 6.4 },
-      },
-      interest_rate_and_earnings_sensitivity: {
-        net_debt_to_ebitda: netCashM >= 0 ? -0.68 : 1.25,
-        interest_coverage_x: qCurr.ebit_interest_coverage || 11.4,
-        rate_regime_character: netCashM >= 0
-          ? `Net Cash Balance Sheet (+$${netCashM.toFixed(0)}M) generates positive net interest income`
-          : `Investment-grade maturity profile (${qCurr.ebit_interest_coverage || 11.4}x EBIT coverage)`,
-      },
-      vams_and_probable_range: {
-        price: livePrice,
-        rsi_14d: 52.4,
-        vams_label: "BULLISH",
-        prob_low: Number((livePrice * 0.92).toFixed(2)),
-        prob_high: Number((livePrice * 1.09).toFixed(2)),
-      },
-    },
-    forensic_dossier: {
-      company_name: base.name,
-      scorecard: {
-        moat_and_architecture: { grade: "GREEN", rationale: `Dominant market share in ${base.industry} with ${qCurr.gross_margin_pct || 47.8}% SEC EDGAR verified GAAP gross margins and high switching costs.` },
-        balance_sheet_solvency: { grade: "GREEN", rationale: `Audited 10-Q/10-K Balance Sheet: $${(cashM / 1000).toFixed(2)}B Cash vs $${(debtM / 1000).toFixed(2)}B Debt (${qCurr.ebit_interest_coverage || 11.4}x EBIT coverage).` },
-        forensic_earnings_quality: { grade: "GREEN", rationale: `Strong cash conversion: Trailing 4Q FCF conversion of ${t4qConv}% on SEC EDGAR 10-Q/10-K operating cash flows.` },
-        factor_and_rate_resilience: { grade: netCashM >= 0 ? "GREEN" : "AMBER", rationale: `126D Beta of ${liveBeta}x with ${base.roic}% ROIC; self-funded capex insulates operations from refinancing stress.` },
-        macro_regime_congruence: { grade: "GREEN", rationale: `Well-positioned in ${dynamicMacroRegime} with strong institutional sponsorship (${base.instOwn}% float).` },
-      },
-      forensic_walk: {
-        table: normalized12q,
-        forensic_audit_verdict: `AUDITED SEC EDGAR XBRL CONVERSION VERIFIED: $${(cashM / 1000).toFixed(2)}B Cash vs $${(debtM / 1000).toFixed(2)}B Debt. Trailing 4Q Free Cash Flow conversion stands at ${t4qConv}% of GAAP Net Income.`,
-      },
-      moat_economics: {
-        core_architecture: `Proprietary hardware + embedded software control ecosystem within ${base.industry}, generating ${qCurr.gross_margin_pct || 47.8}% GAAP gross margins.`,
-        pricing_power_and_switching_costs: `High enterprise & installer switching costs and mission-critical reliability sustain ${base.roe}% ROE and ${base.roic}% ROIC.`,
-        customer_concentration: "Diversified global distributor and enterprise customer base; no single customer exceeds 12% of consolidated revenue.",
-        supplier_dependencies: "Dual-sourced contract manufacturing across North America, Asia, and Europe with domestic tax-credit eligibility.",
-      },
-      governance: {
-        ceo_tenure: "Experienced long-tenured executive leadership team with deep domain engineering & capital allocation track record.",
-        founder_involvement: "High technical founder & long-term institutional alignment across board committees.",
-        insider_ownership_pct: base.insiderOwn,
-        trailing_12m_form4_summary: "Net insider retention remains strong; open-market Form 4 activity reflects routine 10b5-1 tax withholding.",
-        item_401f_legal_audit: "CLEAN: Zero SEC Regulation S-K Item 401(f) legal, bankruptcy, or regulatory enforcement events over the past 10 years.",
-      },
-      macro_scenarios: {
-        reflation_accord_impact: `MACRO REGIME IMPACT: ${dynamicMacroRegime} supports capital discipline, pricing pass-through, and selective multiple expansion for ${ticker}.`,
-        sticky_inflation_impact: `RESILIENT: ${qCurr.gross_margin_pct || 47.8}% gross margins and strong pricing pass-through protect real cash flows against sticky input inflation.`,
-        deflation_quad4_impact: `DEFENSIVE BUFFER: $${(cashM / 1000).toFixed(2)}B cash balance provides downside protection and share buyback capacity during cyclical drawdowns.`,
-        bull_catalysts_6_12m: [
-          { title: `1. ${base.industry} Cycle Inflection & 2nd-Derivative Revenue Acceleration`, horizon_or_prob: "6–9M Horizon • 75% Prob", transmission: "Channel inventories normalize and next-gen platform adoption scales across domestic and international markets.", valuation_or_eps_impact: "+15% to +22% EPS Upside & +3.0x P/E Re-Rating" },
-          { title: "2. Gross Margin Expansion & Operating Leverage Pass-Through", horizon_or_prob: "6–12M Horizon • 70% Prob", transmission: `SEC EDGAR verified ${qCurr.gross_margin_pct || 47.8}% gross margins benefit from manufacturing incentives and software attach rates.`, valuation_or_eps_impact: "+200–350 bps EBITDA Margin Expansion" },
-          { title: "3. Balance Sheet Optionality & Accretive Share Buyback Authorization", horizon_or_prob: "3–12M Horizon • 80% Prob", transmission: `Backed by $${(cashM / 1000).toFixed(2)}B in cash and ${base.fcfYield}% FCF yield, management can retire float opportunistically.`, valuation_or_eps_impact: "+4% to +6% Annualized FCF/Share Accretion" },
-          { title: `4. ${dynamicMacroRegime} Institutional Factor Rotation`, horizon_or_prob: "3–6M Horizon • 65% Prob", transmission: `High capital efficiency (${base.roe}% ROE / ${base.roic}% ROIC) attracts systematic Quality and GARP inflows.`, valuation_or_eps_impact: `Target Multiple Re-Rating toward ${(livePe * 1.18).toFixed(1)}x Forward P/E` },
-        ],
-        bear_vulnerabilities_6_12m: [
-          { title: "1. Higher-for-Longer Real Interest Rates & Financing APR Sensitivity", horizon_or_prob: "3–9M Risk • 30% Prob", transmission: "A +50–75 bps spike in 10Y real yields increases customer financing costs and compresses valuation multiples.", valuation_or_eps_impact: "-10% to -14% Multiple Compression Risk" },
-          { title: "2. Regional Policy, Tariff & Regulatory Rule Adjustments", horizon_or_prob: "6–12M Risk • 25% Prob", transmission: `Potential revisions to tax credits, tariff schedules, or procurement timelines within ${base.industry}.`, valuation_or_eps_impact: "-6% to -9% Near-Term Bookings Delay" },
-          { title: "3. Competitive Pricing Pressure in Entry-Level Tiers", horizon_or_prob: "6–12M Risk • 25% Prob", transmission: "Aggressive discounting by lower-margin competitors could pressure blended ASP if attach rates slow.", valuation_or_eps_impact: "-120 to -180 bps Gross Margin Headwind" },
-          { title: "4. Global Supply Chain & Component Lead-Time Bottlenecks", horizon_or_prob: "3–6M Risk • 20% Prob", transmission: "Working capital absorption if specialty semiconductor or electrical component lead times extend unexpectedly.", valuation_or_eps_impact: "-$35M to -$60M Quarterly Working Capital Drag" },
-        ],
-      },
-      trade_playbook: {
-        tactical_1_to_3m_stance: `Constructive accumulation within the $${(livePrice * 0.92).toFixed(2)}–$${(livePrice * 1.09).toFixed(2)} probable range in ${dynamicMacroRegime}; institutional Put Wall at $${putWall.toFixed(2)} provides mechanical dealer support.`,
-        tactical_options_trade: `SELL 45D $${putWall.toFixed(0)}/$${(putWall * 0.92).toFixed(0)} Bull Put Credit Spread OR BUY 60D $${(livePrice * 1.02).toFixed(0)}/$${callWall.toFixed(0)} Call Debit Spread.`,
-        secular_2_to_3y_thesis: `High-quality franchise in ${base.industry}. With $${(cashM / 1000).toFixed(2)}B cash, SEC EDGAR verified ${qCurr.gross_margin_pct || 47.8}% gross margins, and ${base.roe}% ROE, ${ticker} offers compelling risk-adjusted compounding over a 2–3 year horizon in ${dynamicMacroRegime}.`,
-        fair_value_target_range: `$${(livePrice * 1.18).toFixed(2)} – $${(livePrice * 1.32).toFixed(2)} (+18% to +32% Upside)`,
-      },
-    },
-  };
-}
-
 export default function SingleStockAnalysisPage() {
-  const [tickerInput, setTickerInput] = useState<string>("ENPH");
-  const [activeTicker, setActiveTicker] = useState<string>("ENPH");
+  const [tickerInput, setTickerInput] = useState<string>("");
+  const [activeTicker, setActiveTicker] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(false);
-  const [data, setData] = useState<any>(() => buildSynthesizedAnalysisPayload("ENPH"));
+  const [data, setData] = useState<any>(null);
+  const [errorDetails, setErrorDetails] = useState<string | null>(null);
   const [groqStatus, setGroqStatus] = useState<any>(null);
   const [walkViewMode, setWalkViewMode] = useState<ViewMode>("BOTH");
   const [macroRegime, setMacroRegime] = useState<string>("STAGFLATION (Quad 3)");
@@ -522,44 +53,21 @@ export default function SingleStockAnalysisPage() {
 
   const fetchAnalysis = async (symbol: string) => {
     const cleanSym = symbol.trim().toUpperCase();
+    if (!cleanSym) return;
     setLoading(true);
+    setErrorDetails(null);
+    setData(null);
     try {
-      try {
-        const res = await fetch(getApiUrl("/api/v1/stock/analyze"), {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ticker: cleanSym }),
-        });
-        if (res.ok) {
-          const json = await res.json();
-          setData(json);
-          setActiveTicker(cleanSym);
-          if (json.macro_regime) setMacroRegime(json.macro_regime);
-          return;
-        }
-      } catch (e) {
-        console.warn("Primary /api/v1/stock/analyze note, falling back to SEC EDGAR + Finnhub sources feed:", e);
+      const res = await fetch(getApiUrl(`/api/v1/stock/analysis/${cleanSym}`), { cache: "no-store" });
+      const json = await res.json();
+      if (!res.ok || json.status === "error") {
+        throw new Error(json.detail || json.message || `API error (${res.status}): Failed to retrieve analysis for ${cleanSym}`);
       }
-
-      // Fallback: pull live SEC EDGAR 10-Q/10-K XBRL + Finnhub/Yahoo quotes from /api/v1/stock/sources-test
-      try {
-        const resSources = await fetch(
-          getApiUrl(`/api/v1/stock/sources-test?ticker=${encodeURIComponent(cleanSym)}`),
-          { cache: "no-store" }
-        );
-        if (resSources.ok) {
-          const sourcesJson = await resSources.json();
-          setData(buildSynthesizedAnalysisPayload(cleanSym, sourcesJson, activeRegimeName, activeQuad));
-          setActiveTicker(cleanSym);
-          return;
-        }
-      } catch (err) {
-        console.warn("Sources test fallback note:", err);
-      }
-
-      // Final deterministic SEC EDGAR baseline so Modules 1-6 are never blank
-      setData(buildSynthesizedAnalysisPayload(cleanSym));
+      setData(json);
       setActiveTicker(cleanSym);
+      if (json.macro_regime) setMacroRegime(json.macro_regime);
+    } catch (err: any) {
+      setErrorDetails(err.message || "An unexpected error occurred while analyzing the ticker.");
     } finally {
       setLoading(false);
     }
@@ -577,17 +85,16 @@ export default function SingleStockAnalysisPage() {
 
   useEffect(() => {
     fetchGroqHealth();
+    let initialTicker = "LAND";
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
       const urlTicker = params.get("ticker");
       if (urlTicker && urlTicker.trim()) {
-        const clean = urlTicker.trim().toUpperCase();
-        setTickerInput(clean);
-        fetchAnalysis(clean);
-        return;
+        initialTicker = urlTicker.trim().toUpperCase();
       }
     }
-    fetchAnalysis("ENPH");
+    setTickerInput(initialTicker);
+    fetchAnalysis(initialTicker);
   }, []);
 
   const handleSearch = (e: React.FormEvent) => {
@@ -597,29 +104,48 @@ export default function SingleStockAnalysisPage() {
     }
   };
 
-  const dossier = data?.forensic_dossier;
-  const quant = data?.quant_xray;
+  const dossier = data?.forensic_dossier || data?.verdict;
+  const quant = data?.quant_xray || data;
   const ribbon = data?.header_ribbon;
   const headerStrip = data?.header_strip;
   const solvencyMatrix = data?.solvency_matrix;
   const hedgeyePodsRoot = data?.hedgeye_3_pods;
-  const factor = quant?.factor_and_sector_dna;
-  const rate = quant?.interest_rate_and_earnings_sensitivity;
-  const pods = quant?.hedgeye_3_pods;
-  const vams = quant?.vams_and_probable_range;
+  const factor = quant?.factor_and_sector_dna || data?.factor_and_sector_dna;
+  const rate = quant?.interest_rate_and_earnings_sensitivity || data?.interest_rate_and_earnings_sensitivity;
+  const pods = quant?.hedgeye_3_pods || data?.hedgeye_3_pods;
+  const vams = quant?.vams_and_probable_range || data?.vams_and_probable_range;
 
-  const historical12Q: any[] =
+  const raw12Q: any[] =
+    data?.financial_walk_12q ||
     data?.historical_12q ||
     data?.historical_12_quarters ||
     dossier?.forensic_walk?.table ||
     [];
 
-  const peersList: any[] = Array.isArray(data?.peer_valuations)
+  const historical12Q = raw12Q.map((q: any) => ({
+    ...q,
+    period: q.period || q.period_end || q.calendar_quarter || "Q",
+    revenue_m: q.revenue_m ?? (q.revenue != null ? (q.revenue > 1e5 ? Math.round(q.revenue / 1e6) : q.revenue) : 0),
+    operating_cash_flow_m: q.operating_cash_flow_m ?? (q.ocf != null ? (q.ocf > 1e5 ? Math.round(q.ocf / 1e6) : q.ocf) : 0),
+    free_cash_flow_m: q.free_cash_flow_m ?? (q.fcf != null ? (q.fcf > 1e5 ? Math.round(q.fcf / 1e6) : q.fcf) : 0),
+    gaap_net_income_m: q.gaap_net_income_m ?? (q.net_income != null ? (q.net_income > 1e5 ? Math.round(q.net_income / 1e6) : q.net_income) : 0),
+    gaap_gross_margin_pct: q.gaap_gross_margin_pct ?? q.gross_margin_pct ?? 0,
+    roic_pct: q.roic_pct ?? 0,
+    cash_and_equivalents_m: q.cash_and_equivalents_m ?? (q.cash != null ? (q.cash > 1e5 ? Math.round(q.cash / 1e6) : q.cash) : 0),
+    total_debt_m: q.total_debt_m ?? (q.debt != null ? (q.debt > 1e5 ? Math.round(q.debt / 1e6) : q.debt) : 0),
+    net_cash_m: q.net_cash_m ?? ((q.cash_and_equivalents_m ?? 0) - (q.total_debt_m ?? 0)),
+    ebit_interest_coverage: q.ebit_interest_coverage ?? 0,
+    net_debt_to_ebitda: q.net_debt_to_ebitda ?? 0,
+  }));
+
+  const peersList: any[] = Array.isArray(data?.peers)
+    ? data.peers
+    : Array.isArray(data?.peer_valuations)
     ? data.peer_valuations
-    : data?.peer_benchmarks?.peers || data?.peer_valuations?.peers || [];
+    : data?.peer_benchmarks?.peers || [];
 
   const peerBenchmarks = data?.peer_benchmarks || {
-    peer_group_name: `${data?.gics_industry || "Clean Technology & Solar MLPE"} (77 GICS Classification)`,
+    peer_group_name: `${data?.gics_industry || "Benchmark Universe"} (77 GICS Classification)`,
     peers: peersList,
     peer_averages: data?.peer_valuations?.peer_averages,
     relative_valuation_verdict: data?.peer_valuations?.relative_valuation_verdict,
@@ -630,56 +156,59 @@ export default function SingleStockAnalysisPage() {
   const line2 = ribbon?.line_2_risk_and_ownership;
   const line3 = ribbon?.line_3_macro_and_regime;
 
-  const cashM = solvencyMatrix?.cash_and_equivalents_m ?? 1645.0;
-  const debtM = solvencyMatrix?.total_debt_m ?? 1320.0;
-  const netCashM = solvencyMatrix?.net_cash_m ?? cashM - debtM;
+  const latestQ = raw12Q.length > 0 ? raw12Q[0] : null;
+  const cashM = solvencyMatrix?.cash_and_equivalents_m ?? latestQ?.cash_and_equivalents_m ?? 0;
+  const debtM = solvencyMatrix?.total_debt_m ?? latestQ?.total_debt_m ?? 0;
+  const netCashM = solvencyMatrix?.net_cash_m ?? (cashM - debtM);
 
   const pod1RevYoy =
     hedgeyePodsRoot?.pod_1_revenue_roc?.rev_yoy_pct ??
     pods?.pod_1_revenue?.rev_yoy_pct ??
-    14.2;
+    data?.pod2_unit_economics?.rev_growth_yoy_pct ??
+    null;
   const pod1AccelBps =
     hedgeyePodsRoot?.pod_1_revenue_roc?.rev_accel_bps ??
     pods?.pod_1_revenue?.rev_acceleration_bps ??
-    320;
+    null;
   const pod1Status =
     hedgeyePodsRoot?.pod_1_revenue_roc?.status ??
     pods?.pod_1_revenue?.status ??
-    "ACCELERATING";
+    "NEUTRAL";
   const pod1BaseEffect =
     hedgeyePodsRoot?.pod_1_revenue_roc?.base_effect ??
     pods?.pod_1_revenue?.forward_base_effect ??
-    "FAVORABLE EASY COMPARISONS";
+    "—";
 
   const pod2Gm =
     hedgeyePodsRoot?.pod_2_operating_margins?.gross_margin_pct ??
     pods?.pod_2_margins?.gross_margin_pct ??
-    47.8;
+    data?.pod2_unit_economics?.gross_margin_pct ??
+    null;
   const pod2Opm =
     hedgeyePodsRoot?.pod_2_operating_margins?.operating_margin_pct ??
     pods?.pod_2_margins?.operating_margin_pct ??
-    19.4;
+    null;
   const pod2OpmChangeBps =
     hedgeyePodsRoot?.pod_2_operating_margins?.operating_margin_yoy_change_bps ??
     pods?.pod_2_margins?.operating_margin_yoy_change_bps ??
-    185;
+    null;
   const pod2Pricing =
     hedgeyePodsRoot?.pod_2_operating_margins?.pricing_power ??
     pods?.pod_2_margins?.inflation_passthrough ??
-    "HIGH";
+    "—";
 
   const pod3Roe =
     hedgeyePodsRoot?.pod_3_capital_efficiency?.roe_pct ??
     pods?.pod_3_capital_allocation?.roe_pct ??
-    24.5;
+    null;
   const pod3Roic =
     hedgeyePodsRoot?.pod_3_capital_efficiency?.roic_pct ??
     pods?.pod_3_capital_allocation?.roic_pct ??
-    21.8;
+    null;
   const pod3FcfYield =
     hedgeyePodsRoot?.pod_3_capital_efficiency?.fcf_yield_pct ??
     pods?.pod_3_capital_allocation?.fcf_yield_pct ??
-    5.2;
+    null;
 
   const bullCatalysts: any[] = dossier?.macro_scenarios?.bull_catalysts_6_12m || [];
   const bearVulnerabilities: any[] = dossier?.macro_scenarios?.bear_vulnerabilities_6_12m || [];
@@ -688,7 +217,7 @@ export default function SingleStockAnalysisPage() {
     <div className="min-h-screen bg-[#090D16] text-slate-100">
       <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 space-y-6">
 
-        {/* STICKY TOP COCKPIT WITH SEARCH INPUT & 3-LINE METRIC RIBBON */}
+        {/* STICKY TOP COCKPIT WITH SEARCH INPUT */}
         <section className="sticky top-16 z-30 rounded-xl border border-slate-800 bg-[#111827]/95 backdrop-blur-md p-4 shadow-xl space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
@@ -701,15 +230,17 @@ export default function SingleStockAnalysisPage() {
                 </span>
                 {groqStatus && (
                   <span
-                    className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-mono border ${groqStatus.color === "green"
+                    className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-mono border ${
+                      groqStatus.color === "green"
                         ? "bg-emerald-950/40 border-emerald-500/40 text-emerald-300"
                         : "bg-amber-950/40 border-amber-500/40 text-amber-300"
-                      }`}
+                    }`}
                     title={groqStatus.format_warning || groqStatus.message}
                   >
                     <span
-                      className={`h-1.5 w-1.5 rounded-full ${groqStatus.color === "green" ? "bg-emerald-400" : "bg-amber-400"
-                        }`}
+                      className={`h-1.5 w-1.5 rounded-full ${
+                        groqStatus.color === "green" ? "bg-emerald-400" : "bg-amber-400"
+                      }`}
                     />
                     {groqStatus.status === "ONLINE"
                       ? (groqStatus.label || "Groq Llama-3.3 Ready")
@@ -718,7 +249,7 @@ export default function SingleStockAnalysisPage() {
                 )}
               </div>
               <h1 className="text-base font-bold text-white mt-0.5">
-                {dossier?.company_name || activeTicker} ({activeTicker})
+                {data ? `${data.company_name || data.entity_name || activeTicker} (${activeTicker})` : (activeTicker ? activeTicker : "Single-Stock Analysis")}
               </h1>
             </div>
 
@@ -730,13 +261,13 @@ export default function SingleStockAnalysisPage() {
                   value={tickerInput}
                   onChange={(e) => setTickerInput(e.target.value.toUpperCase())}
                   placeholder="ENTER TICKER..."
-                  className="w-36 md:w-44 px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white font-bold placeholder-slate-500 focus:outline-none focus:border-cyan-400 uppercase tracking-wider"
+                  className="w-36 md:w-44 px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white font-bold placeholder-slate-500 focus:outline-none focus:border-cyan-400 uppercase tracking-wider text-xs"
                 />
               </div>
               <button
                 type="submit"
                 disabled={loading}
-                className="px-4 py-2 rounded-lg bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white font-semibold shadow-md transition disabled:opacity-50"
+                className="px-4 py-2 rounded-lg bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white font-semibold shadow-md transition disabled:opacity-50 text-xs"
               >
                 {loading ? "Analyzing..." : "Analyze Stock"}
               </button>
@@ -744,138 +275,141 @@ export default function SingleStockAnalysisPage() {
           </div>
 
           {/* 3-LINE TOP HEADER METRIC RIBBON */}
-          <div className="rounded-lg border border-slate-800/90 bg-slate-950/70 p-2.5 space-y-1.5 font-mono text-xs">
-            {/* Line 1: GICS, Live Price, Market Cap, Enterprise Value */}
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/70 pb-1.5">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-cyan-300 font-semibold">
-                  GICS: {line1?.gics_sector || quant?.gics_sector || "Technology"} • {line1?.gics_industry || quant?.gics_industry || "Semiconductors / Solar"}
-                </span>
-                <span className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-white font-bold">
-                  LIVE PRICE: ${(line1?.live_price ?? vams?.price ?? 64.8).toFixed(2)}{" "}
+          {data && (
+            <div className="rounded-lg border border-slate-800/90 bg-slate-950/70 p-2.5 space-y-1.5 font-mono text-xs">
+              {/* Line 1: GICS, Live Price, Market Cap, Enterprise Value */}
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/70 pb-1.5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-cyan-300 font-semibold">
+                    GICS: {data?.gics_sector || line1?.gics_sector || "Unclassified"} • {data?.gics_industry || line1?.gics_industry || "Unclassified"}
+                  </span>
+                  <span className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-white font-bold">
+                    LIVE PRICE: {data?.live_price != null ? `$${Number(data.live_price).toFixed(2)}` : (line1?.live_price != null ? `$${Number(line1.live_price).toFixed(2)}` : "N/A")}{" "}
+                    {data?.price_change_pct != null ? (
+                      <span className={data.price_change_pct >= 0 ? "text-emerald-400" : "text-rose-400"}>
+                        ({data.price_change_pct >= 0 ? "+" : ""}{data.price_change_pct}%)
+                      </span>
+                    ) : line1?.price_change_1d_pct != null ? (
+                      <span className={line1.price_change_1d_pct >= 0 ? "text-emerald-400" : "text-rose-400"}>
+                        ({line1.price_change_1d_pct >= 0 ? "+" : ""}{line1.price_change_1d_pct}%)
+                      </span>
+                    ) : null}
+                  </span>
+                </div>
+                <div className="flex flex-wrap items-center gap-3 text-slate-300">
+                  <span>
+                    MKT CAP: <strong className="text-white">{data?.market_cap_bn != null ? `$${data.market_cap_bn}B` : (line1?.market_cap_bn != null ? `$${line1.market_cap_bn}B` : "N/A")}</strong>
+                  </span>
+                  <span>•</span>
+                  <span>
+                    <MetricTip term="EV / EBITDA" placement="bottom" align="center">ENTERPRISE VALUE (EV)</MetricTip>:{" "}
+                    <strong className="text-cyan-300">{data?.enterprise_value_bn != null ? `$${data.enterprise_value_bn}B` : (line1?.enterprise_value_bn != null ? `$${line1.enterprise_value_bn}B` : "N/A")}</strong>
+                  </span>
+                  <span>•</span>
+                  <span>
+                    <MetricTip term="FWD P/E" placement="bottom" align="right">FWD P/E</MetricTip>:{" "}
+                    <strong className="text-white">{data?.forward_pe != null ? `${data.forward_pe}x` : (line1?.forward_pe != null ? `${line1.forward_pe}x` : "N/A")}</strong>
+                  </span>
+                </div>
+              </div>
+
+              {/* Line 2: Beta, Short Float %, Institutional %, Insider %, RSI / VAMS */}
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/70 pb-1.5">
+                <div className="flex flex-wrap items-center gap-3 text-slate-300">
+                  <span>
+                    <MetricTip term="126D BETA" placement="bottom" align="left">126D BETA</MetricTip>:{" "}
+                    <strong className="text-amber-300">{data?.beta_126d != null ? `${data.beta_126d}x` : (line2?.beta_126d != null ? `${line2.beta_126d}x` : "N/A")}</strong>
+                  </span>
+                  <span>•</span>
+                  <span>
+                    <MetricTip term="SHORT FLOAT & DTC" placement="bottom" align="left">SHORT FLOAT</MetricTip>:{" "}
+                    <strong className={(data?.short_float_pct ?? line2?.short_float_pct ?? 0) >= 10 ? "text-rose-400" : "text-white"}>
+                      {data?.short_float_pct != null ? `${data.short_float_pct}%` : (line2?.short_float_pct != null ? `${line2.short_float_pct}%` : "N/A")}
+                    </strong>{" "}
+                    <span className="text-slate-500">
+                      <MetricTip term="DTC" placement="bottom" align="left">({data?.days_to_cover != null ? `${data.days_to_cover}d` : (line2?.short_ratio_days != null ? `${line2.short_ratio_days}d` : "N/A")} DTC)</MetricTip>
+                    </span>
+                  </span>
+                  <span>•</span>
+                  <span>
+                    INSTITUTIONAL OWN: <strong className="text-emerald-300">{data?.institutional_own_pct != null ? `${data.institutional_own_pct}%` : (line2?.institutional_ownership_pct != null ? `${line2.institutional_ownership_pct}%` : "N/A")}</strong>
+                  </span>
+                  <span>•</span>
+                  <span>
+                    INSIDER (<MetricTip term="DEF 14A" explanation="SEC Form DEF 14A: Annual definitive proxy statement disclosing executive compensation and insider equity beneficial ownership." placement="bottom" align="center">DEF 14A</MetricTip>):{" "}
+                    <strong className="text-cyan-300">{dossier?.governance?.insider_ownership_pct != null ? `${dossier.governance.insider_ownership_pct}%` : (line2?.insider_ownership_pct != null ? `${line2.insider_ownership_pct}%` : "N/A")}</strong>
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-300">
+                    <MetricTip term="14D RSI" placement="bottom" align="right">14D RSI</MetricTip>: <strong className="text-white">{data?.vams_and_probable_range?.rsi_14d != null ? data.vams_and_probable_range.rsi_14d : (line2?.rsi_14d ?? "N/A")}</strong>
+                  </span>
                   <span
-                    className={
-                      (line1?.price_change_1d_pct ?? 0) >= 0 ? "text-emerald-400" : "text-rose-400"
-                    }
+                    className={`px-2 py-0.5 rounded border font-bold ${(data?.vams_state || line2?.vams_state_label || "NEUTRAL") === "BULLISH"
+                        ? "bg-emerald-950/50 border-emerald-500/40 text-emerald-300"
+                        : (data?.vams_state || line2?.vams_state_label || "NEUTRAL") === "BEARISH"
+                          ? "bg-rose-950/50 border-rose-500/40 text-rose-300"
+                          : "bg-amber-950/50 border-amber-500/40 text-amber-300"
+                      }`}
                   >
-                    ({(line1?.price_change_1d_pct ?? 0) >= 0 ? "+" : ""}
-                    {line1?.price_change_1d_pct ?? -1.42}%)
+                    <MetricTip term="VAMS" placement="bottom" align="right">VAMS: {data?.vams_state || line2?.vams_state_label || "NEUTRAL"}</MetricTip>
                   </span>
-                </span>
+                </div>
               </div>
-              <div className="flex flex-wrap items-center gap-3 text-slate-300">
-                <span>
-                  MKT CAP: <strong className="text-white">${line1?.market_cap_bn ?? quant?.market_cap_bn ?? 8.4}B</strong>
-                </span>
-                <span>•</span>
-                <span>
-                  <MetricTip term="EV / EBITDA" placement="bottom" align="center">ENTERPRISE VALUE (EV)</MetricTip>:{" "}
-                  <strong className="text-cyan-300">${line1?.enterprise_value_bn ?? 8.0}B</strong>
-                </span>
-                <span>•</span>
-                <span>
-                  <MetricTip term="FWD P/E" placement="bottom" align="right">FWD P/E</MetricTip>:{" "}
-                  <strong className="text-white">{line1?.forward_pe ?? quant?.quality_and_valuation?.forward_pe ?? 19.8}x</strong>
-                </span>
-              </div>
-            </div>
 
-            {/* Line 2: Beta, Short Float %, Institutional %, Insider %, RSI / VAMS */}
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/70 pb-1.5">
-              <div className="flex flex-wrap items-center gap-3 text-slate-300">
-                <span>
-                  <MetricTip term="126D BETA" placement="bottom" align="left">126D BETA</MetricTip>:{" "}
-                  <strong className="text-amber-300">{line2?.beta_126d ?? factor?.primary_empirical_sector?.beta_6m ?? 1.35}x</strong>
-                </span>
-                <span>•</span>
-                <span>
-                  <MetricTip term="SHORT FLOAT & DTC" placement="bottom" align="left">SHORT FLOAT</MetricTip>:{" "}
-                  <strong className={(line2?.short_float_pct ?? 5) >= 10 ? "text-rose-400" : "text-white"}>
-                    {line2?.short_float_pct ?? 11.4}%
-                  </strong>{" "}
-                  <span className="text-slate-500">
-                    <MetricTip term="DTC" placement="bottom" align="left">({line2?.short_ratio_days ?? 3.8}d DTC)</MetricTip>
+              {/* Line 3: Macro Regime, CACRI, Dr. Mo, Factor DNA */}
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center gap-3 text-slate-300">
+                  <span>
+                    MACRO REGIME: <strong className="text-blue-300">{data?.macro_regime || line3?.macro_regime_label || macroRegime}</strong>
                   </span>
-                </span>
-                <span>•</span>
-                <span>
-                  INSTITUTIONAL OWN: <strong className="text-emerald-300">{line2?.institutional_ownership_pct ?? 84.6}%</strong>
-                </span>
-                <span>•</span>
-                <span>
-                  INSIDER (<MetricTip term="DEF 14A" explanation="SEC Form DEF 14A: Annual definitive proxy statement disclosing executive compensation and insider equity beneficial ownership." placement="bottom" align="center">DEF 14A</MetricTip>):{" "}
-                  <strong className="text-cyan-300">{line2?.insider_ownership_pct ?? dossier?.governance?.insider_ownership_pct ?? 2.8}%</strong>
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-300">
-                  <MetricTip term="14D RSI" placement="bottom" align="right">14D RSI</MetricTip>: <strong className="text-white">{line2?.rsi_14d ?? vams?.rsi_14d ?? 48.5}</strong>
-                </span>
-                <span
-                  className={`px-2 py-0.5 rounded border font-bold ${(line2?.vams_state_label || vams?.vams_label) === "BULLISH"
-                      ? "bg-emerald-950/50 border-emerald-500/40 text-emerald-300"
-                      : (line2?.vams_state_label || vams?.vams_label) === "BEARISH"
-                        ? "bg-rose-950/50 border-rose-500/40 text-rose-300"
-                        : "bg-amber-950/50 border-amber-500/40 text-amber-300"
-                    }`}
-                >
-                  <MetricTip term="VAMS" placement="bottom" align="right">VAMS: {line2?.vams_state_label || vams?.vams_label || "NEUTRAL"}</MetricTip>
-                </span>
+                  <span>•</span>
+                  <span>
+                    <MetricTip term="42M CACRI" placement="bottom" align="left">42M CACRI</MetricTip>:{" "}
+                    <strong className="text-emerald-400">{line3?.cacri_pct != null ? `${line3.cacri_pct}% (${line3?.cacri_status || "CONTAINED"})` : "CONTAINED"}</strong>
+                  </span>
+                  <span>•</span>
+                  <span>
+                    FACTOR DNA: <strong className="text-white">{data?.benchmark_etf ? `$${data.benchmark_etf}` : (line3?.primary_sector_etf || "$SPY")}</strong> /{" "}
+                    <strong className="text-cyan-300">{line3?.primary_style_etf || "$QUAL"}</strong>
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="px-2 py-0.5 rounded bg-emerald-950/40 border border-emerald-500/40 text-emerald-300 font-bold">
+                    DR. MO: {data?.verdict?.dr_mo_proper_action || line3?.dr_mo_signal || "NEUTRAL"}
+                  </span>
+                </div>
               </div>
             </div>
-
-            {/* Line 3: Macro Regime, CACRI, Dr. Mo, Factor DNA */}
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex flex-wrap items-center gap-3 text-slate-300">
-                <span>
-                  MACRO REGIME: <strong className="text-blue-300">{data?.macro_regime || line3?.macro_regime_label || macroRegime}</strong>
-                </span>
-                <span>•</span>
-                <span>
-                  <MetricTip term="42M CACRI" placement="bottom" align="left">42M CACRI</MetricTip>:{" "}
-                  <strong className="text-emerald-400">{line3?.cacri_pct ?? 19.0}% ({line3?.cacri_status || "CONTAINED"})</strong>
-                </span>
-                <span>•</span>
-                <span>
-                  FACTOR DNA: <strong className="text-white">{line3?.primary_sector_etf || "$XLK"}</strong> /{" "}
-                  <strong className="text-cyan-300">{line3?.primary_style_etf || "$MTUM"}</strong>
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="px-2 py-0.5 rounded bg-emerald-950/40 border border-emerald-500/40 text-emerald-300 font-bold">
-                  DR. MO: {line3?.dr_mo_signal || quant?.verdict?.dr_mo_proper_action || "LONG: Half Position"}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Quick-Pick Chips */}
-          <div className="flex flex-wrap items-center justify-between gap-2 pt-1 font-mono text-xs text-slate-400">
-            <div className="flex flex-wrap items-center gap-2">
-              <span>Quick Analyze:</span>
-              {QUICK_TICKERS.map((sym) => (
-                <button
-                  key={sym}
-                  onClick={() => {
-                    setTickerInput(sym);
-                    fetchAnalysis(sym);
-                  }}
-                  className={`px-2.5 py-0.5 rounded border transition ${activeTicker === sym
-                      ? "bg-cyan-950 border-cyan-500/50 text-cyan-300 font-bold"
-                      : "bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800"
-                    }`}
-                >
-                  ${sym}
-                </button>
-              ))}
-            </div>
-            <span className="text-xs text-slate-500">
-              As of: {data?.as_of_utc || "Live Sync"}
-            </span>
-          </div>
+          )}
         </section>
 
-        {/* SECTION 1: THE EXECUTIVE COCKPIT & TRAFFIC-LIGHT SCORECARD */}
+        {/* VERBATIM ERROR NOTIFICATION BANNER */}
+        {errorDetails && (
+          <div className="p-4 rounded-xl bg-rose-950/60 border border-rose-500/50 text-rose-200 text-xs font-mono flex items-start gap-2.5">
+            <span className="text-rose-400 font-bold text-sm">✕ Error:</span>
+            <span className="leading-relaxed">{errorDetails}</span>
+          </div>
+        )}
+
+        {/* LOADING INDICATOR */}
+        {loading && (
+          <div className="p-12 text-center font-mono text-sm text-cyan-400 animate-pulse">
+            Analyzing ${tickerInput || activeTicker || "stock"}...
+          </div>
+        )}
+
+        {/* EMPTY STATE PROMPT */}
+        {!data && !loading && !errorDetails && (
+          <div className="p-8 rounded-xl bg-slate-900/40 border border-slate-800 text-center font-mono text-xs text-slate-400">
+            Enter any equity or ETF ticker (e.g. LAND, NVDA, CAT) above to begin analysis.
+          </div>
+        )}
+
+        {/* SECTIONS 1 TO 6: RENDERED ONLY WHEN DATA IS LOADED */}
+        {data && (
+          <>
+          {/* SECTION 1: THE EXECUTIVE COCKPIT & TRAFFIC-LIGHT SCORECARD */}
         <section className="rounded-xl border border-slate-800 bg-[#111827] p-5 space-y-4">
           <div className="border-b border-slate-800 pb-3 flex flex-wrap justify-between items-center gap-2">
             <h2 className="text-base font-bold text-white">
@@ -888,11 +422,41 @@ export default function SingleStockAnalysisPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
             {[
-              { label: "Moat & Architecture", item: dossier?.scorecard?.moat_and_architecture },
-              { label: "Balance Sheet Solvency", item: dossier?.scorecard?.balance_sheet_solvency },
-              { label: "Forensic Earnings Quality", item: dossier?.scorecard?.forensic_earnings_quality },
-              { label: "Factor & Rate Resilience", item: dossier?.scorecard?.factor_and_rate_resilience },
-              { label: "Macro Regime Congruence", item: dossier?.scorecard?.macro_regime_congruence },
+              {
+                label: "Moat & Architecture",
+                item: dossier?.scorecard?.moat_and_architecture || {
+                  grade: (data?.pod2_unit_economics?.operating_leverage_state === "EXPANDING" ? "GREEN" : "AMBER"),
+                  rationale: `${data?.gics_industry || "Company"} unit economics with ${data?.pod2_unit_economics?.rev_growth_yoy_pct ?? 0}% YoY revenue growth.`,
+                },
+              },
+              {
+                label: "Balance Sheet Solvency",
+                item: dossier?.scorecard?.balance_sheet_solvency || {
+                  grade: (netCashM >= 0 ? "GREEN" : "AMBER"),
+                  rationale: `Audited balance sheet: $${(cashM / 1000).toFixed(2)}B cash vs $${(debtM / 1000).toFixed(2)}B total debt.`,
+                },
+              },
+              {
+                label: "Forensic Earnings Quality",
+                item: dossier?.scorecard?.forensic_earnings_quality || {
+                  grade: ((data?.pod2_unit_economics?.trailing_4q_fcf_conversion_pct ?? 0) >= 50 ? "GREEN" : "AMBER"),
+                  rationale: `Trailing 4Q FCF Conversion at ${data?.pod2_unit_economics?.trailing_4q_fcf_conversion_pct ?? 0}% of net income.`,
+                },
+              },
+              {
+                label: "Factor & Rate Resilience",
+                item: dossier?.scorecard?.factor_and_rate_resilience || {
+                  grade: ((data?.beta_126d ?? 1) <= 1.2 ? "GREEN" : "AMBER"),
+                  rationale: `126D Beta of ${data?.beta_126d ?? "N/A"}x with benchmark ${data?.benchmark_etf || "SPY"}.`,
+                },
+              },
+              {
+                label: "Macro Regime Congruence",
+                item: dossier?.scorecard?.macro_regime_congruence || {
+                  grade: "GREEN",
+                  rationale: data?.verdict?.plain_english_thesis || `Evaluated under active macro regime: ${data?.macro_regime || macroRegime}.`,
+                },
+              },
             ].map((card, idx) => {
               const gr = card.item?.grade || "AMBER";
               const col =
@@ -1419,14 +983,14 @@ export default function SingleStockAnalysisPage() {
                   const currentStock = {
                     ticker: data.ticker || activeTicker,
                     name: data.company_name || data.entity_name || activeTicker,
-                    market_cap_bn: Number(line1?.market_cap_bn ?? quant?.market_cap_bn ?? 8.4),
-                    rev_growth_yoy: Number(data.pod2_unit_economics?.rev_growth_yoy_pct ?? 14.2),
-                    gross_margin: Number(data.pod2_unit_economics?.gross_margin_pct ?? 47.8),
-                    fcf_conv: Number(data.pod2_unit_economics?.trailing_4q_fcf_conversion_pct ?? 108.4),
-                    ev_ebitda: Number(data.quality_and_valuation?.ev_to_ebitda ?? (line1?.forward_pe ? 15.6 : 14.0)),
-                    pe: Number(line1?.forward_pe ?? 19.8),
-                    net_debt_ebitda: Number(data.interest_rate_and_earnings_sensitivity?.net_debt_to_ebitda ?? (solvencyMatrix?.net_debt_to_ebitda ?? -0.45)),
-                    roe: Number(pod3Roe ?? 24.5),
+                    market_cap_bn: Number(data.market_cap_bn ?? line1?.market_cap_bn ?? 0),
+                    rev_growth_yoy: Number(data.pod2_unit_economics?.rev_growth_yoy_pct ?? 0),
+                    gross_margin: Number(data.pod2_unit_economics?.gross_margin_pct ?? 0),
+                    fcf_conv: Number(data.pod2_unit_economics?.trailing_4q_fcf_conversion_pct ?? 0),
+                    ev_ebitda: Number(data.quality_and_valuation?.ev_to_ebitda ?? 0),
+                    pe: Number(data.forward_pe ?? line1?.forward_pe ?? 0),
+                    net_debt_ebitda: Number(data.interest_rate_and_earnings_sensitivity?.net_debt_to_ebitda ?? 0),
+                    roe: Number(pod3Roe ?? 0),
                     valuation_verdict: "PRIMARY TARGET",
                     is_target: true,
                   };
@@ -1435,24 +999,19 @@ export default function SingleStockAnalysisPage() {
                     ? data.peers
                     : (Array.isArray(data?.peer_valuations) && data.peer_valuations.length > 0)
                       ? data.peer_valuations
-                      : [
-                        { ticker: "FSLR", name: "First Solar, Inc.", market_cap_bn: 21.4, ev_ebitda: 11.8, pe: 13.5, fcf_yield: 4.8, net_debt_ebitda: -0.62, roe: 19.4, rev_growth_yoy_pct: 22.1, gross_margin_pct: 43.5, valuation_verdict: "GARP / QUALITY LEADER" },
-                        { ticker: "NXT", name: "Nextracker Inc.", market_cap_bn: 6.8, ev_ebitda: 12.4, pe: 15.2, fcf_yield: 6.1, net_debt_ebitda: -0.35, roe: 31.2, rev_growth_yoy_pct: 18.4, gross_margin_pct: 33.8, valuation_verdict: "COMPOUNDER PREMIUM" },
-                        { ticker: "SEDG", name: "SolarEdge Technologies", market_cap_bn: 1.1, ev_ebitda: 24.5, pe: 28.0, fcf_yield: -4.2, net_debt_ebitda: 2.85, roe: -14.5, rev_growth_yoy_pct: -42.0, gross_margin_pct: 18.2, valuation_verdict: "TURNAROUND / HIGH BETA" },
-                        { ticker: "RUN", name: "Sunrun Inc.", market_cap_bn: 2.6, ev_ebitda: 19.8, pe: 24.2, fcf_yield: 2.1, net_debt_ebitda: 4.1, roe: 6.8, rev_growth_yoy_pct: 4.2, gross_margin_pct: 24.5, valuation_verdict: "SECTOR INLINE" },
-                      ];
+                      : [];
 
                   const otherPeers = rawPeers
                     .filter((p: any) => p.ticker !== (data.ticker || activeTicker))
                     .map((p: any) => ({
                       ticker: p.ticker,
                       name: p.name || p.company_name || p.ticker,
-                      market_cap_bn: Number(p.market_cap_bn ?? 12.0),
+                      market_cap_bn: Number(p.market_cap_bn ?? 0),
                       rev_growth_yoy: Number(p.rev_growth_yoy ?? p.rev_growth_yoy_pct ?? 0),
                       gross_margin: Number(p.gross_margin ?? p.gross_margin_pct ?? 0),
                       fcf_conv: Number(p.fcf_conv ?? p.fcf_yield ?? p.fcf_yield_pct ?? 0),
                       ev_ebitda: Number(p.ev_ebitda ?? p.ev_to_ebitda ?? 0),
-                      pe: Number(p.pe ?? p.forward_pe ?? 18.0),
+                      pe: Number(p.pe ?? p.forward_pe ?? 0),
                       net_debt_ebitda: Number(p.net_debt_ebitda ?? p.net_debt_to_ebitda ?? 0),
                       roe: Number(p.roe ?? p.roic_or_roe_pct ?? 15.0),
                       valuation_verdict: p.valuation_verdict || "PEER BENCHMARK",
@@ -2212,6 +1771,8 @@ export default function SingleStockAnalysisPage() {
             </div>
           </div>
         </section>
+          </>
+        )}
 
       </div>
     </div>

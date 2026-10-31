@@ -934,7 +934,29 @@ async def resolve_gics_industry(ticker: str) -> str:
     if cached and cached.get("gics_industry") in PEER_UNIVERSES:
         return cached["gics_industry"]
 
-    return "Semiconductors & Semiconductor Equipment"
+    try:
+        try:
+            from app.quant_engine.stock_analyzer import SingleStockXRayEngine
+        except ImportError:
+            from backend.app.quant_engine.stock_analyzer import SingleStockXRayEngine
+
+        cik = SingleStockXRayEngine.resolve_cik(ticker)
+        if cik:
+            sec_meta = SingleStockXRayEngine.fetch_sec_company_metadata(cik)
+            sec_ind = sec_meta.get("industry")
+            if sec_ind and sec_ind in PEER_UNIVERSES:
+                return sec_ind
+            sec_sec = sec_meta.get("sector")
+            if sec_sec:
+                for ind in PEER_UNIVERSES.keys():
+                    if sec_sec.lower() in ind.lower() or ind.lower() in sec_sec.lower():
+                        return ind
+            if sec_ind:
+                return sec_ind
+    except Exception as e:
+        logger.warning(f"Error resolving GICS industry from SEC EDGAR for {ticker}: {e}")
+
+    return "General Diversified"
 
 
 async def fetch_finnhub_metrics(
@@ -1088,9 +1110,14 @@ async def get_cached_or_fetch_peer_valuations(
             _PEER_MEM_CACHE[industry] = {"timestamp": time.time(), "data": db_peers}
             base_peers = [dict(p) for p in db_peers]
         else:
-            peer_tickers = list(
-                PEER_UNIVERSES.get(industry, ["ENPH", "FSLR", "SEDG", "NXT", "RUN"])
-            )[:5]
+            peer_tickers = list(PEER_UNIVERSES.get(industry, []))[:5]
+            if not peer_tickers:
+                for ind_name, peers in PEER_UNIVERSES.items():
+                    if ticker in peers:
+                        peer_tickers = list(peers)[:5]
+                        break
+            if not peer_tickers:
+                peer_tickers = [ticker]
             rows: List[Dict[str, Any]] = []
             for sym in peer_tickers:
                 m = await fetch_finnhub_metrics(sym, gics_industry=industry)
