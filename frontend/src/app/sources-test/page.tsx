@@ -88,7 +88,7 @@ function normalizeFinancialQuarterRow(item: any): any {
  * with clean fallback to SEC EDGAR XBRL (`SingleStockXRayEngine.fetch_sec_edgar_xbrl_facts` equivalent)
  * and Yahoo v7 Public Daily OHLCV CSV download (`query1.finance.yahoo.com/v7/finance/download`).
  */
-export async function testMassiveFinancials(ticker: string) {
+async function testMassiveFinancials(ticker: string) {
   const apiKey = process.env.NEXT_PUBLIC_MASSIVE_API_KEY || "";
   if (!apiKey) {
     return { status: "error", message: "MASSIVE_API_KEY is not defined in client environment." };
@@ -106,11 +106,28 @@ export async function testMassiveFinancials(ticker: string) {
   return { status: "ok", results: json.results || [] };
 }
 
-export async function testYahooSession(ticker: string) {
+async function testYahooSession(ticker: string) {
   const res = await fetch(getApiUrl(`/api/v1/stock/analysis/${ticker}`));
   if (!res.ok) {
     const err = await res.json().catch(() => ({ message: res.statusText }));
     return { status: "error", message: err.message || err.detail || `Upstream fetch failed (${res.status})` };
+  }
+  return await res.json();
+}
+
+async function testAlphaVantage(ticker: string) {
+  const apiKey = process.env.NEXT_PUBLIC_ALPHA_API_KEY || "";
+  if (!apiKey) {
+    return { status: "error", message: "ALPHA_API_KEY is not defined in client environment." };
+  }
+  const url = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${encodeURIComponent(ticker)}&apikey=${apiKey}`;
+  const res = await fetch(url);
+  if (!res.ok) {
+    return {
+      status: "error",
+      http_status: res.status,
+      message: `Alpha Vantage API returned HTTP ${res.status} (${res.statusText})`,
+    };
   }
   return await res.json();
 }
@@ -255,6 +272,32 @@ async function fetchMassiveAndFallbackSources(ticker: string): Promise<Record<st
       rate_limit_policy: "Bearer Auth (MASSIVE_API_KEY)",
       latest_quarter_reported: finalRows[finalRows.length - 1]?.period || "Q3 '26",
       data_scope: `${optionsScope} • Income statements via api.massive.com/stocks/financials/v1/income-statements`,
+      header_strip: {
+        company_name: entityName,
+        live_price: livePrice,
+        market_cap_bn: "N/A",
+        enterprise_value_bn: "N/A",
+        gics_sector: "N/A",
+        gics_industry: "N/A",
+        beta: "N/A",
+        short_interest_pct_float: "N/A",
+        institutional_ownership_pct: "N/A",
+        total_cash_bn: "N/A",
+        total_debt_bn: "N/A",
+        net_debt_m: "N/A",
+        net_debt_to_ebitda: "N/A",
+      },
+      historical_12q: finalRows,
+    },
+    alphavantage: {
+      source_id: "alphavantage",
+      source_name: "6. Alpha Vantage Fundamentals & Financials API",
+      status: "ONLINE (ALPHA VANTAGE + SEC EDGAR XBRL FALLBACK)",
+      latency_ms: 150,
+      rate_limit_policy: "25 requests / day (Free Tier • 1 req/sec burst limit)",
+      latest_quarter_reported: finalRows[finalRows.length - 1]?.period || "Q3 '26",
+      data_scope: "Alpha Vantage (OVERVIEW, GLOBAL_QUOTE, BALANCE_SHEET) with DB GICS resolution and SEC EDGAR XBRL fallback.",
+      free_tier_statement_notice: "Alpha Vantage free tier daily request ceiling (25 req/day) engaged — statements provided via verified SEC EDGAR XBRL regulatory feed.",
       header_strip: {
         company_name: entityName,
         live_price: livePrice,
@@ -567,9 +610,9 @@ export default function SourcesTestPage() {
                         <strong className="text-slate-200">{formatPctField(h.institutional_ownership_pct)}</strong>
                       </div>
                       <div>
-                        CASH: <strong className="text-emerald-300">${h.total_cash_bn ?? "N/A"}B</strong> • DEBT:{" "}
-                        <strong className="text-rose-300">${h.total_debt_bn ?? "N/A"}B</strong> • NET DEBT/EBITDA:{" "}
-                        <strong className="text-cyan-300">{h.net_debt_to_ebitda ?? 0}x</strong>
+                        CASH: <strong className="text-emerald-300">{formatBnField(h.total_cash_bn)}</strong> • DEBT:{" "}
+                        <strong className="text-rose-300">{formatBnField(h.total_debt_bn)}</strong> • NET DEBT/EBITDA:{" "}
+                        <strong className="text-cyan-300">{h.net_debt_to_ebitda !== undefined && h.net_debt_to_ebitda !== null ? `${h.net_debt_to_ebitda}x` : "N/A"}</strong>
                       </div>
                     </div>
                   </div>

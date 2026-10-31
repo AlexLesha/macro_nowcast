@@ -71,6 +71,7 @@ class Settings:
     LLM_API_KEY: str = GROQ_API_KEY or GEMINI_API_KEY
     COINGECKO_API_KEY: str = (os.getenv("COINGECKO_API_KEY") or "").strip()
     EIA_API_KEY: str = (os.getenv("EIA_API_KEY") or "").strip()
+    ALPHA_API_KEY: str = (os.getenv("ALPHA_API_KEY") or os.getenv("ALPHAVANTAGE_API_KEY") or "").strip()
 
     DATABASE_URL: str = _resolved_db_url
     REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
