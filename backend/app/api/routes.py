@@ -1464,12 +1464,31 @@ def get_macro_scenarios(db: Session = Depends(get_db)):
 # ----------------------------------------------------
 @api_router.get("/v1/stock/xray/{ticker}")
 @api_router.get("/stock/xray/{ticker}")
-def get_single_stock_xray(ticker: str, regime: str = "REFLATION", quad: str = "Quad 2"):
+def get_single_stock_xray(
+    ticker: str,
+    regime: Optional[str] = None,
+    quad: Optional[str] = None
+):
+    if not regime or not quad or quad == "Quad 2":
+        try:
+            from app.quant_engine.macro_nowcast import compute_growth_nowcast, compute_inflation_nowcast, compute_quads_and_base_effects
+            g = compute_growth_nowcast()
+            inf = compute_inflation_nowcast()
+            q_data = compute_quads_and_base_effects(g, inf)
+            active_quad = quad if (quad and quad != "Quad 2") else q_data.get("current_quad", "Quad 3")
+            active_regime = regime if (regime and regime != "REFLATION") else q_data.get("current_regime", "STAGFLATION")
+        except Exception:
+            active_quad = quad or "Quad 3"
+            active_regime = regime or "STAGFLATION"
+    else:
+        active_quad = quad
+        active_regime = regime
+
     try:
         from backend.app.quant_engine.stock_analyzer import SingleStockXRayEngine
     except ImportError:
         from app.quant_engine.stock_analyzer import SingleStockXRayEngine
-    return _sanitize_floats(SingleStockXRayEngine.analyze_ticker(ticker, active_market_regime=regime, active_economic_quad=quad))
+    return _sanitize_floats(SingleStockXRayEngine.analyze_ticker(ticker, active_market_regime=active_regime, active_economic_quad=active_quad))
 
 
 @api_router.get("/v1/stock/edgar-12q/{ticker}")

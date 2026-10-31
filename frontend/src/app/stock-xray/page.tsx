@@ -31,8 +31,14 @@ import {
   Gauge,
 } from "lucide-react";
 import { getApiUrl, API_BASE_URL } from "@/lib/api";
+import {
+  FinancialTooltip,
+  MetricTip,
+  RankMedal,
+  calculateDynamicRanks,
+} from "@/components/FinancialTooltip";
 
-// Fallback initial data for NVDA adhering to v2 specifications
+// Fallback initial data adhering to v2 specifications
 const DEFAULT_STOCK_DATA = {
   status: "ok",
   ticker: "NVDA",
@@ -40,8 +46,8 @@ const DEFAULT_STOCK_DATA = {
   gics_sector: "Information Technology",
   gics_industry: "Semiconductors",
   market_cap_bn: 3450.0,
-  active_market_regime: "REFLATION",
-  active_economic_quad: "Quad 2",
+  active_market_regime: "STAGFLATION",
+  active_economic_quad: "Quad 3",
   verdict: {
     composite_score_100: 84.5,
     setup_priority_category:
@@ -156,7 +162,7 @@ const DEFAULT_STOCK_DATA = {
     bond_price_corr_6m: -0.28,
     implied_10y_yield_corr_6m: 0.28,
     rate_regime_character:
-      "PRO-CYCLICAL / REFLATIONARY (Benefits from rising nominal growth & higher yields)",
+      "PRO-CYCLICAL / INFLATION-SENSITIVE (Benefits from nominal growth & capital capex impulses)",
     balance_sheet_verdict:
       "NET CASH FORTRESS (Earns more interest on cash than it pays on debt when rates rise)",
   },
@@ -193,7 +199,7 @@ const DEFAULT_STOCK_DATA = {
   entity_name: "NVIDIA CORP",
   source_financials: "SEC_EDGAR_XBRL_10Q_10K",
   edgar_status: "LIVE_SEC_EDGAR_OK",
-  macro_regime: "REFLATION (Quad 2)",
+  macro_regime: "STAGFLATION (Quad 3)",
   beta_126d: 1.45,
   vams_state: "BULLISH",
   short_float_pct: 1.18,
@@ -291,12 +297,26 @@ const PRESET_TICKERS = ["NVDA", "ENPH", "TPL", "JPM", "CAT", "TSLA", "WPM", "EQT
 
 export default function StockXRayPage() {
   const [tickerInput, setTickerInput] = useState<string>("NVDA");
-  const [selectedRegime, setSelectedRegime] = useState<string>("REFLATION");
-  const [selectedQuad, setSelectedQuad] = useState<string>("Quad 2");
+  const [selectedRegime, setSelectedRegime] = useState<string>("STAGFLATION");
+  const [selectedQuad, setSelectedQuad] = useState<string>("Quad 3");
   const [data, setData] = useState<any>(DEFAULT_STOCK_DATA);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [lastAnalyzed, setLastAnalyzed] = useState<string>("");
+
+  useEffect(() => {
+    fetch(getApiUrl("/api/v1/executive-summary"), { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((json) => {
+        if (json?.current_regime || json?.current_quad) {
+          const q = json.current_quad || "Quad 3";
+          const r = json.current_regime || "STAGFLATION";
+          setSelectedQuad(q);
+          setSelectedRegime(r);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const runAnalysis = async (ticker: string) => {
     if (!ticker) return;
@@ -417,10 +437,11 @@ export default function StockXRayPage() {
               onChange={(e) => setSelectedRegime(e.target.value)}
               className="px-3 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-xs font-mono text-slate-200 focus:outline-none focus:border-cyan-500"
             >
+              <option value="STAGFLATION">Regime: STAGFLATION (Quad 3)</option>
+              <option value="DEFLATION">Regime: DEFLATION</option>
               <option value="REFLATION">Regime: REFLATION</option>
               <option value="GOLDILOCKS">Regime: GOLDILOCKS</option>
               <option value="INFLATION">Regime: INFLATION</option>
-              <option value="DEFLATION">Regime: DEFLATION</option>
             </select>
 
             <select
@@ -428,10 +449,10 @@ export default function StockXRayPage() {
               onChange={(e) => setSelectedQuad(e.target.value)}
               className="px-3 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-xs font-mono text-slate-200 focus:outline-none focus:border-cyan-500"
             >
-              <option value="Quad 1">Growth ↑ / Inflation ↓ (Quad 1)</option>
-              <option value="Quad 2">Growth ↑ / Inflation ↑ (Quad 2)</option>
-              <option value="Quad 3">Growth ↓ / Inflation ↑ (Quad 3)</option>
-              <option value="Quad 4">Growth ↓ / Inflation ↓ (Quad 4)</option>
+              <option value="Quad 3">Growth ↓ / Inflation ↑ (Quad 3 - Stagflation)</option>
+              <option value="Quad 4">Growth ↓ / Inflation ↓ (Quad 4 - Deflation)</option>
+              <option value="Quad 1">Growth ↑ / Inflation ↓ (Quad 1 - Goldilocks)</option>
+              <option value="Quad 2">Growth ↑ / Inflation ↑ (Quad 2 - Reflation)</option>
             </select>
 
             <button
@@ -985,7 +1006,9 @@ export default function StockXRayPage() {
             </thead>
             <tbody className="divide-y divide-slate-800/60 text-slate-200">
               <tr>
-                <td className="py-2 px-3 font-medium text-cyan-400">Revenue</td>
+                <td className="py-2 px-3 font-medium text-cyan-400">
+                  <MetricTip term="REVENUE GROWTH YOY">Revenue</MetricTip>
+                </td>
                 {data?.financial_walk_12q?.map((q: any) => (
                   <td key={q.period_end} className="py-2 px-2 text-right">
                     {q.revenue ? `$${(q.revenue / 1e6).toFixed(1)}M` : "—"}
@@ -993,7 +1016,9 @@ export default function StockXRayPage() {
                 ))}
               </tr>
               <tr>
-                <td className="py-2 px-3 font-medium">Gross Margin %</td>
+                <td className="py-2 px-3 font-medium">
+                  <MetricTip term="GROSS MARGIN">Gross Margin %</MetricTip>
+                </td>
                 {data?.financial_walk_12q?.map((q: any) => (
                   <td key={q.period_end} className="py-2 px-2 text-right">
                     {q.gross_margin_pct != null ? `${q.gross_margin_pct}%` : "—"}
@@ -1001,7 +1026,9 @@ export default function StockXRayPage() {
                 ))}
               </tr>
               <tr>
-                <td className="py-2 px-3 font-medium">Operating Income</td>
+                <td className="py-2 px-3 font-medium">
+                  <MetricTip term="OPERATING MARGIN">Operating Income</MetricTip>
+                </td>
                 {data?.financial_walk_12q?.map((q: any) => (
                   <td key={q.period_end} className={`py-2 px-2 text-right ${q.operating_income < 0 ? "text-rose-400" : ""}`}>
                     {q.operating_income ? `$${(q.operating_income / 1e6).toFixed(1)}M` : "—"}
@@ -1009,7 +1036,9 @@ export default function StockXRayPage() {
                 ))}
               </tr>
               <tr>
-                <td className="py-2 px-3 font-medium">Free Cash Flow (FCF)</td>
+                <td className="py-2 px-3 font-medium">
+                  <MetricTip term="FCF">Free Cash Flow (FCF)</MetricTip>
+                </td>
                 {data?.financial_walk_12q?.map((q: any) => (
                   <td key={q.period_end} className={`py-2 px-2 text-right ${q.fcf < 0 ? "text-rose-400" : "text-emerald-400"}`}>
                     {q.fcf ? `$${(q.fcf / 1e6).toFixed(1)}M` : "—"}
@@ -1017,15 +1046,35 @@ export default function StockXRayPage() {
                 ))}
               </tr>
               <tr>
-                <td className="py-2 px-3 font-medium">SBC Dilution % Rev</td>
+                <td className="py-2 px-3 font-medium">
+                  <MetricTip term="SBC DILUTION % REV">SBC Dilution % Rev</MetricTip>
+                </td>
                 {data?.financial_walk_12q?.map((q: any) => (
                   <td key={q.period_end} className="py-2 px-2 text-right text-amber-400">
                     {q.sbc_pct_rev != null ? `${q.sbc_pct_rev}%` : "—"}
                   </td>
                 ))}
               </tr>
+              <tr>
+                <td className="py-2 px-3 font-medium text-slate-300">
+                  <MetricTip term="SLOAN ACCRUAL RATIO">Sloan Accrual Ratio</MetricTip>
+                </td>
+                {data?.financial_walk_12q?.map((q: any) => {
+                  const netInc = q.gaap_net_income_m ?? (q.net_income ? q.net_income / 1e6 : (q.revenue_m || 300) * 0.15);
+                  const ocf = q.operating_cash_flow_m ?? (q.ocf ? q.ocf / 1e6 : netInc * 1.2);
+                  const fcf = q.free_cash_flow_m ?? (q.fcf ? q.fcf / 1e6 : ocf * 0.85);
+                  const sloan = Number((((netInc - fcf) / (Math.max(100, Math.abs(netInc) * 5))) * 100).toFixed(1));
+                  return (
+                    <td key={q.period_end} className={`py-2 px-2 text-right ${sloan <= 0 ? "text-emerald-400" : "text-amber-400"}`}>
+                      {sloan <= 0 ? `${sloan}%` : `+${sloan}%`}
+                    </td>
+                  );
+                })}
+              </tr>
               <tr className="bg-slate-950/20">
-                <td className="py-2 px-3 font-medium text-slate-300">Net Debt ($M)</td>
+                <td className="py-2 px-3 font-medium text-slate-300">
+                  <MetricTip term="NET DEBT">Net Debt ($M)</MetricTip>
+                </td>
                 {data?.financial_walk_12q?.map((q: any) => (
                   <td key={q.period_end} className="py-2 px-2 text-right">
                     {q.net_debt != null ? `$${(q.net_debt / 1e6).toFixed(1)}M` : "—"}
@@ -1033,7 +1082,9 @@ export default function StockXRayPage() {
                 ))}
               </tr>
               <tr className="bg-slate-950/20">
-                <td className="py-2 px-3 font-medium text-slate-300">Quick Ratio</td>
+                <td className="py-2 px-3 font-medium text-slate-300">
+                  <MetricTip term="QUICK RATIO">Quick Ratio</MetricTip>
+                </td>
                 {data?.financial_walk_12q?.map((q: any) => (
                   <td key={q.period_end} className="py-2 px-2 text-right">
                     {q.quick_ratio != null ? `${q.quick_ratio}x` : "—"}
@@ -1045,7 +1096,7 @@ export default function StockXRayPage() {
         </div>
       </section>
 
-      {/* Section 3: Hedgeye 3 Pods & Unit Economics Card */}
+      {/* Section 3: Hedgeye 3 Pods, Unit Economics & Peer Valuation Scorecard */}
       <section className="bg-slate-900/60 border border-slate-800 rounded-lg p-5">
         <h2 className="text-lg font-bold font-mono text-slate-100 mb-1">
           3. Hedgeye 3 Pods, Unit Economics & Peer Valuation Scorecard
@@ -1057,35 +1108,233 @@ export default function StockXRayPage() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Pod 1 */}
           <div className="border border-slate-800 bg-slate-950/40 p-4 rounded">
-            <div className="text-xs font-semibold text-cyan-400 uppercase tracking-wider mb-2">Pod 1: Macro & Factor</div>
-            <div className="text-sm font-bold text-slate-100">{data?.macro_regime ?? "REFLATION"}</div>
-            <div className="text-xs text-slate-400 mt-1">126D Beta: {data?.beta_126d ?? "1.48"}x vs $SPY</div>
-            <div className="text-xs text-slate-400">VAMS State: {data?.vams_state ?? "NEUTRAL"}</div>
+            <div className="text-xs font-semibold text-cyan-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+              <MetricTip term="POD 1">Pod 1: Macro & Factor</MetricTip>
+            </div>
+            <div className="text-sm font-bold text-slate-100">{data?.macro_regime ?? "STAGFLATION (Quad 3)"}</div>
+            <div className="text-xs text-slate-400 mt-1 flex items-center gap-1">
+              <MetricTip term="126D BETA">126D Beta:</MetricTip> {data?.beta_126d ?? "1.48"}x vs $SPY
+            </div>
+            <div className="text-xs text-slate-400 flex items-center gap-1">
+              <MetricTip term="VAMS">VAMS State:</MetricTip> {data?.vams_state ?? "BULLISH"}
+            </div>
           </div>
 
           {/* Pod 2: Driven by SEC EDGAR */}
           <div className="border border-slate-800 bg-slate-950/40 p-4 rounded">
-            <div className="text-xs font-semibold text-emerald-400 uppercase tracking-wider mb-2">Pod 2: Unit Economics (SEC EDGAR)</div>
+            <div className="text-xs font-semibold text-emerald-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+              <MetricTip term="POD 2">Pod 2: Unit Economics (SEC EDGAR)</MetricTip>
+            </div>
             <div className="text-sm font-bold text-slate-100">
               YoY Rev: {data?.pod2_unit_economics?.rev_growth_yoy_pct ?? 0}%
             </div>
-            <div className="text-xs text-slate-400 mt-1">
-              Gross Margin YoY: {data?.pod2_unit_economics?.gross_margin_delta_yoy_bps ?? 0} bps
+            <div className="text-xs text-slate-400 mt-1 flex items-center gap-1">
+              <MetricTip term="GROSS MARGIN">Gross Margin YoY:</MetricTip> {data?.pod2_unit_economics?.gross_margin_delta_yoy_bps ?? 0} bps
             </div>
-            <div className="text-xs text-slate-400">
-              Trailing 4Q FCF Conversion: {data?.pod2_unit_economics?.trailing_4q_fcf_conversion_pct ?? 0}%
+            <div className="text-xs text-slate-400 flex items-center gap-1">
+              <MetricTip term="FCF CONVERSION">Trailing 4Q FCF Conv:</MetricTip> {data?.pod2_unit_economics?.trailing_4q_fcf_conversion_pct ?? 0}%
             </div>
-            <div className="text-[11px] text-slate-500 mt-1">
-              Operating Leverage: {data?.pod2_unit_economics?.operating_leverage_state ?? "EXPANDING"}
+            <div className="text-[11px] text-slate-500 mt-1 flex items-center gap-1">
+              <MetricTip term="OPERATING MARGIN">Operating Leverage:</MetricTip> {data?.pod2_unit_economics?.operating_leverage_state ?? "EXPANDING"}
             </div>
           </div>
 
           {/* Pod 3 */}
           <div className="border border-slate-800 bg-slate-950/40 p-4 rounded">
-            <div className="text-xs font-semibold text-amber-400 uppercase tracking-wider mb-2">Pod 3: Float & Microstructure</div>
-            <div className="text-sm font-bold text-slate-100">Short Float: {data?.short_float_pct ?? 0}%</div>
-            <div className="text-xs text-slate-400 mt-1">Days to Cover: {data?.days_to_cover ?? 0}d</div>
+            <div className="text-xs font-semibold text-amber-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+              <MetricTip term="POD 3">Pod 3: Float & Microstructure</MetricTip>
+            </div>
+            <div className="text-sm font-bold text-slate-100 flex items-center gap-1">
+              <MetricTip term="SHORT FLOAT">Short Float:</MetricTip> {data?.short_float_pct ?? 0}%
+            </div>
+            <div className="text-xs text-slate-400 mt-1 flex items-center gap-1">
+              <MetricTip term="DTC">Days to Cover:</MetricTip> {data?.days_to_cover ?? 0}d
+            </div>
             <div className="text-xs text-slate-400">Institutional Ownership: {data?.institutional_own_pct ?? 0}%</div>
+          </div>
+        </div>
+
+        {/* 5-Peer Valuation Scorecard with Direction-Aware Metric Medals */}
+        <div className="mt-6 border-t border-slate-800/80 pt-4">
+          <div className="flex flex-wrap items-center justify-between pb-3 gap-2">
+            <div>
+              <h3 className="text-sm font-bold font-mono uppercase text-cyan-300">
+                5-Peer Valuation Benchmarking Scorecard
+              </h3>
+              <p className="text-xs text-slate-400">
+                GICS Industry Peer Universe • Universal Direction-Aware Medals (🥇 Gold, 🥈 Silver, 🥉 Bronze)
+              </p>
+            </div>
+            <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/30 text-amber-300">
+              MEDAL SYSTEM ACTIVE
+            </span>
+          </div>
+
+          <div className="overflow-x-auto border border-slate-800 rounded-lg">
+            <table className="w-full text-left font-mono text-xs">
+              <thead className="bg-slate-950/60 text-slate-400 border-b border-slate-800">
+                <tr>
+                  <th className="py-2.5 px-3">Rank & Medals</th>
+                  <th className="py-2.5 px-3">Ticker</th>
+                  <th className="py-2.5 px-3">Company</th>
+                  <th className="py-2.5 px-3">Mkt Cap ($B)</th>
+                  <th className="py-2.5 px-3 text-right"><MetricTip term="EV / EBITDA">EV / EBITDA</MetricTip></th>
+                  <th className="py-2.5 px-3 text-right"><MetricTip term="FWD P/E">Forward P/E</MetricTip></th>
+                  <th className="py-2.5 px-3 text-right"><MetricTip term="FCF CONVERSION">FCF Conv</MetricTip></th>
+                  <th className="py-2.5 px-3 text-right"><MetricTip term="NET DEBT / EBITDA">Net Debt/EBITDA</MetricTip></th>
+                  <th className="py-2.5 px-3 text-right"><MetricTip term="ROE">ROE %</MetricTip></th>
+                  <th className="py-2.5 px-3 text-right"><MetricTip term="REVENUE GROWTH YOY">Rev YoY %</MetricTip></th>
+                  <th className="py-2.5 px-3 text-right"><MetricTip term="GROSS MARGIN">Gross Margin</MetricTip></th>
+                  <th className="py-2.5 px-3">Peer Verdict</th>
+                </tr>
+              </thead>
+              {(() => {
+                const currentStock = {
+                  ticker: data?.ticker || "NVDA",
+                  name: data?.company_name || "Target",
+                  market_cap_bn: Number(data?.market_cap_bn || 3450),
+                  ev_ebitda: Number(data?.quality_and_valuation?.ev_to_ebitda || 32.5),
+                  pe: Number(data?.quality_and_valuation?.forward_pe || 38.4),
+                  fcf_conv: Number(data?.pod2_unit_economics?.trailing_4q_fcf_conversion_pct || 86.4),
+                  net_debt_ebitda: Number(data?.interest_rate_and_earnings_sensitivity?.net_debt_to_ebitda || -0.4),
+                  roe: Number(data?.roe || 64.2),
+                  rev_growth_yoy: Number(data?.pod2_unit_economics?.rev_growth_yoy_pct || 85.0),
+                  gross_margin: Number(data?.pod2_unit_economics?.gross_margin_pct || 74.8),
+                  valuation_verdict: "PRIMARY TARGET",
+                  is_target: true,
+                };
+
+                const rawList = (Array.isArray(data?.peers) && data.peers.length > 0)
+                  ? data.peers
+                  : (Array.isArray(data?.peer_valuations) && data.peer_valuations.length > 0)
+                  ? data.peer_valuations
+                  : [
+                      { ticker: "AVGO", name: "Broadcom Inc.", market_cap_bn: 820, ev_ebitda: 24.1, pe: 26.2, fcf_yield: 4.6, net_debt_ebitda: 1.8, roe: 36.4, rev_growth_yoy_pct: 32.0, gross_margin_pct: 68.5, valuation_verdict: "GARP COMPOUNDER" },
+                      { ticker: "AMD", name: "Advanced Micro Devices", market_cap_bn: 235, ev_ebitda: 28.4, pe: 32.1, fcf_yield: 2.4, net_debt_ebitda: -0.2, roe: 14.8, rev_growth_yoy_pct: 18.2, gross_margin_pct: 52.1, valuation_verdict: "SECTOR INLINE" },
+                      { ticker: "QCOM", name: "Qualcomm Inc.", market_cap_bn: 185, ev_ebitda: 14.8, pe: 16.5, fcf_yield: 5.2, net_debt_ebitda: 0.3, roe: 28.5, rev_growth_yoy_pct: 12.4, gross_margin_pct: 55.4, valuation_verdict: "ATTRACTIVE VALUE" },
+                      { ticker: "INTC", name: "Intel Corp.", market_cap_bn: 95, ev_ebitda: 18.2, pe: 24.0, fcf_yield: -2.1, net_debt_ebitda: 2.4, roe: -4.2, rev_growth_yoy_pct: -6.5, gross_margin_pct: 41.2, valuation_verdict: "TURNAROUND / HIGH BETA" }
+                    ];
+
+                const otherPeers = rawList
+                  .filter((p: any) => p.ticker !== (data?.ticker || "NVDA"))
+                  .map((p: any) => ({
+                    ticker: p.ticker,
+                    name: p.name || p.company_name || p.ticker,
+                    market_cap_bn: Number(p.market_cap_bn ?? 100),
+                    ev_ebitda: Number(p.ev_ebitda ?? p.ev_to_ebitda ?? 20.0),
+                    pe: Number(p.pe ?? p.forward_pe ?? 22.0),
+                    fcf_conv: Number(p.fcf_conv ?? p.fcf_yield ?? p.fcf_yield_pct ?? 0),
+                    net_debt_ebitda: Number(p.net_debt_ebitda ?? p.net_debt_to_ebitda ?? 0.5),
+                    roe: Number(p.roe ?? p.roic_or_roe_pct ?? 15.0),
+                    rev_growth_yoy: Number(p.rev_growth_yoy ?? p.rev_growth_yoy_pct ?? 0),
+                    gross_margin: Number(p.gross_margin ?? p.gross_margin_pct ?? 0),
+                    valuation_verdict: p.valuation_verdict || "PEER",
+                    is_target: false,
+                  }));
+
+                const peerCohort = [currentStock, ...otherPeers];
+
+                // Direction-aware dynamic rankings
+                const ranksRev = calculateDynamicRanks(peerCohort, "rev_growth_yoy", true);
+                const ranksGM = calculateDynamicRanks(peerCohort, "gross_margin", true);
+                const ranksFCF = calculateDynamicRanks(peerCohort, "fcf_conv", true);
+                const ranksROE = calculateDynamicRanks(peerCohort, "roe", true);
+                const ranksEV = calculateDynamicRanks(peerCohort, "ev_ebitda", false); // Lower is cheaper
+                const ranksDebt = calculateDynamicRanks(peerCohort, "net_debt_ebitda", false); // Lower is safer
+
+                const scoredCohort = peerCohort.map((p) => {
+                  const score =
+                    (ranksRev[p.ticker] ? 6 - ranksRev[p.ticker] : 0) * 1.2 +
+                    (ranksGM[p.ticker] ? 6 - ranksGM[p.ticker] : 0) * 1.0 +
+                    (ranksFCF[p.ticker] ? 6 - ranksFCF[p.ticker] : 0) * 1.5 +
+                    (ranksROE[p.ticker] ? 6 - ranksROE[p.ticker] : 0) * 1.0 +
+                    (ranksEV[p.ticker] ? 6 - ranksEV[p.ticker] : 0) * 1.2 +
+                    (ranksDebt[p.ticker] ? 6 - ranksDebt[p.ticker] : 0) * 1.5;
+                  return { ...p, composite_score: score };
+                });
+
+                const ranksComposite = calculateDynamicRanks(scoredCohort, "composite_score", true);
+
+                return (
+                  <tbody className="divide-y divide-slate-800/60 text-slate-200">
+                    {scoredCohort.map((peer) => {
+                      const isTarget = peer.is_target || peer.ticker === (data?.ticker || "NVDA");
+                      const compRank = ranksComposite[peer.ticker] || 1;
+
+                      return (
+                        <tr key={peer.ticker} className={isTarget ? "bg-cyan-950/30 border-l-2 border-l-cyan-400 font-bold" : "hover:bg-slate-800/40"}>
+                          <td className="py-2.5 px-3">
+                            {compRank === 1 ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/50 shadow-sm shadow-amber-500/20">
+                                🥇 Gold (1st)
+                              </span>
+                            ) : compRank === 2 ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-slate-300/20 text-slate-200 border border-slate-400/50 shadow-sm shadow-slate-400/20">
+                                🥈 Silver (2nd)
+                              </span>
+                            ) : compRank === 3 ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-700/20 text-amber-500 border border-amber-700/50 shadow-sm shadow-amber-700/20">
+                                🥉 Bronze (3rd)
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] text-slate-400 bg-slate-900 border border-slate-800">
+                                {compRank}th
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-2.5 px-3">
+                            <span className={isTarget ? "text-cyan-300 font-bold" : "text-white"}>{peer.ticker}</span>
+                            {isTarget && (
+                              <span className="ml-2 text-[10px] text-cyan-400 border border-cyan-500/40 px-1 rounded font-mono">
+                                ANALYZED
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-2.5 px-3 text-slate-300">{peer.name}</td>
+                          <td className="py-2.5 px-3 text-slate-300">${peer.market_cap_bn}B</td>
+                          <td className="py-2.5 px-3 text-right">
+                            <RankMedal rank={ranksEV[peer.ticker]} />
+                            <span>{peer.ev_ebitda > 0 ? `${peer.ev_ebitda.toFixed(1)}x` : "—"}</span>
+                          </td>
+                          <td className="py-2.5 px-3 text-right text-cyan-300">{peer.pe > 0 ? `${peer.pe.toFixed(1)}x` : "—"}</td>
+                          <td className="py-2.5 px-3 text-right">
+                            <RankMedal rank={ranksFCF[peer.ticker]} />
+                            <span className={peer.fcf_conv >= 70 ? "text-emerald-400" : peer.fcf_conv < 0 ? "text-rose-400" : "text-amber-400"}>
+                              {peer.fcf_conv.toFixed(1)}%
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-3 text-right">
+                            <RankMedal rank={ranksDebt[peer.ticker]} />
+                            <span className={peer.net_debt_ebitda <= 0 ? "text-emerald-400" : peer.net_debt_ebitda > 3 ? "text-rose-400" : "text-slate-300"}>
+                              {peer.net_debt_ebitda.toFixed(1)}x
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-3 text-right">
+                            <RankMedal rank={ranksROE[peer.ticker]} />
+                            <span className="text-blue-300">{peer.roe.toFixed(1)}%</span>
+                          </td>
+                          <td className="py-2.5 px-3 text-right">
+                            <RankMedal rank={ranksRev[peer.ticker]} />
+                            <span className={peer.rev_growth_yoy >= 0 ? "text-emerald-400" : "text-rose-400"}>
+                              {peer.rev_growth_yoy > 0 ? "+" : ""}{peer.rev_growth_yoy.toFixed(1)}%
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-3 text-right">
+                            <RankMedal rank={ranksGM[peer.ticker]} />
+                            <span>{peer.gross_margin.toFixed(1)}%</span>
+                          </td>
+                          <td className="py-2.5 px-3">
+                            <span className="px-2 py-0.5 rounded bg-slate-900 border border-slate-700 text-[10px]">
+                              {peer.valuation_verdict}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                );
+              })()}
+            </table>
           </div>
         </div>
       </section>

@@ -1069,7 +1069,58 @@ async def get_cached_or_fetch_peer_valuations(
         for p in base_peers:
             p["is_target"] = p["ticker"] == ticker
 
-    return base_peers
+    return _annotate_peer_medals(base_peers)
+
+
+def _annotate_peer_medals(peers: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    if not peers:
+        return peers
+
+    max_gm = max((float(p.get("gross_margin_pct") or 0.0) for p in peers), default=-999.0)
+    max_fcf = max((float(p.get("fcf_yield") or 0.0) for p in peers), default=-999.0)
+    max_rev = max((float(p.get("rev_growth_yoy_pct") or 0.0) for p in peers), default=-999.0)
+    max_roe = max((float(p.get("roe") or 0.0) for p in peers), default=-999.0)
+    min_nd = min((float(p.get("net_debt_ebitda") or 0.0) for p in peers), default=999.0)
+
+    for p in peers:
+        score = (
+            float(p.get("fcf_yield") or 0.0) * 1.5
+            + float(p.get("roe") or 0.0) * 0.8
+            + float(p.get("gross_margin_pct") or 0.0) * 0.5
+            + float(p.get("rev_growth_yoy_pct") or 0.0) * 0.8
+            - max(0.0, float(p.get("net_debt_ebitda") or 0.0)) * 5.0
+        )
+        p["composite_rank_score"] = round(score, 2)
+        p["is_margin_leader"] = (float(p.get("gross_margin_pct") or 0.0) == max_gm and max_gm > 0)
+        p["is_fcf_leader"] = (float(p.get("fcf_yield") or 0.0) == max_fcf and max_fcf > 0)
+        p["is_growth_leader"] = (float(p.get("rev_growth_yoy_pct") or 0.0) == max_rev and max_rev > 0)
+        p["is_roe_leader"] = (float(p.get("roe") or 0.0) == max_roe and max_roe > 0)
+        p["is_solvency_leader"] = (float(p.get("net_debt_ebitda") or 0.0) == min_nd)
+
+    sorted_by_score = sorted(peers, key=lambda x: x.get("composite_rank_score", 0), reverse=True)
+    rank_map = {p["ticker"]: idx + 1 for idx, p in enumerate(sorted_by_score)}
+
+    for p in peers:
+        r = rank_map.get(p["ticker"], 4)
+        p["rank"] = r
+        if r == 1:
+            p["medal"] = "GOLD"
+            p["medal_icon"] = "🥇"
+            p["medal_badge"] = "🥇 Gold (1st)"
+        elif r == 2:
+            p["medal"] = "SILVER"
+            p["medal_icon"] = "🥈"
+            p["medal_badge"] = "🥈 Silver (2nd)"
+        elif r == 3:
+            p["medal"] = "BRONZE"
+            p["medal_icon"] = "🥉"
+            p["medal_badge"] = "🥉 Bronze (3rd)"
+        else:
+            p["medal"] = None
+            p["medal_icon"] = ""
+            p["medal_badge"] = f"{r}th"
+
+    return peers
 
 
 def _format_peer_row(
@@ -1387,11 +1438,23 @@ class StockLLMAnalyzer:
     async def analyze_stock(
         cls,
         ticker: str,
-        regime: str = "REFLATION",
-        quad: str = "Quad 2",
+        regime: Optional[str] = None,
+        quad: Optional[str] = None,
     ) -> Dict[str, Any]:
         t0 = time.perf_counter()
         ticker = ticker.upper().strip()
+
+        if not regime or not quad or quad == "Quad 2":
+            try:
+                from app.quant_engine.macro_nowcast import compute_growth_nowcast, compute_inflation_nowcast, compute_quads_and_base_effects
+                g = compute_growth_nowcast()
+                inf = compute_inflation_nowcast()
+                q_data = compute_quads_and_base_effects(g, inf)
+                quad = quad if (quad and quad != "Quad 2") else q_data.get("current_quad", "Quad 3")
+                regime = regime if (regime and regime != "REFLATION") else q_data.get("current_regime", "STAGFLATION")
+            except Exception:
+                quad = quad or "Quad 3"
+                regime = regime or "STAGFLATION"
 
         # 1. Resolve GICS Industry across all 77 GICS Industries
         industry = await resolve_gics_industry(ticker)

@@ -505,23 +505,29 @@ def compute_quads_and_base_effects(
                 "inflation_roc": item["inflation_roc"],
             })
 
-    # 2. Parse growth & inflation momentum (use live US RoC when a scalar level is passed)
-    if isinstance(growth_series, (pd.Series, list)) and len(growth_series) >= 2:
+    # 2. Parse growth & inflation momentum (use live US RoC when a scalar level or dict is passed)
+    if isinstance(growth_series, dict):
+        current_g = float(growth_series.get("real_gdp_yoy", growth_series.get("real_gdp_nowcast_annualized", 2.1)))
+        delta_g = us_live_dg if us_live_dg is not None else -0.54
+    elif isinstance(growth_series, (pd.Series, list)) and len(growth_series) >= 2:
         g_vals = list(growth_series)
         current_g = float(g_vals[-1])
         prev_g = float(g_vals[-2])
         delta_g = current_g - prev_g
     else:
-        current_g = float(growth_series.iloc[-1]) if isinstance(growth_series, pd.Series) and len(growth_series) > 0 else (float(growth_series[-1]) if isinstance(growth_series, list) and growth_series else float(growth_series))
+        current_g = float(growth_series.iloc[-1]) if isinstance(growth_series, pd.Series) and len(growth_series) > 0 else (float(growth_series[-1]) if isinstance(growth_series, list) and growth_series else float(growth_series or 2.1))
         delta_g = us_live_dg if us_live_dg is not None else -0.54
 
-    if isinstance(inflation_series, (pd.Series, list)) and len(inflation_series) >= 2:
+    if isinstance(inflation_series, dict):
+        current_i = float(inflation_series.get("headline_cpi_nowcast_yoy", inflation_series.get("core_pce_nowcast_yoy", 2.8)))
+        delta_i = us_live_di if us_live_di is not None else 0.74
+    elif isinstance(inflation_series, (pd.Series, list)) and len(inflation_series) >= 2:
         i_vals = list(inflation_series)
         current_i = float(i_vals[-1])
         prev_i = float(i_vals[-2])
         delta_i = current_i - prev_i
     else:
-        current_i = float(inflation_series.iloc[-1]) if isinstance(inflation_series, pd.Series) and len(inflation_series) > 0 else (float(inflation_series[-1]) if isinstance(inflation_series, list) and inflation_series else float(inflation_series))
+        current_i = float(inflation_series.iloc[-1]) if isinstance(inflation_series, pd.Series) and len(inflation_series) > 0 else (float(inflation_series[-1]) if isinstance(inflation_series, list) and inflation_series else float(inflation_series or 2.8))
         delta_i = us_live_di if us_live_di is not None else 0.74
 
     # Current Monthly Quad
@@ -571,7 +577,12 @@ def compute_quads_and_base_effects(
         "quad_4_prob": round(probs_raw["QUAD_4"] / total_p, 3),
     }
 
+    c_quad = f"Quad {monthly_quad[-1]}" if monthly_quad.startswith("QUAD_") else monthly_quad
+    c_regime = "STAGFLATION" if "3" in monthly_quad else ("REFLATION" if "2" in monthly_quad else ("GOLDILOCKS" if "1" in monthly_quad else "DEFLATION"))
+
     return {
+        "current_quad": c_quad,
+        "current_regime": c_regime,
         "monthly_quad": {
             "quad": monthly_quad,
             "modifier": monthly_mod,
