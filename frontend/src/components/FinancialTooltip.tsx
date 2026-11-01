@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 
 export interface TooltipDefinition {
   title: string;
@@ -261,6 +262,30 @@ export const FINANCIAL_DEFINITIONS: Record<string, TooltipDefinition> = {
     definition: "Mandatory filing required within 2 business days of any company insider (officers, directors, or 10%+ shareholders) buying, selling, or exercising company securities.",
     interpretation: "Open-market insider buying with personal cash is one of the highest-conviction bullish signals in equity markets.",
   },
+  DELTA: {
+    title: "Option Delta (Δ) Sensitivity",
+    formula: "Delta = ∂V / ∂S (Change in option price per $1 move in underlying)",
+    definition: "Measures the expected change in option price per $1 movement in the underlying stock price. For options dealers, aggregate delta dictates how many shares of stock must be bought or sold to maintain delta neutrality.",
+    interpretation: "High positive dealer delta near major put walls creates dynamic buying pressure on dips.",
+  },
+  GAMMA: {
+    title: "Option Gamma (Γ) & Net GEX",
+    formula: "Gamma = ∂²V / ∂S² (Rate of change of delta per $1 move)",
+    definition: "The curvature of an option's price curve. Measures how fast dealer delta changes as the underlying price moves. Long dealer gamma creates mean-reverting market conditions; short dealer gamma accelerates price trends.",
+    interpretation: "Long Gamma forces market makers to buy dips and sell rips, pinning prices and suppressing intraday volatility.",
+  },
+  VEGA: {
+    title: "Option Vega (ν) Sensitivity",
+    formula: "Vega = ∂V / ∂σ (Change in option price per 1.0 vol point move in IV)",
+    definition: "Measures an option's sensitivity to shifts in implied volatility. Longer-dated contracts have higher absolute vega than short-dated contracts.",
+    interpretation: "When implied volatility is rich (positive VRP), selling high-vega options collects elevated volatility risk premiums.",
+  },
+  THETA: {
+    title: "Option Theta (Θ) Time Decay Velocity",
+    formula: "Theta = ∂V / ∂t (Option premium decay per calendar day elapsed)",
+    definition: "The rate of decline in the value of an option contract due to the passage of time, all else equal. Theta accelerates non-linearly within the final 30 to 45 days prior to expiration.",
+    interpretation: "The sweet spot for harvest strategies is 30–45 DTE, where theta decay accelerates rapidly without catastrophic tail gamma risk.",
+  },
 };
 
 interface FinancialTooltipProps {
@@ -279,7 +304,12 @@ export const FinancialTooltip: React.FC<FinancialTooltipProps> = ({
   align = "left",
 }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const defKey = term.toUpperCase().replace(/[\s\/-]/g, "_");
   const def = FINANCIAL_DEFINITIONS[defKey] || FINANCIAL_DEFINITIONS[term] || {
@@ -313,6 +343,32 @@ export const FinancialTooltip: React.FC<FinancialTooltipProps> = ({
       ? "right-0 translate-x-0"
       : "left-1/2 -translate-x-1/2";
 
+  const [coords, setCoords] = useState<{ top: number; left: number; placeAbove: boolean } | null>(null);
+
+  const updatePosition = () => {
+    if (!containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const tooltipWidth = Math.min(384, window.innerWidth - 32);
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const placeAbove = placement === "top" || (spaceBelow < 320 && rect.top > 320);
+
+    const top = placeAbove ? rect.top - 8 : rect.bottom + 8;
+    const left = Math.max(16, Math.min(rect.left, window.innerWidth - tooltipWidth - 16));
+    setCoords({ top, left, placeAbove });
+  };
+
+  useEffect(() => {
+    if (isOpen) {
+      updatePosition();
+      window.addEventListener("scroll", updatePosition, true);
+      window.addEventListener("resize", updatePosition);
+      return () => {
+        window.removeEventListener("scroll", updatePosition, true);
+        window.removeEventListener("resize", updatePosition);
+      };
+    }
+  }, [isOpen]);
+
   return (
     <span
       ref={containerRef}
@@ -338,11 +394,17 @@ export const FinancialTooltip: React.FC<FinancialTooltipProps> = ({
         ?
       </button>
 
-      {isOpen && (
+      {isOpen && coords && mounted && typeof document !== "undefined" && createPortal(
         <div
           role="tooltip"
-          className={`absolute ${verticalClass} ${alignClass} w-80 sm:w-96 p-3.5 rounded-lg bg-[#0a0f1d] border border-cyan-500/40 text-slate-100 shadow-2xl shadow-black/80 text-left font-sans text-sm space-y-2 pointer-events-auto backdrop-blur-xl z-[9999]`}
-          style={{ zIndex: 9999 }}
+          className="fixed p-3.5 rounded-lg bg-[#0a0f1d]/98 border border-cyan-500/50 text-slate-100 shadow-2xl shadow-black/90 text-left font-sans text-sm space-y-2 pointer-events-auto backdrop-blur-xl z-[99999]"
+          style={{
+            top: coords.placeAbove ? undefined : `${coords.top}px`,
+            bottom: coords.placeAbove ? `${window.innerHeight - coords.top}px` : undefined,
+            left: `${coords.left}px`,
+            width: "min(384px, calc(100vw - 32px))",
+            zIndex: 99999,
+          }}
         >
           {/* Header */}
           <div className="flex items-start justify-between gap-2 border-b border-slate-800 pb-2">
@@ -397,10 +459,8 @@ export const FinancialTooltip: React.FC<FinancialTooltipProps> = ({
               )}
             </div>
           )}
-
-          {/* Popover Arrow */}
-          <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-[1px] border-4 border-transparent border-t-[#0a0f1d]" />
-        </div>
+        </div>,
+        document.body
       )}
     </span>
   );
@@ -571,46 +631,88 @@ export function MetricTip({
   formula,
   explanation,
   children,
-  placement = "bottom", // "bottom" prevents clipping on top table headers
+  placement = "bottom",
   align = "center",
 }: MetricTipProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const [coords, setCoords] = useState<{ top: number; left: number; placeAbove: boolean } | null>(null);
+  const containerRef = useRef<HTMLSpanElement>(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const gloss = METRIC_GLOSSARY[term.toUpperCase()] || METRIC_GLOSSARY[term] || {};
   const effectiveFormula = formula || gloss.formula;
   const effectiveExplanation =
     explanation || gloss.explanation || "Financial metric definition and institutional significance.";
 
-  // Compute vertical placement classes
-  const verticalClass =
-    placement === "top"
-      ? "bottom-full mb-2"
-      : "top-full mt-2";
+  const updatePosition = () => {
+    if (!containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const tooltipWidth = Math.min(320, window.innerWidth - 32);
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const placeAbove = placement === "top" || (spaceBelow < 200 && rect.top > 200);
 
-  // Compute horizontal alignment classes to avoid screen/table edge clipping
-  const alignClass =
-    align === "left"
-      ? "left-0 translate-x-0"
-      : align === "right"
-      ? "right-0 translate-x-0"
-      : "left-1/2 -translate-x-1/2";
+    const top = placeAbove ? rect.top - 8 : rect.bottom + 8;
+    let left = rect.left;
+    if (align === "center") {
+      left = rect.left + rect.width / 2 - tooltipWidth / 2;
+    } else if (align === "right") {
+      left = rect.right - tooltipWidth;
+    }
+    left = Math.max(16, Math.min(left, window.innerWidth - tooltipWidth - 16));
+    setCoords({ top, left, placeAbove });
+  };
+
+  useEffect(() => {
+    if (isOpen) {
+      updatePosition();
+      window.addEventListener("scroll", updatePosition, true);
+      window.addEventListener("resize", updatePosition);
+      return () => {
+        window.removeEventListener("scroll", updatePosition, true);
+        window.removeEventListener("resize", updatePosition);
+      };
+    }
+  }, [isOpen]);
 
   return (
-    <span className="relative group inline-flex items-center gap-0.5 cursor-help border-b border-dotted border-slate-600 hover:border-cyan-400 transition-colors">
+    <span
+      ref={containerRef}
+      className="relative inline-flex items-center gap-0.5 cursor-help border-b border-dotted border-slate-600 hover:border-cyan-400 transition-colors"
+      onMouseEnter={() => setIsOpen(true)}
+      onMouseLeave={() => setIsOpen(false)}
+      onFocus={() => setIsOpen(true)}
+      onBlur={() => setIsOpen(false)}
+    >
       {children}
-      <span
-        className={`pointer-events-none absolute ${verticalClass} ${alignClass} w-64 max-w-[calc(100vw-2rem)] p-3 rounded-lg bg-slate-950/98 border border-slate-700 text-slate-200 text-sm shadow-2xl opacity-0 group-hover:opacity-100 transition-all duration-150 z-[9999] font-sans normal-case tracking-normal backdrop-blur-md pointer-events-none break-words`}
-        style={{ zIndex: 9999 }}
-      >
-        <span className="flex items-center justify-between pb-1 mb-1 border-b border-slate-800">
-          <span className="font-bold text-cyan-400 font-mono text-base">{term}</span>
-          <span className="text-xs text-slate-500 font-mono">GLOSSARY</span>
-        </span>
-        {effectiveFormula && (
-          <span className="block font-mono text-xs text-amber-300 bg-slate-900/90 px-1.5 py-0.5 rounded border border-slate-800 mb-1.5 break-all">
-            {effectiveFormula}
-          </span>
-        )}
-        <span className="block text-sm leading-relaxed text-slate-300">{effectiveExplanation}</span>
-      </span>
+      {isOpen && coords && mounted && typeof document !== "undefined" && createPortal(
+        <div
+          role="tooltip"
+          className="fixed p-3 rounded-lg bg-[#0a0f1d]/98 border border-slate-700 text-slate-200 text-sm shadow-2xl shadow-black/90 z-[99999] font-sans normal-case tracking-normal backdrop-blur-md pointer-events-none break-words"
+          style={{
+            top: coords.placeAbove ? undefined : `${coords.top}px`,
+            bottom: coords.placeAbove ? `${window.innerHeight - coords.top}px` : undefined,
+            left: `${coords.left}px`,
+            width: "min(320px, calc(100vw - 32px))",
+            zIndex: 99999,
+          }}
+        >
+          <div className="flex items-center justify-between pb-1 mb-1 border-b border-slate-800">
+            <span className="font-bold text-cyan-400 font-mono text-base">{term}</span>
+            <span className="text-xs text-slate-500 font-mono">GLOSSARY</span>
+          </div>
+          {effectiveFormula && (
+            <div className="font-mono text-xs text-amber-300 bg-slate-900/90 px-1.5 py-0.5 rounded border border-slate-800 mb-1.5 break-all">
+              {effectiveFormula}
+            </div>
+          )}
+          <div className="text-sm leading-relaxed text-slate-300">{effectiveExplanation}</div>
+        </div>,
+        document.body
+      )}
     </span>
   );
 }

@@ -319,51 +319,354 @@ class SingleStockXRayEngine:
 
     @classmethod
     def fetch_company_overview(cls, db: Optional[Session], ticker: str) -> Dict[str, Any]:
-        """Fetches metadata from Massive /v3/reference/tickers/{ticker}, resolving against gics_industries."""
+        """
+        Fetches company overview & GICS classification using a strict 3-tier cascade:
+          1. Massive API v3 Reference (/v3/reference/tickers/{ticker})
+          2. Alpha Vantage API (function=OVERVIEW)
+          3. US SEC EDGAR Submissions API (https://data.sec.gov/submissions/CIK{cik}.json) [Last Resort]
+        """
         clean_t = ticker.strip().upper()
         if db is None:
             with SessionLocal() as db_session:
                 return cls.fetch_company_overview(db_session, clean_t)
 
         api_key = cls._get_massive_api_key()
-        if not api_key:
-            raise ValueError("MASSIVE_API_KEY is not configured in environment variables.")
+        alpha_key = cls._get_alpha_api_key()
 
-        headers = {"Authorization": f"Bearer {api_key}"}
-        url = f"{MASSIVE_BASE_URL}/v3/reference/tickers/{clean_t}"
+        # ---------------------------------------------------------------------
+        # TIER 1: Massive API v3 Reference
+        # ---------------------------------------------------------------------
+        if api_key:
+            headers = {"Authorization": f"Bearer {api_key}"}
+            url = f"{MASSIVE_BASE_URL}/v3/reference/tickers/{clean_t}"
+            try:
+                with httpx.Client(timeout=6.0) as client:
+                    resp = client.get(url, headers=headers)
+                    if resp.status_code == 200:
+                        data = resp.json().get("results", {})
+                        if data and isinstance(data, dict):
+                            sic_code = data.get("sic_code")
+                            sic_desc = data.get("sic_description")
+                            gics = cls.resolve_industry_from_db(db, sic_code=sic_code, raw_industry=sic_desc)
+                            mcap = data.get("market_cap")
+                            cik_val = str(data.get("cik", "")).zfill(10) if data.get("cik") else cls.resolve_cik(clean_t)
+                            return {
+                                "ticker": clean_t,
+                                "company_name": data.get("name", clean_t),
+                                "sector": gics["sector"],
+                                "industry": gics["industry"],
+                                "industry_group": gics["industry_group"],
+                                "benchmark_etf": gics["benchmark_etf"],
+                                "market_cap_bn": round(float(mcap) / 1e9, 2) if mcap else None,
+                                "cik": cik_val,
+                                "source": "MASSIVE_V3_REFERENCE",
+                            }
+            except Exception as e:
+                logger.debug(f"Tier 1 (Massive v3) company overview fallback for {clean_t}: {e}")
 
-        with httpx.Client(timeout=8.0) as client:
-            resp = client.get(url, headers=headers)
-            if resp.status_code == 404:
-                raise ValueError(f"Ticker '{clean_t}' not found in Massive API database.")
-            elif resp.status_code in (401, 403):
-                raise PermissionError(
-                    f"Massive API access denied (HTTP {resp.status_code}). Check MASSIVE_API_KEY entitlement."
-                )
-            elif resp.status_code != 200:
-                raise RuntimeError(f"Massive API returned HTTP {resp.status_code}: {resp.text}")
+        # ---------------------------------------------------------------------
+        # TIER 2: Alpha Vantage OVERVIEW Fallback
+        # ---------------------------------------------------------------------
+        if alpha_key:
+            try:
+                desktop_headers = {
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+                    "Accept": "application/json",
+                }
+                with httpx.Client(headers=desktop_headers, timeout=6.0) as client:
+                    url = f"https://www.alphavantage.co/query?function=OVERVIEW&symbol={clean_t}&apikey={alpha_key}"
+                    resp = client.get(url)
+                    if resp.status_code == 200:
+                        data = resp.json() or {}
+                        if not data.get("Information") and not data.get("Note") and (data.get("Name") or data.get("Symbol")):
+                            raw_ind = data.get("Industry")
+                            raw_sec = data.get("Sector")
+                            gics = cls.resolve_industry_from_db(db, sic_code=None, raw_industry=raw_ind or raw_sec)
+                            mcap = data.get("MarketCapitalization")
+                            cik_val = str(data.get("CIK", "")).zfill(10) if data.get("CIK") else cls.resolve_cik(clean_t)
+                            return {
+                                "ticker": clean_t,
+                                "company_name": data.get("Name", clean_t),
+                                "sector": gics["sector"],
+                                "industry": gics["industry"],
+                                "industry_group": gics["industry_group"],
+                                "benchmark_etf": gics["benchmark_etf"],
+                                "market_cap_bn": round(float(mcap) / 1e9, 2) if mcap and mcap != "None" else None,
+                                "cik": cik_val,
+                                "source": "ALPHA_VANTAGE_OVERVIEW",
+                            }
+            except Exception as e:
+                logger.debug(f"Tier 2 (Alpha Vantage) company overview fallback for {clean_t}: {e}")
 
-            data = resp.json().get("results", {})
-            sic_code = data.get("sic_code")
-            sic_desc = data.get("sic_description")
+        # ---------------------------------------------------------------------
+        # TIER 3: US SEC EDGAR Submissions API [Last Resort]
+        # ---------------------------------------------------------------------
+        cik10 = cls.resolve_cik(clean_t)
+        sec_meta = cls.fetch_sec_company_metadata(cik10) if cik10 else {}
+        gics = cls.resolve_industry_from_db(db, sic_code=sec_meta.get("sic"), raw_industry=sec_meta.get("industry"))
+        return {
+            "ticker": clean_t,
+            "company_name": sec_meta.get("entity_name") or clean_t,
+            "sector": gics["sector"],
+            "industry": gics["industry"],
+            "industry_group": gics["industry_group"],
+            "benchmark_etf": gics["benchmark_etf"],
+            "market_cap_bn": None,
+            "cik": cik10,
+            "source": "SEC_EDGAR_SUBMISSIONS",
+        }
 
-            # Resolve against the database
-            gics = cls.resolve_industry_from_db(db, sic_code=sic_code, raw_industry=sic_desc)
-            mcap = data.get("market_cap")
+    @classmethod
+    def fetch_dynamic_header_metrics(
+        cls,
+        clean_ticker: str,
+        db: Optional[Session] = None,
+        overview: Optional[Dict[str, Any]] = None,
+        quarters_12q: Optional[List[Dict[str, Any]]] = None,
+    ) -> Dict[str, Any]:
+        """
+        Dynamically extracts and computes Price, Market Cap, Enterprise Value, P/E, Beta, Short Float, DTC, and Institutional Ownership
+        via a strict 3-tier cascade:
+          1. Massive API v3 / v2 (Active Version)
+          2. Alpha Vantage API (Free Tier with Rate Limit Protections)
+          3. US SEC EDGAR Regulatory Filings & Public Quotes (Last Resort)
+        """
+        clean_t = clean_ticker.strip().upper()
+        massive_key = cls._get_massive_api_key()
+        alpha_key = cls._get_alpha_api_key()
 
-            cik_val = str(data.get("cik", "")).zfill(10) if data.get("cik") else cls.resolve_cik(clean_t)
+        live_price: Optional[float] = None
+        price_change_pct: Optional[float] = None
+        day_range: Optional[str] = None
+        mkt_cap_bn: Optional[float] = None
+        ev_bn: Optional[float] = None
+        forward_pe: Optional[float] = None
+        trailing_pe: Optional[float] = None
+        beta_126d: Optional[float] = None
+        short_float_pct: Optional[float] = None
+        days_to_cover: Optional[float] = None
+        institutional_own_pct: Optional[float] = None
+        total_cash_bn: Optional[float] = None
+        total_debt_bn: Optional[float] = None
+        net_debt_m: Optional[float] = None
+        source_tier = "MASSIVE_V3_ACTIVE"
 
-            return {
-                "ticker": clean_t,
-                "company_name": data.get("name", clean_t),
-                "sector": gics["sector"],
-                "industry": gics["industry"],
-                "industry_group": gics["industry_group"],
-                "benchmark_etf": gics["benchmark_etf"],
-                "market_cap_bn": round(mcap / 1e9, 2) if mcap else None,
-                "cik": cik_val,
-                "source": "MASSIVE_V3_REFERENCE",
-            }
+        if overview and overview.get("market_cap_bn"):
+            mkt_cap_bn = overview["market_cap_bn"]
+
+        # Ingest balance sheet cash & debt from 12Q walk if already present
+        if quarters_12q and len(quarters_12q) > 0:
+            latest_q = quarters_12q[0]
+            c_val = latest_q.get("cash_and_equivalents_m") or (
+                float(latest_q.get("cash_and_equiv") or 0.0) / 1e6 if latest_q.get("cash_and_equiv") else None
+            )
+            d_val = latest_q.get("total_debt_m") or (
+                float(latest_q.get("total_debt") or 0.0) / 1e6 if latest_q.get("total_debt") else None
+            )
+            if c_val is not None:
+                total_cash_bn = round(c_val / 1000.0, 2)
+            if d_val is not None:
+                total_debt_bn = round(d_val / 1000.0, 2)
+            if c_val is not None and d_val is not None:
+                net_debt_m = round(d_val - c_val, 1)
+
+        # ---------------------------------------------------------------------
+        # TIER 1: MASSIVE API v3 / v2
+        # ---------------------------------------------------------------------
+        if massive_key:
+            try:
+                headers = {"Authorization": f"Bearer {massive_key}"}
+                with httpx.Client(headers=headers, timeout=5.0) as client:
+                    # 1. Previous Day Aggregates / Quote
+                    r_agg = client.get(f"{MASSIVE_BASE_URL}/v2/aggs/ticker/{clean_t}/prev?adjusted=true")
+                    if r_agg.status_code == 200:
+                        agg_results = (r_agg.json() or {}).get("results", [])
+                        if agg_results and isinstance(agg_results, list):
+                            agg0 = agg_results[0]
+                            c = agg0.get("c")
+                            h = agg0.get("h")
+                            l = agg0.get("l")
+                            o = agg0.get("o")
+                            if c:
+                                live_price = round(float(c), 2)
+                            if h and l:
+                                day_range = f"${float(l):.2f} - ${float(h):.2f}"
+                            if o and c and o > 0:
+                                price_change_pct = round(((float(c) - float(o)) / float(o)) * 100.0, 2)
+
+                    # 2. Reference Details for Market Cap if missing
+                    if mkt_cap_bn is None:
+                        r_ref = client.get(f"{MASSIVE_BASE_URL}/v3/reference/tickers/{clean_t}")
+                        if r_ref.status_code == 200:
+                            ref_res = (r_ref.json() or {}).get("results", {})
+                            if ref_res.get("market_cap"):
+                                mkt_cap_bn = round(float(ref_res["market_cap"]) / 1e9, 2)
+            except Exception as e:
+                logger.debug(f"Tier 1 (Massive) query error for {clean_t}: {e}")
+
+        # ---------------------------------------------------------------------
+        # TIER 2: ALPHA VANTAGE API FALLBACK
+        # (Engaged for missing fields: short interest, DTC, institutional %, forward P/E, beta, or if Tier 1 lacked price/mcap)
+        # ---------------------------------------------------------------------
+        needs_alpha = (
+            short_float_pct is None
+            or days_to_cover is None
+            or institutional_own_pct is None
+            or forward_pe is None
+            or live_price is None
+            or mkt_cap_bn is None
+        )
+        if needs_alpha and alpha_key:
+            try:
+                desktop_headers = {
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+                    "Accept": "application/json",
+                }
+                with httpx.Client(headers=desktop_headers, timeout=6.0) as client:
+                    # 1. Alpha Vantage OVERVIEW
+                    r_ov = client.get(f"https://www.alphavantage.co/query?function=OVERVIEW&symbol={clean_t}&apikey={alpha_key}")
+                    if r_ov.status_code == 200:
+                        ov_json = r_ov.json() or {}
+                        if not ov_json.get("Information") and not ov_json.get("Note"):
+                            source_tier = "MASSIVE_V3_WITH_ALPHA_FUNDAMENTALS"
+                            if mkt_cap_bn is None and ov_json.get("MarketCapitalization"):
+                                try:
+                                    mkt_cap_bn = round(float(ov_json["MarketCapitalization"]) / 1e9, 2)
+                                except (ValueError, TypeError):
+                                    pass
+                            if forward_pe is None and ov_json.get("ForwardPE") and ov_json.get("ForwardPE") != "None":
+                                try:
+                                    forward_pe = round(float(ov_json["ForwardPE"]), 1)
+                                except (ValueError, TypeError):
+                                    pass
+                            if trailing_pe is None and ov_json.get("PERatio") and ov_json.get("PERatio") != "None":
+                                try:
+                                    trailing_pe = round(float(ov_json["PERatio"]), 1)
+                                except (ValueError, TypeError):
+                                    pass
+                            if beta_126d is None and ov_json.get("Beta") and ov_json.get("Beta") != "None":
+                                try:
+                                    beta_126d = round(float(ov_json["Beta"]), 2)
+                                except (ValueError, TypeError):
+                                    pass
+                            if short_float_pct is None and ov_json.get("ShortPercentFloat") and ov_json.get("ShortPercentFloat") != "None":
+                                try:
+                                    val = float(ov_json["ShortPercentFloat"])
+                                    short_float_pct = round(val * 100.0, 2) if val <= 1.0 else round(val, 2)
+                                except (ValueError, TypeError):
+                                    pass
+                            if days_to_cover is None and ov_json.get("ShortRatio") and ov_json.get("ShortRatio") != "None":
+                                try:
+                                    days_to_cover = round(float(ov_json["ShortRatio"]), 1)
+                                except (ValueError, TypeError):
+                                    pass
+                            if institutional_own_pct is None and ov_json.get("PercentInstitutions") and ov_json.get("PercentInstitutions") != "None":
+                                try:
+                                    val = float(ov_json["PercentInstitutions"])
+                                    institutional_own_pct = round(val * 100.0, 1) if val <= 1.0 else round(val, 1)
+                                except (ValueError, TypeError):
+                                    pass
+
+                    # 2. Alpha Vantage GLOBAL_QUOTE if live_price is still None
+                    if live_price is None:
+                        r_gq = client.get(f"https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol={clean_t}&apikey={alpha_key}")
+                        if r_gq.status_code == 200:
+                            gq_json = (r_gq.json() or {}).get("Global Quote", {})
+                            if gq_json.get("05. price"):
+                                live_price = round(float(gq_json["05. price"]), 2)
+                                low = gq_json.get("04. low")
+                                high = gq_json.get("03. high")
+                                if low and high:
+                                    day_range = f"${float(low):.2f} - ${float(high):.2f}"
+                                if gq_json.get("10. change percent"):
+                                    try:
+                                        price_change_pct = round(float(gq_json["10. change percent"].replace("%", "")), 2)
+                                    except ValueError:
+                                        pass
+            except Exception as e:
+                logger.debug(f"Tier 2 (Alpha) query error for {clean_t}: {e}")
+
+        # ---------------------------------------------------------------------
+        # TIER 3: US SEC EDGAR (LAST RESORT) & PUBLIC MARKET DOWNLOAD
+        # ---------------------------------------------------------------------
+        if live_price is None:
+            try:
+                headers = {
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+                }
+                with httpx.Client(headers=headers, timeout=5.0) as client:
+                    r_c = client.get(f"https://query1.finance.yahoo.com/v8/finance/chart/{clean_t}?range=5d&interval=1d")
+                    if r_c.status_code == 200:
+                        meta = (r_c.json().get("chart", {}).get("result", []) or [{}])[0].get("meta", {})
+                        if meta.get("regularMarketPrice"):
+                            live_price = round(float(meta["regularMarketPrice"]), 2)
+                            d_h = meta.get("regularMarketDayHigh")
+                            d_l = meta.get("regularMarketDayLow")
+                            if d_h and d_l:
+                                day_range = f"${float(d_l):.2f} - ${float(d_h):.2f}"
+                            if meta.get("chartPreviousClose") and meta.get("regularMarketPrice"):
+                                prev = float(meta["chartPreviousClose"])
+                                if prev > 0:
+                                    price_change_pct = round(((live_price - prev) / prev) * 100.0, 2)
+                            source_tier = "SEC_EDGAR_AND_PUBLIC_QUOTE_FALLBACK"
+            except Exception:
+                pass
+
+        # If mkt_cap_bn still missing, compute from SEC EDGAR shares outstanding * live_price
+        if mkt_cap_bn is None and live_price is not None:
+            try:
+                edgar_facts = cls.fetch_sec_edgar_xbrl_facts(clean_t)
+                q_list = edgar_facts.get("quarterly_12q", [])
+                if q_list:
+                    latest_edgar = q_list[-1]
+                    shares = float(latest_edgar.get("diluted_shares") or 0.0)
+                    if shares > 0:
+                        mkt_cap_bn = round((shares * live_price) / 1e9, 2)
+                        source_tier = "SEC_EDGAR_AND_PUBLIC_QUOTE_FALLBACK"
+            except Exception:
+                pass
+
+        # Compute Enterprise Value: Market Cap + Net Debt
+        if mkt_cap_bn is not None and net_debt_m is not None:
+            ev_bn = round(mkt_cap_bn + (net_debt_m / 1000.0), 2)
+        elif mkt_cap_bn is not None:
+            ev_bn = mkt_cap_bn
+
+        # If short_float_pct still missing, try Finnhub basic metrics
+        if short_float_pct is None or institutional_own_pct is None:
+            try:
+                f_data = fetch_finnhub_fundamentals_and_revisions(clean_t)
+                f_metrics = f_data.get("metric") or {}
+                if short_float_pct is None and f_metrics.get("shortPercentFloat"):
+                    val = float(f_metrics["shortPercentFloat"])
+                    short_float_pct = round(val * 100.0, 2) if val <= 1.0 else round(val, 2)
+                if days_to_cover is None and f_metrics.get("shortRatio"):
+                    days_to_cover = round(float(f_metrics["shortRatio"]), 1)
+                if institutional_own_pct is None and f_metrics.get("institutionalHoldingPct"):
+                    val = float(f_metrics["institutionalHoldingPct"])
+                    institutional_own_pct = round(val * 100.0, 1) if val <= 1.0 else round(val, 1)
+                if beta_126d is None and f_metrics.get("beta"):
+                    beta_126d = round(float(f_metrics["beta"]), 2)
+            except Exception:
+                pass
+
+        return {
+            "live_price": live_price,
+            "price_change_pct": price_change_pct,
+            "day_range": day_range,
+            "market_cap_bn": mkt_cap_bn,
+            "enterprise_value_bn": ev_bn,
+            "forward_pe": forward_pe,
+            "trailing_pe": trailing_pe,
+            "beta_126d": beta_126d,
+            "short_float_pct": short_float_pct,
+            "days_to_cover": days_to_cover,
+            "institutional_own_pct": institutional_own_pct,
+            "total_cash_bn": total_cash_bn,
+            "total_debt_bn": total_debt_bn,
+            "net_debt_m": net_debt_m,
+            "metrics_source_tier": source_tier,
+        }
 
     @classmethod
     def fetch_12q_financials(cls, ticker: str, cik: Optional[str]) -> List[Dict[str, Any]]:
@@ -487,6 +790,16 @@ class SingleStockXRayEngine:
         return (
             os.getenv("MASSIVE_API_KEY")
             or getattr(settings, "MASSIVE_API_KEY", "")
+            or ""
+        ).strip()
+
+    @staticmethod
+    def _get_alpha_api_key() -> str:
+        """Resolves ALPHA_API_KEY from environment or settings."""
+        return (
+            os.getenv("ALPHA_API_KEY")
+            or os.getenv("ALPHAVANTAGE_API_KEY")
+            or getattr(settings, "ALPHA_API_KEY", "")
             or ""
         ).strip()
 
@@ -1244,7 +1557,14 @@ class SingleStockXRayEngine:
             clean_ticker, close_df, active_market_regime, active_economic_quad
         )
 
-        # 5. Extract Live Market Stats (Strictly Null-Safe, Zero Fabricated Defaults)
+        # 5. Extract Live Market Stats via 3-Tier Cascade (Massive v3 -> Alpha Vantage -> SEC EDGAR)
+        header_metrics = cls.fetch_dynamic_header_metrics(
+            clean_ticker=clean_ticker,
+            db=db,
+            overview=overview,
+            quarters_12q=quarters_12q,
+        )
+
         tk = yf.Ticker(clean_ticker)
         info = {}
         try:
@@ -1257,11 +1577,17 @@ class SingleStockXRayEngine:
         entity_name = overview.get("company_name") or info.get("shortName") or info.get("longName") or clean_ticker
         benchmark_etf = overview.get("benchmark_etf") or "SPY"
 
-        mkt_cap_bn = overview.get("market_cap_bn") or (
+        curr_px = header_metrics.get("live_price") or curr_px
+        if header_metrics.get("price_change_pct") is not None:
+            px_chg_pct = header_metrics["price_change_pct"]
+
+        mkt_cap_bn = header_metrics.get("market_cap_bn") or overview.get("market_cap_bn") or (
             round(info.get("marketCap") / 1e9, 2) if info.get("marketCap") else None
         )
-        ev_bn = round(info.get("enterpriseValue") / 1e9, 2) if info.get("enterpriseValue") else None
-        raw_fpe = info.get("forwardPE")
+        ev_bn = header_metrics.get("enterprise_value_bn") or (
+            round(info.get("enterpriseValue") / 1e9, 2) if info.get("enterpriseValue") else None
+        )
+        raw_fpe = header_metrics.get("forward_pe") or info.get("forwardPE")
         fwd_pe_val = round(float(raw_fpe), 1) if (raw_fpe is not None and float(raw_fpe) > 0) else None
 
         options_snapshot = cls.fetch_massive_options_snapshot(clean_ticker)
@@ -1327,21 +1653,28 @@ class SingleStockXRayEngine:
         )
 
         spy_beta_126d = float(
-            factor_dna.get("macro_sensitivities", {}).get("SPY", {}).get("beta_6m")
+            header_metrics.get("beta_126d")
+            or factor_dna.get("macro_sensitivities", {}).get("SPY", {}).get("beta_6m")
             or info.get("beta")
             or 1.0
         )
-        short_float_pct = (
-            round(float(info.get("shortPercentOfFloat", 0.0) or 0.0) * 100.0, 2)
-            if float(info.get("shortPercentOfFloat", 0) or 0) <= 1.0
-            else round(float(info.get("shortPercentOfFloat", 0)), 2)
-        ) if info.get("shortPercentOfFloat") is not None else None
-        days_to_cover = round(float(info.get("shortRatio")), 1) if info.get("shortRatio") is not None else None
-        inst_own_pct = (
-            round(float(info.get("heldPercentInstitutions", 0.0) or 0.0) * 100.0, 1)
-            if float(info.get("heldPercentInstitutions", 0) or 0) <= 1.0
-            else round(float(info.get("heldPercentInstitutions", 0)), 1)
-        ) if info.get("heldPercentInstitutions") is not None else None
+        short_float_pct = header_metrics.get("short_float_pct") or (
+            (
+                round(float(info.get("shortPercentOfFloat", 0.0) or 0.0) * 100.0, 2)
+                if float(info.get("shortPercentOfFloat", 0) or 0) <= 1.0
+                else round(float(info.get("shortPercentOfFloat", 0)), 2)
+            ) if info.get("shortPercentOfFloat") is not None else None
+        )
+        days_to_cover = header_metrics.get("days_to_cover") or (
+            round(float(info.get("shortRatio")), 1) if info.get("shortRatio") is not None else None
+        )
+        inst_own_pct = header_metrics.get("institutional_own_pct") or (
+            (
+                round(float(info.get("heldPercentInstitutions", 0.0) or 0.0) * 100.0, 1)
+                if float(info.get("heldPercentInstitutions", 0) or 0) <= 1.0
+                else round(float(info.get("heldPercentInstitutions", 0)), 1)
+            ) if info.get("heldPercentInstitutions") is not None else None
+        )
 
         spot_price = float(info.get("currentPrice") or info.get("regularMarketPrice") or curr_px)
 
@@ -1406,6 +1739,7 @@ class SingleStockXRayEngine:
             "forward_pe": fwd_pe_val,
             "live_price": curr_px,
             "price_change_pct": px_chg_pct,
+            "day_range": header_metrics.get("day_range"),
             "active_market_regime": active_market_regime,
             "active_economic_quad": active_economic_quad,
             "macro_regime": f"{active_market_regime} ({active_economic_quad})",
@@ -1414,6 +1748,26 @@ class SingleStockXRayEngine:
             "short_float_pct": short_float_pct,
             "days_to_cover": days_to_cover,
             "institutional_own_pct": inst_own_pct,
+            "metrics_source_tier": header_metrics.get("metrics_source_tier"),
+            "header_strip": {
+                "live_price": curr_px,
+                "price_change_pct": px_chg_pct,
+                "day_range": header_metrics.get("day_range"),
+                "market_cap_bn": mkt_cap_bn,
+                "enterprise_value_bn": ev_bn,
+                "forward_pe": fwd_pe_val,
+                "beta_126d": round(spy_beta_126d, 2),
+                "short_float_pct": short_float_pct,
+                "days_to_cover": days_to_cover,
+                "institutional_own_pct": inst_own_pct,
+                "gics_sector": sector,
+                "gics_industry": industry,
+                "company_name": entity_name,
+                "total_cash_bn": header_metrics.get("total_cash_bn"),
+                "total_debt_bn": header_metrics.get("total_debt_bn"),
+                "net_debt_m": header_metrics.get("net_debt_m"),
+                "metrics_source_tier": header_metrics.get("metrics_source_tier"),
+            },
             "source_financials": (
                 "MASSIVE_V1_FINANCIALS"
                 if quarters_12q and quarters_12q[0].get("source") == "MASSIVE_V1_FINANCIALS"

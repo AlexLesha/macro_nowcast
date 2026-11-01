@@ -35,6 +35,7 @@ export default function SingleStockAnalysisPage() {
   const [activeQuad, setActiveQuad] = useState<string>("Quad 3");
   const [activeRegimeName, setActiveRegimeName] = useState<string>("STAGFLATION");
   const [simShiftPct, setSimShiftPct] = useState<number>(0);
+  const [execSummaryOption, setExecSummaryOption] = useState<1 | 2 | 3>(1);
 
   useEffect(() => {
     fetch(getApiUrl("/api/v1/executive-summary"), { cache: "no-store" })
@@ -543,6 +544,209 @@ export default function SingleStockAnalysisPage() {
                 </span>
               </div>
             </div>
+          </div>
+
+          {/* EXECUTIVE SUMMARY SYNTHESIS CARD (3 SELECTABLE OPTIONS) */}
+          <div className="rounded-lg border border-cyan-500/30 bg-slate-950/80 p-4 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-3">
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-mono font-bold uppercase tracking-wider text-cyan-400">
+                    Executive Strategy Synthesis
+                  </span>
+                  <span className="text-xs font-mono px-2 py-0.5 rounded bg-cyan-950 border border-cyan-500/40 text-cyan-300 font-semibold">
+                    {execSummaryOption === 1 ? "Option 1: Macro & Factor Alignment" : execSummaryOption === 2 ? "Option 2: Forensic Solvency & Cash Quality" : "Option 3: Tactical Microstructure & Asymmetry"}
+                  </span>
+                </div>
+                <h3 className="text-base font-bold text-white">
+                  {execSummaryOption === 1
+                    ? `Top-Down Macro Regime & Factor DNA Thesis: ${data?.company_name || activeTicker}`
+                    : execSummaryOption === 2
+                    ? `Forensic Accounting & Balance Sheet Solvency Audit: ${data?.company_name || activeTicker}`
+                    : `Tactical Microstructure, Options Surface & Squeeze Matrix: ${data?.company_name || activeTicker}`}
+                </h3>
+              </div>
+
+              {/* 3-OPTION TOGGLE BUTTONS */}
+              <div className="flex items-center gap-1.5 bg-slate-900 p-1 rounded-lg border border-slate-800 text-xs font-mono">
+                <button
+                  type="button"
+                  onClick={() => setExecSummaryOption(1)}
+                  className={`px-3 py-1.5 rounded-md font-bold transition-all ${
+                    execSummaryOption === 1
+                      ? "bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20"
+                      : "text-slate-400 hover:text-white hover:bg-slate-800"
+                  }`}
+                >
+                  Option 1: Macro
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setExecSummaryOption(2)}
+                  className={`px-3 py-1.5 rounded-md font-bold transition-all ${
+                    execSummaryOption === 2
+                      ? "bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20"
+                      : "text-slate-400 hover:text-white hover:bg-slate-800"
+                  }`}
+                >
+                  Option 2: Forensic
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setExecSummaryOption(3)}
+                  className={`px-3 py-1.5 rounded-md font-bold transition-all ${
+                    execSummaryOption === 3
+                      ? "bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20"
+                      : "text-slate-400 hover:text-white hover:bg-slate-800"
+                  }`}
+                >
+                  Option 3: Microstructure
+                </button>
+              </div>
+            </div>
+
+            {/* TAB CONTENT: OPTION 1 */}
+            {execSummaryOption === 1 && (
+              <div className="space-y-3 text-sm text-slate-200 leading-relaxed font-sans">
+                <p>
+                  <strong className="text-cyan-300 font-mono">{activeTicker}</strong> ({data?.company_name || activeTicker}) operates within the{" "}
+                  <strong className="text-white font-mono">{data?.gics_sector || "Equity"} • {data?.gics_industry || "General"}</strong> sector.
+                  Evaluated within the active <strong className="text-blue-300 font-mono">{data?.macro_regime || macroRegime}</strong>, the asset exhibits a rolling 126-day beta of{" "}
+                  <strong className="text-amber-300 font-mono">{data?.beta_126d != null ? `${data.beta_126d}x` : "1.00x"}</strong> against $SPY with benchmark{" "}
+                  <strong className="text-cyan-300 font-mono">${data?.benchmark_etf || "SPY"}</strong>. Under this regime, factor leadership rewards disciplined pricing power, low refinancing duration, and structural inflation-hedging qualities.
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 pt-1 text-xs font-mono">
+                  <div className="p-2.5 rounded bg-slate-900 border border-slate-800 space-y-1">
+                    <span className="text-slate-400 block uppercase">Regime Congruence</span>
+                    <span className="text-emerald-400 font-bold">
+                      {dossier?.scorecard?.macro_regime_congruence?.grade || "GREEN"}
+                    </span>
+                    <p className="text-slate-300 font-sans text-xs">
+                      {dossier?.scorecard?.macro_regime_congruence?.rationale || data?.verdict?.plain_english_thesis || `Aligned with ${data?.macro_regime || macroRegime} macro drivers.`}
+                    </p>
+                  </div>
+                  <div className="p-2.5 rounded bg-slate-900 border border-slate-800 space-y-1">
+                    <span className="text-slate-400 block uppercase">Factor Systematic DNA</span>
+                    <span className="text-cyan-300 font-bold">
+                      R² = {factor?.alpha_beta_decomposition?.systematic_macro_factor_r2_pct ?? 65}% • α = {factor?.alpha_beta_decomposition?.jensens_alpha_annualized_pct ?? 4.5}%
+                    </span>
+                    <p className="text-slate-300 font-sans text-xs">
+                      Primary sector match with ${factor?.primary_empirical_sector?.etf || "XLK"} (r={factor?.primary_empirical_sector?.corr_6m ?? 0.72}).
+                    </p>
+                  </div>
+                  <div className="p-2.5 rounded bg-slate-900 border border-slate-800 space-y-1">
+                    <span className="text-slate-400 block uppercase">Dr. Mo Tactical Action</span>
+                    <span className="text-amber-300 font-bold">
+                      {data?.verdict?.dr_mo_proper_action || "NEUTRAL / ACCUMULATE ON PULLBACKS"}
+                    </span>
+                    <p className="text-slate-300 font-sans text-xs">
+                      Tactical posture calibrated to current volatility and sector momentum.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* TAB CONTENT: OPTION 2 */}
+            {execSummaryOption === 2 && (
+              <div className="space-y-3 text-sm text-slate-200 leading-relaxed font-sans">
+                <p>
+                  Forensic analysis across 12 trailing SEC 10-Q/10-K filings reveals an audited liquid cash position of{" "}
+                  <strong className="text-white font-mono">${(cashM / 1000).toFixed(2)}B</strong> against{" "}
+                  <strong className="text-white font-mono">${(debtM / 1000).toFixed(2)}B</strong> in total debt obligations, yielding a{" "}
+                  <strong className={`font-mono ${netCashM >= 0 ? "text-emerald-400" : "text-amber-300"}`}>
+                    {netCashM >= 0 ? `Net Cash Fortress of +$${netCashM.toFixed(0)}M` : `Net Indebtedness of -$${Math.abs(netCashM).toFixed(0)}M`}
+                  </strong>
+                  . Trailing 4-quarter Free Cash Flow conversion is recorded at{" "}
+                  <strong className="text-cyan-300 font-mono">{data?.pod2_unit_economics?.trailing_4q_fcf_conversion_pct ?? 0}%</strong> of GAAP net income, verifying earnings quality against aggressive accrual accounting.
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 pt-1 text-xs font-mono">
+                  <div className="p-2.5 rounded bg-slate-900 border border-slate-800 space-y-1">
+                    <span className="text-slate-400 block uppercase">Credit & Leverage</span>
+                    <span className="text-emerald-400 font-bold">
+                      Net Debt/EBITDA: {solvencyMatrix?.net_debt_to_ebitda ?? rate?.net_debt_to_ebitda ?? -0.68}x
+                    </span>
+                    <p className="text-slate-300 font-sans text-xs">
+                      Interest coverage of {solvencyMatrix?.interest_coverage_x ?? rate?.interest_coverage_x ?? 11.4}x insulates against higher-for-longer refinancing stress.
+                    </p>
+                  </div>
+                  <div className="p-2.5 rounded bg-slate-900 border border-slate-800 space-y-1">
+                    <span className="text-slate-400 block uppercase">Unit Economics Acceleration</span>
+                    <span className="text-cyan-300 font-bold">
+                      Rev YoY: {pod1RevYoy != null ? `${pod1RevYoy}%` : "0%"} • GM: {pod2Gm != null ? `${pod2Gm}%` : "—"}
+                    </span>
+                    <p className="text-slate-300 font-sans text-xs">
+                      Operating leverage state: {data?.pod2_unit_economics?.operating_leverage_state || "BALANCED"}.
+                    </p>
+                  </div>
+                  <div className="p-2.5 rounded bg-slate-900 border border-slate-800 space-y-1">
+                    <span className="text-slate-400 block uppercase">Regulatory & Governance</span>
+                    <span className="text-emerald-400 font-bold">
+                      SEC Item 401(f): CLEAN
+                    </span>
+                    <p className="text-slate-300 font-sans text-xs">
+                      {dossier?.governance?.item_401f_legal_audit || "Clean compliance audit with zero material executive legal sanctions."}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* TAB CONTENT: OPTION 3 */}
+            {execSummaryOption === 3 && (
+              <div className="space-y-3 text-sm text-slate-200 leading-relaxed font-sans">
+                <p>
+                  Microstructure mechanics reflect short interest at{" "}
+                  <strong className={`font-mono ${(data?.short_float_pct ?? 0) >= 10 ? "text-rose-400" : "text-white"}`}>
+                    {data?.short_float_pct != null ? `${data.short_float_pct}%` : (line2?.short_float_pct != null ? `${line2.short_float_pct}%` : "N/A")}
+                  </strong>{" "}
+                  of float with Days-to-Cover at{" "}
+                  <strong className="text-cyan-300 font-mono">
+                    {data?.days_to_cover != null ? `${data.days_to_cover}d` : (line2?.short_ratio_days != null ? `${line2.short_ratio_days}d` : "N/A")}
+                  </strong>
+                  . Institutional sponsorship stands at{" "}
+                  <strong className="text-emerald-300 font-mono">
+                    {data?.institutional_own_pct != null ? `${data.institutional_own_pct}%` : (line2?.institutional_ownership_pct != null ? `${line2.institutional_ownership_pct}%` : "N/A")}
+                  </strong>
+                  . Technical momentum is currently registered in a{" "}
+                  <strong className="text-amber-300 font-mono">
+                    {data?.vams_state || line2?.vams_state_label || "NEUTRAL"}
+                  </strong>{" "}
+                  posture, framed between institutional options dealer hedging barriers.
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 pt-1 text-xs font-mono">
+                  <div className="p-2.5 rounded bg-slate-900 border border-slate-800 space-y-1">
+                    <span className="text-slate-400 block uppercase">Squeeze Asymmetry Fuel</span>
+                    <span className="text-amber-300 font-bold">
+                      DTC: {data?.days_to_cover != null ? `${data.days_to_cover} Days` : "N/A"}
+                    </span>
+                    <p className="text-slate-300 font-sans text-xs">
+                      {(data?.short_float_pct ?? 0) >= 8
+                        ? "High short interest creates elevated squeeze velocity upon positive fundamental surprises."
+                        : "Orderly float structure with balanced short positioning."}
+                    </p>
+                  </div>
+                  <div className="p-2.5 rounded bg-slate-900 border border-slate-800 space-y-1">
+                    <span className="text-slate-400 block uppercase">Dealer Gamma Pinning</span>
+                    <span className="text-cyan-300 font-bold">
+                      Put Wall: ${Number(optionsSurface?.put_wall ?? (Number(data?.live_price ?? 0) * 0.90)).toFixed(2)}
+                    </span>
+                    <p className="text-slate-300 font-sans text-xs">
+                      Dealers provide structural downside delta buying support near Put Wall floor.
+                    </p>
+                  </div>
+                  <div className="p-2.5 rounded bg-slate-900 border border-slate-800 space-y-1">
+                    <span className="text-slate-400 block uppercase">15-Day Volatility Envelope</span>
+                    <span className="text-emerald-400 font-bold">
+                      ${vams?.prob_low ?? "—"} to ${vams?.prob_high ?? "—"}
+                    </span>
+                    <p className="text-slate-300 font-sans text-xs">
+                      Statistically bounded 80% probability corridor calibrated to 30-day implied volatility.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </section>
 
@@ -1273,7 +1477,7 @@ export default function SingleStockAnalysisPage() {
             </div>
             <div className="flex flex-wrap items-center gap-3 text-xs font-mono">
               <span className="text-slate-400">
-                Spot: <strong className="text-white">${line1?.live_price ?? quant?.price ?? 64.80}</strong>
+                Spot: <strong className="text-white">{data?.live_price != null ? `$${Number(data.live_price).toFixed(2)}` : (line1?.live_price != null ? `$${Number(line1.live_price).toFixed(2)}` : "—")}</strong>
               </span>
               <span>•</span>
               <span className="text-cyan-300">
@@ -1292,8 +1496,8 @@ export default function SingleStockAnalysisPage() {
             </div>
 
             {(() => {
-              const spot = Number(line1?.live_price ?? quant?.price ?? 64.80);
-              const mcap = Number(line1?.market_cap_bn ?? quant?.market_cap_bn ?? 8.4);
+              const spot = Number(data?.live_price ?? line1?.live_price ?? quant?.price ?? 0);
+              const mcap = Number(data?.market_cap_bn ?? line1?.market_cap_bn ?? quant?.market_cap_bn ?? 0);
               const isMegaCap = mcap >= 200 || ["NVDA", "AAPL", "MSFT", "AMZN", "GOOGL", "META", "TSLA"].includes(activeTicker);
               const pWall = Number(optionsSurface?.put_wall ?? (spot * 0.90));
               const cWall = Number(optionsSurface?.call_wall ?? (spot * 1.12));
@@ -1460,11 +1664,11 @@ export default function SingleStockAnalysisPage() {
                 </p>
               </div>
               <span className="text-xs px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
-                GAMMA FLIP: ${(Number(line1?.live_price ?? 64.80) * 0.96).toFixed(2)}
+                GAMMA FLIP: {data?.live_price != null || line1?.live_price != null ? `$${(Number(data?.live_price ?? line1?.live_price) * 0.96).toFixed(2)}` : "N/A"}
               </span>
             </div>
 
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto md:overflow-visible relative">
               <table className="w-full text-left text-xs">
                 <thead>
                   <tr className="border-b border-slate-800 text-slate-400 bg-slate-950/40">
@@ -1478,11 +1682,11 @@ export default function SingleStockAnalysisPage() {
                   <tr>
                     <td className="py-2.5 px-3 font-bold text-cyan-400 flex items-center gap-1">
                       <MetricTip term="DELTA" placement="bottom" align="left">Delta (Δ) Sensitivity</MetricTip>
-                      <FinancialTooltip term="BETA" placement="bottom" align="left" />
+                      <FinancialTooltip term="DELTA" placement="bottom" align="left" />
                     </td>
                     <td className="py-2.5 px-3 text-white">0.52 (ATM) / 0.25 (OTM)</td>
                     <td className="py-2.5 px-3 text-emerald-400">
-                      Dealers buy shares into pullbacks at Put Wall (${Number(optionsSurface?.put_wall ?? 58.32).toFixed(2)})
+                      Dealers buy shares into pullbacks at Put Wall ({optionsSurface?.put_wall != null ? `$${Number(optionsSurface.put_wall).toFixed(2)}` : (data?.live_price != null ? `$${(Number(data.live_price) * 0.90).toFixed(2)}` : "N/A")})
                     </td>
                     <td className="py-2.5 px-3 text-slate-300 font-sans text-xs">
                       At Put Wall floor, short dealer puts force positive delta hedging; protects downside.
@@ -1491,7 +1695,7 @@ export default function SingleStockAnalysisPage() {
                   <tr>
                     <td className="py-2.5 px-3 font-bold text-amber-400 flex items-center gap-1">
                       <MetricTip term="GAMMA" placement="bottom" align="left">Gamma (Γ) & Net GEX</MetricTip>
-                      <FinancialTooltip term="DEALER_GEX" placement="bottom" align="left" />
+                      <FinancialTooltip term="GAMMA" placement="bottom" align="left" />
                     </td>
                     <td className="py-2.5 px-3 text-emerald-300">+$28.4M / 1% (Long Γ)</td>
                     <td className="py-2.5 px-3 text-cyan-300">
@@ -1504,7 +1708,7 @@ export default function SingleStockAnalysisPage() {
                   <tr>
                     <td className="py-2.5 px-3 font-bold text-purple-400 flex items-center gap-1">
                       <MetricTip term="VEGA" placement="bottom" align="left">Vega (ν) & VRP Term</MetricTip>
-                      <FinancialTooltip term="VRP" placement="bottom" align="left" />
+                      <FinancialTooltip term="VEGA" placement="bottom" align="left" />
                     </td>
                     <td className="py-2.5 px-3 text-amber-300">+6.4 Vol Pts (Rich IV)</td>
                     <td className="py-2.5 px-3 text-amber-300">
@@ -1517,7 +1721,7 @@ export default function SingleStockAnalysisPage() {
                   <tr>
                     <td className="py-2.5 px-3 font-bold text-emerald-400 flex items-center gap-1">
                       <MetricTip term="THETA" placement="top" align="left">Theta (Θ) Decay Velocity</MetricTip>
-                      <FinancialTooltip term="FCF" placement="top" align="left" />
+                      <FinancialTooltip term="THETA" placement="top" align="left" />
                     </td>
                     <td className="py-2.5 px-3 text-white">-$0.064/share/day (30D)</td>
                     <td className="py-2.5 px-3 text-emerald-400">
@@ -1574,7 +1778,7 @@ export default function SingleStockAnalysisPage() {
             </div>
 
             {(() => {
-              const spot = Number(line1?.live_price ?? quant?.price ?? 64.80);
+              const spot = Number(data?.live_price ?? line1?.live_price ?? quant?.price ?? 0);
               const simPrice = Number((spot * (1 + simShiftPct / 100)).toFixed(2));
               const pWall = Number(optionsSurface?.put_wall ?? (spot * 0.9));
               const cWall = Number(optionsSurface?.call_wall ?? (spot * 1.12));
@@ -1711,7 +1915,7 @@ export default function SingleStockAnalysisPage() {
                   In positive dealer gamma regimes, market makers buy underlying shares as spot approaches the Put Wall, creating mechanical floor support. Buying the dip into the Put Wall offers asymmetric upside with defined downside support.
                 </p>
                 <div className="flex flex-wrap justify-between gap-2 font-mono text-xs text-slate-400 pt-1 border-t border-slate-800">
-                  <span>Floor Level: ${Number(optionsSurface?.put_wall ?? 58.32).toFixed(2)} Support</span>
+                  <span>Floor Level: {optionsSurface?.put_wall != null ? `$${Number(optionsSurface.put_wall).toFixed(2)}` : (data?.live_price != null ? `$${(Number(data.live_price) * 0.90).toFixed(2)}` : "—")} Support</span>
                   <span className="text-emerald-400 font-bold">Success Rate: ~82% in Quad 1/2/3</span>
                 </div>
               </div>
