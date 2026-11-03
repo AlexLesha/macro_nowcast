@@ -1810,6 +1810,20 @@ def get_stock_edgar_12q(ticker: str):
     })
 
 
+@api_router.get("/v1/stock/analysis/{ticker}/groq-dossier")
+@api_router.get("/stock/analysis/{ticker}/groq-dossier")
+def get_stock_groq_dossier(ticker: str, db: Session = Depends(get_db)):
+    """Direct endpoint to generate Groq Llama 3.3 70B Prompt Dossier with grounded SEC EDGAR fallback."""
+    clean_t = ticker.strip().upper()
+    try:
+        from app.quant_engine.stock_analyzer import SingleStockXRayEngine
+    except ImportError:
+        from backend.app.quant_engine.stock_analyzer import SingleStockXRayEngine
+    
+    data = SingleStockXRayEngine.analyze_ticker(db=db, ticker=clean_t)
+    return _sanitize_floats(data.get("groq_dossier", {}))
+
+
 # ----------------------------------------------------
 # Multi-Source Financial Data Test Bench (/api/v1/stock/sources-test)
 # ----------------------------------------------------
