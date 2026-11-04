@@ -28,6 +28,19 @@ DEFAULT_DB_PATH = os.path.join(
 )
 
 
+def _get_sa_session():
+    """Returns a SQLAlchemy Session if configured, or None."""
+    try:
+        from app.db import SessionLocal
+        return SessionLocal()
+    except Exception:
+        try:
+            from backend.app.db import SessionLocal
+            return SessionLocal()
+        except Exception:
+            return None
+
+
 class StockFundamentalsCacheManager:
     """
     SQLite-backed (and Cloudflare D1 schema-compatible) persistence layer for
@@ -108,8 +121,28 @@ class StockFundamentalsCacheManager:
         """
         Fetches a stock's cached fundamentals if fresh (< 7 days old).
         If allow_stale=True, returns expired data as a fallback if live APIs fail.
+        Checks PostgreSQL / SQLAlchemy first, falling back to local SQLite.
         """
         ticker = ticker.upper().strip()
+        session = _get_sa_session()
+        if session:
+            try:
+                from app.models.db_models import StockFundamentalsCache
+                row = session.query(StockFundamentalsCache).filter_by(ticker=ticker).first()
+                if row:
+                    if not allow_stale and not self.is_fresh(row.updated_at):
+                        return None
+                    payload = json.loads(row.raw_payload_json or "{}")
+                    payload["_cached_at"] = row.updated_at
+                    payload["_cache_age_hours"] = round(
+                        (time.time() - row.updated_at) / 3600.0, 1
+                    )
+                    return payload
+            except Exception:
+                pass
+            finally:
+                session.close()
+
         with self._get_conn() as conn:
             row = conn.execute(
                 "SELECT * FROM stock_fundamentals_cache WHERE ticker = ?", (ticker,)
@@ -131,9 +164,45 @@ class StockFundamentalsCacheManager:
     def save_fundamentals(
         self, ticker: str, gics_industry: str, data: Dict[str, Any]
     ) -> None:
-        """Upserts a stock's fundamental & solvency snapshot with current epoch timestamp."""
+        """Upserts a stock's fundamental & solvency snapshot with current epoch timestamp into PostgreSQL & SQLite."""
         ticker = ticker.upper().strip()
         now = int(time.time())
+
+        session = _get_sa_session()
+        if session:
+            try:
+                from app.models.db_models import StockFundamentalsCache
+                rec = session.query(StockFundamentalsCache).filter_by(ticker=ticker).first()
+                if not rec:
+                    rec = StockFundamentalsCache(ticker=ticker, gics_industry=gics_industry)
+                    session.add(rec)
+                rec.gics_industry = gics_industry
+                rec.company_name = data.get("name", ticker)
+                rec.price = float(data.get("price", 0.0))
+                rec.market_cap_bn = float(data.get("market_cap_bn", 0.0))
+                rec.enterprise_value_bn = float(data.get("enterprise_value_bn", 0.0))
+                rec.pe_ratio = float(data.get("pe", 0.0))
+                rec.ev_ebitda = float(data.get("ev_ebitda", 0.0))
+                rec.fcf_yield_pct = float(data.get("fcf_yield", 0.0))
+                rec.cash_m = float(data.get("cash_m", 0.0))
+                rec.debt_m = float(data.get("debt_m", 0.0))
+                rec.net_cash_m = float(data.get("net_cash_m", 0.0))
+                rec.net_debt_to_ebitda = float(data.get("net_debt_ebitda", 0.0))
+                rec.interest_coverage_x = float(data.get("interest_coverage", 0.0))
+                rec.rev_growth_yoy_pct = float(data.get("rev_growth_yoy", 0.0))
+                rec.gross_margin_pct = float(data.get("gross_margin", 0.0))
+                rec.operating_margin_pct = float(data.get("operating_margin", 0.0))
+                rec.roe_pct = float(data.get("roe", 0.0))
+                rec.roic_pct = float(data.get("roic", 0.0))
+                rec.beta = float(data.get("beta", 1.0))
+                rec.raw_payload_json = json.dumps(data)
+                rec.updated_at = now
+                session.commit()
+            except Exception:
+                session.rollback()
+            finally:
+                session.close()
+
         with self._get_conn() as conn:
             conn.execute(
                 """
@@ -203,6 +272,20 @@ class StockFundamentalsCacheManager:
         self, gics_industry: str, allow_stale: bool = False
     ) -> Optional[List[Dict[str, Any]]]:
         """Returns the cached 5-peer valuation table for a GICS industry if < 7 days old."""
+        session = _get_sa_session()
+        if session:
+            try:
+                from app.models.db_models import IndustryPeerScorecardCache
+                row = session.query(IndustryPeerScorecardCache).filter_by(gics_industry=gics_industry).first()
+                if row:
+                    if not allow_stale and not self.is_fresh(row.updated_at):
+                        return None
+                    return json.loads(row.scorecard_payload_json)
+            except Exception:
+                pass
+            finally:
+                session.close()
+
         with self._get_conn() as conn:
             row = conn.execute(
                 "SELECT * FROM industry_peer_scorecard_cache WHERE gics_industry = ?",
@@ -223,6 +306,24 @@ class StockFundamentalsCacheManager:
         """Caches the 5-peer valuation scorecard for a GICS industry for 7 days."""
         now = int(time.time())
         peer_tickers = [p.get("ticker", "") for p in peers]
+
+        session = _get_sa_session()
+        if session:
+            try:
+                from app.models.db_models import IndustryPeerScorecardCache
+                rec = session.query(IndustryPeerScorecardCache).filter_by(gics_industry=gics_industry).first()
+                if not rec:
+                    rec = IndustryPeerScorecardCache(gics_industry=gics_industry)
+                    session.add(rec)
+                rec.peer_tickers_json = json.dumps(peer_tickers)
+                rec.scorecard_payload_json = json.dumps(peers)
+                rec.updated_at = now
+                session.commit()
+            except Exception:
+                session.rollback()
+            finally:
+                session.close()
+
         with self._get_conn() as conn:
             conn.execute(
                 """
@@ -251,6 +352,20 @@ class StockFundamentalsCacheManager:
     ) -> Optional[List[Dict[str, Any]]]:
         """Returns the cached 12-quarter financial walk for a ticker if < 7 days old."""
         ticker = ticker.upper().strip()
+        session = _get_sa_session()
+        if session:
+            try:
+                from app.models.db_models import Stock12QWalkCache
+                row = session.query(Stock12QWalkCache).filter_by(ticker=ticker).first()
+                if row:
+                    if not allow_stale and not self.is_fresh(row.updated_at):
+                        return None
+                    return json.loads(row.quarters_payload_json)
+            except Exception:
+                pass
+            finally:
+                session.close()
+
         with self._get_conn() as conn:
             row = conn.execute(
                 "SELECT * FROM stock_12q_walk_cache WHERE ticker = ?",
@@ -271,6 +386,23 @@ class StockFundamentalsCacheManager:
         """Caches the 12-quarter financial walk for a ticker for 7 days."""
         ticker = ticker.upper().strip()
         now = int(time.time())
+
+        session = _get_sa_session()
+        if session:
+            try:
+                from app.models.db_models import Stock12QWalkCache
+                rec = session.query(Stock12QWalkCache).filter_by(ticker=ticker).first()
+                if not rec:
+                    rec = Stock12QWalkCache(ticker=ticker)
+                    session.add(rec)
+                rec.quarters_payload_json = json.dumps(quarters)
+                rec.updated_at = now
+                session.commit()
+            except Exception:
+                session.rollback()
+            finally:
+                session.close()
+
         with self._get_conn() as conn:
             conn.execute(
                 """

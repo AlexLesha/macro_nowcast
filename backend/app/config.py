@@ -23,15 +23,30 @@ if not _env_path.exists():
 if _env_path.exists():
     load_dotenv(dotenv_path=_env_path)
 
-_default_sqlite = f"sqlite:///{(BASE_DIR / 'macro_pulse.db').as_posix()}"
-_raw_db_url = os.getenv("DATABASE_URL", _default_sqlite)
+DEFAULT_DATABASE_URL = (
+    "postgresql://neondb_owner:npg_LM5QwGfatrD6@ep-hidden-truth-bebfk8zp-pooler.c-9.us-east-2.aws.neon.tech/neondb"
+    "?sslmode=require&channel_binding=require"
+)
+_raw_db_url = (os.getenv("DATABASE_URL") or DEFAULT_DATABASE_URL).strip()
+
 if _raw_db_url.startswith("sqlite:///."):
     _db_filename = _raw_db_url.split("/")[-1]
     if "macro_nowcast.db" in _db_filename:
         _db_filename = "macro_pulse.db"
     _resolved_db_url = f"sqlite:///{(BASE_DIR / _db_filename).as_posix()}"
+elif _raw_db_url.startswith("postgres://"):
+    # Render / Heroku legacy alias -> SQLAlchemy psycopg2 driver
+    _resolved_db_url = _raw_db_url.replace("postgres://", "postgresql+psycopg2://", 1)
+elif _raw_db_url.startswith("postgresql://") and "+psycopg2" not in _raw_db_url and "+asyncpg" not in _raw_db_url:
+    # Standardize postgresql:// to use installed psycopg2 driver
+    _resolved_db_url = _raw_db_url.replace("postgresql://", "postgresql+psycopg2://", 1)
 else:
     _resolved_db_url = _raw_db_url
+
+# Ensure sslmode=require for remote postgres hosts
+if "postgres" in _resolved_db_url and "sslmode=" not in _resolved_db_url:
+    _delim = "&" if "?" in _resolved_db_url else "?"
+    _resolved_db_url = f"{_resolved_db_url}{_delim}sslmode=require"
 
 
 class Settings:

@@ -7,6 +7,8 @@ from sqlalchemy import (
     Date,
     DateTime,
     Text,
+    BigInteger,
+    Integer,
     Index,
     PrimaryKeyConstraint,
 )
@@ -224,4 +226,91 @@ class GicsIndustry(Base):
             "industry_group": self.industry_group_name,
             "industry": self.industry_name,
             "benchmark_etf": self.benchmark_etf,
+        }
+
+
+class StockFundamentalsCache(Base):
+    """Cached single-stock fundamental & solvency snapshot."""
+    __tablename__ = "stock_fundamentals_cache"
+
+    ticker = Column(String(32), primary_key=True, index=True)
+    gics_industry = Column(String(128), nullable=False, index=True)
+    company_name = Column(String(256), nullable=True)
+    price = Column(Float, nullable=True)
+    market_cap_bn = Column(Float, nullable=True)
+    enterprise_value_bn = Column(Float, nullable=True)
+    pe_ratio = Column(Float, nullable=True)
+    ev_ebitda = Column(Float, nullable=True)
+    fcf_yield_pct = Column(Float, nullable=True)
+    cash_m = Column(Float, nullable=True)
+    debt_m = Column(Float, nullable=True)
+    net_cash_m = Column(Float, nullable=True)
+    net_debt_to_ebitda = Column(Float, nullable=True)
+    interest_coverage_x = Column(Float, nullable=True)
+    rev_growth_yoy_pct = Column(Float, nullable=True)
+    gross_margin_pct = Column(Float, nullable=True)
+    operating_margin_pct = Column(Float, nullable=True)
+    roe_pct = Column(Float, nullable=True)
+    roic_pct = Column(Float, nullable=True)
+    beta = Column(Float, nullable=True)
+    raw_payload_json = Column(Text, nullable=True)
+    updated_at = Column(BigInteger, nullable=False, index=True)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "ticker": self.ticker,
+            "gics_industry": self.gics_industry,
+            "company_name": self.company_name,
+            "price": self.price,
+            "market_cap_bn": self.market_cap_bn,
+            "enterprise_value_bn": self.enterprise_value_bn,
+            "pe_ratio": self.pe_ratio,
+            "ev_ebitda": self.ev_ebitda,
+            "fcf_yield_pct": self.fcf_yield_pct,
+            "cash_m": self.cash_m,
+            "debt_m": self.debt_m,
+            "net_cash_m": self.net_cash_m,
+            "net_debt_to_ebitda": self.net_debt_to_ebitda,
+            "interest_coverage_x": self.interest_coverage_x,
+            "rev_growth_yoy_pct": self.rev_growth_yoy_pct,
+            "gross_margin_pct": self.gross_margin_pct,
+            "operating_margin_pct": self.operating_margin_pct,
+            "roe_pct": self.roe_pct,
+            "roic_pct": self.roic_pct,
+            "beta": self.beta,
+            "updated_at": self.updated_at,
+        }
+
+
+class IndustryPeerScorecardCache(Base):
+    """Cached 77 GICS industry peer valuation scorecard."""
+    __tablename__ = "industry_peer_scorecard_cache"
+
+    gics_industry = Column(String(128), primary_key=True, index=True)
+    peer_tickers_json = Column(Text, nullable=False)
+    scorecard_payload_json = Column(Text, nullable=False)
+    updated_at = Column(BigInteger, nullable=False, index=True)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "gics_industry": self.gics_industry,
+            "peer_tickers_json": self.peer_tickers_json,
+            "scorecard_payload_json": self.scorecard_payload_json,
+            "updated_at": self.updated_at,
+        }
+
+
+class Stock12QWalkCache(Base):
+    """Cached 12-quarter historical financial walk."""
+    __tablename__ = "stock_12q_walk_cache"
+
+    ticker = Column(String(32), primary_key=True, index=True)
+    quarters_payload_json = Column(Text, nullable=False)
+    updated_at = Column(BigInteger, nullable=False, index=True)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "ticker": self.ticker,
+            "quarters_payload_json": self.quarters_payload_json,
+            "updated_at": self.updated_at,
         }
