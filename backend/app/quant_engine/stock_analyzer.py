@@ -1766,12 +1766,25 @@ class SingleStockXRayEngine:
             active_economic_quad=active_economic_quad,
         )
 
+        try:
+            from app.quant_engine.stock_news_analyzer import StockHotNewsEngine
+            hot_news_data = StockHotNewsEngine.generate_hot_news_analysis(
+                ticker=clean_ticker,
+                entity_name=entity_name,
+                sector=sector,
+                industry=industry,
+            )
+        except Exception as e:
+            logger.warning(f"Hot news generation fallback for {clean_ticker}: {e}")
+            hot_news_data = {}
+
         return {
             "status": "ok",
             "ticker": clean_ticker,
             "cik": cik10,
             "entity_name": entity_name,
             "company_name": entity_name,
+            "hot_news": hot_news_data,
             "brief_executive_summary": groq_dossier.get("brief_executive_summary"),
             "groq_dossier": groq_dossier,
             "solvency_matrix": solvency_matrix,

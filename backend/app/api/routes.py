@@ -1824,6 +1824,41 @@ def get_stock_groq_dossier(ticker: str, db: Session = Depends(get_db)):
     return _sanitize_floats(data.get("groq_dossier", {}))
 
 
+@api_router.get("/v1/stock/analysis/{ticker}/hot-news")
+@api_router.get("/stock/analysis/{ticker}/hot-news")
+def get_stock_hot_news(
+    ticker: str,
+    refresh: bool = False,
+    db: Session = Depends(get_db),
+):
+    """Direct endpoint for 7-day day-by-day news & price impact intelligence."""
+    clean_t = ticker.strip().upper()
+    try:
+        from app.quant_engine.stock_news_analyzer import StockHotNewsEngine
+    except ImportError:
+        from backend.app.quant_engine.stock_news_analyzer import StockHotNewsEngine
+
+    try:
+        from app.quant_engine.stock_analyzer import SingleStockXRayEngine
+        data = SingleStockXRayEngine.analyze_ticker(db=db, ticker=clean_t)
+        entity_name = data.get("company_name", clean_t)
+        sector = data.get("gics_sector", "")
+        industry = data.get("gics_industry", "")
+    except Exception:
+        entity_name = clean_t
+        sector = ""
+        industry = ""
+
+    hot_news = StockHotNewsEngine.generate_hot_news_analysis(
+        ticker=clean_t,
+        entity_name=entity_name,
+        sector=sector,
+        industry=industry,
+        force_refresh=refresh,
+    )
+    return _sanitize_floats(hot_news)
+
+
 # ----------------------------------------------------
 # Multi-Source Financial Data Test Bench (/api/v1/stock/sources-test)
 # ----------------------------------------------------

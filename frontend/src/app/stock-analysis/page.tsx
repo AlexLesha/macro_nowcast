@@ -113,6 +113,7 @@ export default function SingleStockAnalysisPage() {
   const hedgeyePodsRoot = data?.hedgeye_3_pods;
   const groqDossier = data?.groq_dossier;
   const briefExecSummary = data?.brief_executive_summary || groqDossier?.brief_executive_summary;
+  const hotNews = data?.hot_news;
   const factor = quant?.factor_and_sector_dna || data?.factor_and_sector_dna;
   const rate = quant?.interest_rate_and_earnings_sensitivity || data?.interest_rate_and_earnings_sensitivity;
   const pods = quant?.hedgeye_3_pods || data?.hedgeye_3_pods;
@@ -412,6 +413,144 @@ export default function SingleStockAnalysisPage() {
         {/* SECTIONS 1 TO 6: RENDERED ONLY WHEN DATA IS LOADED */}
         {data && (
           <>
+          {/* HOT NEWS: 7-DAY DAY-BY-DAY AI INTELLIGENCE & PRICE IMPACT SECTION */}
+          {hotNews && hotNews?.days && hotNews.days.length > 0 && (
+            <section className="bg-slate-900/60 border border-slate-800 rounded-lg p-5 space-y-4">
+              <div className="flex flex-wrap items-center justify-between pb-3 border-b border-slate-800/80 gap-3">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-xs font-mono font-bold uppercase tracking-wider text-amber-400">
+                      Hot News Intelligence
+                    </span>
+                    <span className="text-xs font-mono px-2 py-0.5 rounded bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 font-semibold">
+                      {hotNews?.source === "GROQ_LLAMA_3_3_70B" ? "GROQ LLAMA-3.3 70B AI" : "FINNHUB & MASSIVE REAL-TIME"}
+                    </span>
+                    <span className="text-xs font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300">
+                      {hotNews?.time_window || "Past 7 Days"}
+                    </span>
+                    <span className={`text-xs font-mono px-2 py-0.5 rounded border font-semibold ${
+                      hotNews?.overall_sentiment === "BULLISH"
+                        ? "bg-emerald-950/40 border-emerald-500/40 text-emerald-300"
+                        : hotNews?.overall_sentiment === "BEARISH"
+                        ? "bg-rose-950/40 border-rose-500/40 text-rose-300"
+                        : "bg-amber-950/40 border-amber-500/40 text-amber-300"
+                    }`}>
+                      Sentiment: {hotNews?.overall_sentiment || "MIXED"}
+                    </span>
+                  </div>
+                  <h2 className="text-base font-bold font-mono text-slate-100">
+                    Hot News: 7-Day Day-by-Day Intelligence & Price Impact: {data?.company_name || activeTicker} ({activeTicker})
+                  </h2>
+                </div>
+
+                {hotNews?.net_7d_price_change_pct != null && (
+                  <div className="flex items-center gap-2 bg-slate-950 p-2 rounded-lg border border-slate-800 text-xs font-mono">
+                    <span className="text-slate-400">Net 7-Day Move:</span>
+                    <span className={`font-bold ${hotNews.net_7d_price_change_pct >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                      {hotNews.net_7d_price_change_pct >= 0 ? "+" : ""}{hotNews.net_7d_price_change_pct}%
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* WEEKLY EXECUTIVE TAKEAWAY BANNER */}
+              {hotNews?.weekly_takeaway && (
+                <div className="rounded-lg border border-amber-500/30 bg-slate-950/80 p-3.5 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-mono font-bold uppercase tracking-wide text-amber-400">
+                      7-Day Flow Synthesis & Catalysts
+                    </span>
+                    <span className="text-xs font-mono text-slate-400">
+                      Past 7 Calendar Days
+                    </span>
+                  </div>
+                  <p className="text-sm text-slate-200 leading-relaxed font-sans">
+                    {hotNews.weekly_takeaway}
+                  </p>
+                </div>
+              )}
+
+              {/* 7-DAY DAY-BY-DAY CARDS */}
+              <div className="space-y-3 pt-1">
+                {hotNews.days.map((dayItem: any, idx: number) => {
+                  const pa = dayItem.price_action || {};
+                  const isTraded = pa.traded === true;
+                  const chgPct = pa.change_pct;
+
+                  return (
+                    <div
+                      key={dayItem.date || idx}
+                      className="rounded-lg border border-slate-800/90 bg-slate-950/70 p-4 space-y-2.5 transition-all hover:border-slate-700"
+                    >
+                      {/* Top Row: Date, Day, Badges, Price Action Pill */}
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/70 pb-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-xs font-mono font-bold text-cyan-300">
+                            {dayItem.date} • {dayItem.day_name}
+                          </span>
+                          <span className="text-xs font-mono px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-300">
+                            {dayItem.catalyst_type || "NEWS"}
+                          </span>
+                          <span className={`text-xs font-mono px-2 py-0.5 rounded border font-semibold ${
+                            dayItem.sentiment === "BULLISH"
+                              ? "bg-emerald-950/40 border-emerald-500/40 text-emerald-300"
+                              : dayItem.sentiment === "BEARISH"
+                              ? "bg-rose-950/40 border-rose-500/40 text-rose-300"
+                              : "bg-amber-950/40 border-amber-500/40 text-amber-300"
+                          }`}>
+                            {dayItem.sentiment || "NEUTRAL"}
+                          </span>
+                        </div>
+
+                        {/* Price Action Pill */}
+                        <div className="text-xs font-mono">
+                          {isTraded && pa.close != null ? (
+                            <span className="px-2.5 py-1 rounded bg-slate-900 border border-slate-800 text-slate-300 flex items-center gap-2">
+                              <span>Open: ${Number(pa.open).toFixed(2)} → Close: ${Number(pa.close).toFixed(2)}</span>
+                              <span className={`font-bold ${chgPct >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                                ({chgPct >= 0 ? "+" : ""}{chgPct}%)
+                              </span>
+                              {pa.volume_str && <span className="text-slate-400">Vol: {pa.volume_str}</span>}
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded bg-slate-900/50 border border-slate-800/60 text-slate-400">
+                              Market Closed ({pa.day_range || "Weekend / Non-Trading"})
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Daily Headline */}
+                      <h3 className="text-sm font-bold text-white font-mono">
+                        {dayItem.headline}
+                      </h3>
+
+                      {/* Daily 4-5 Sentence Summary */}
+                      <p className="text-xs text-slate-300 leading-relaxed font-sans">
+                        {dayItem.summary}
+                      </p>
+
+                      {/* Key Figures & Entities */}
+                      {dayItem.key_figures && dayItem.key_figures.length > 0 && (
+                        <div className="flex flex-wrap items-center gap-1.5 pt-1 text-xs font-mono">
+                          <span className="text-slate-400 text-xs">Key Figures & Names:</span>
+                          {dayItem.key_figures.map((fig: string, fIdx: number) => (
+                            <span
+                              key={fIdx}
+                              className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-amber-300 font-semibold text-xs"
+                            >
+                              {fig}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+
           {/* SECTION 1: THE EXECUTIVE COCKPIT & TRAFFIC-LIGHT SCORECARD */}
         <section className="rounded-xl border border-slate-800 bg-[#111827] p-5 space-y-4">
           <div className="border-b border-slate-800 pb-3 flex flex-wrap justify-between items-center gap-2">
