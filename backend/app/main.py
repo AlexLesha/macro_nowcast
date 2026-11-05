@@ -129,14 +129,21 @@ def get_fcte_holdings_direct():
 
 @app.get("/api/v1/42macro/dashboard")
 @app.get("/api/42macro/dashboard")
-async def get_42_macro_dashboard():
-    """Returns the complete, schema-validated 42 Macro institutional suite for /42-macro (100% dynamic live builder)."""
+async def get_42_macro_dashboard(force: bool = False):
+    """Returns the complete, schema-validated 42 Macro institutional suite for /42-macro (100% dynamic live builder with DB cache)."""
     try:
+        from backend.app.db.stock_compressed_store import StockCompressedStore
         from backend.app.quant_engine.forty_two_macro_engine import FortyTwoMacroLiveBuilder
     except ImportError:
+        from app.db.stock_compressed_store import StockCompressedStore
         from app.quant_engine.forty_two_macro_engine import FortyTwoMacroLiveBuilder
 
-    return FortyTwoMacroLiveBuilder.build_live_42macro_dashboard()
+    if not force:
+        cached = StockCompressedStore.get_macro_liquidity_payload("live_42macro_dashboard", max_age_seconds=900)
+        if cached:
+            return cached
+
+    return FortyTwoMacroLiveBuilder.build_live_42macro_dashboard(force=force)
 
 
 

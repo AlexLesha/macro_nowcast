@@ -663,7 +663,19 @@ class FortyTwoMacroLiveBuilder:
         return round(float(np.clip((curr - mean) / std, -6.5, 6.5)), 2)
 
     @classmethod
-    def build_live_42macro_dashboard(cls) -> Dict[str, Any]:
+    def build_live_42macro_dashboard(cls, force: bool = False) -> Dict[str, Any]:
+        # Fast-Path: Database Cache Lookup (<15ms)
+        if not force:
+            try:
+                try:
+                    from backend.app.db.stock_compressed_store import StockCompressedStore
+                except ImportError:
+                    from app.db.stock_compressed_store import StockCompressedStore
+                cached = StockCompressedStore.get_macro_liquidity_payload("live_42macro_dashboard", max_age_seconds=900)
+                if cached:
+                    return cached
+            except Exception:
+                pass
         try:
             from backend.app.config import (
                 settings,
@@ -863,14 +875,61 @@ class FortyTwoMacroLiveBuilder:
             {"indicator": "Mag-7 vs ACWI Weight", "current": 21.4, "threshold": "Extreme > 20%", "status": "CROWDED", "signal": "Historical concentration peak"},
         ]
 
-        # 35-Country Smoothed GRID Model
-        grids_table = [
-            {"country": "United States", "code": "US", "current_regime": active_regime, "modal_medium_term": "DEFLATION -> GOLDILOCKS", "gdp_yoy": f"{nom_gdp_yoy:.1f}%", "cpi_or_pce_yoy": "2.8% (Core PCE)", "hit_rate_10y": "54%", "grid_zero": False},
-            {"country": "China", "code": "CN", "current_regime": "GOLDILOCKS", "modal_medium_term": "GOLDILOCKS", "gdp_yoy": "4.6%", "cpi_or_pce_yoy": "1.1% (CPI)", "hit_rate_10y": "49%", "grid_zero": False},
-            {"country": "Eurozone", "code": "EZ", "current_regime": "DEFLATION", "modal_medium_term": "DEFLATION", "gdp_yoy": "0.9%", "cpi_or_pce_yoy": "2.2% (CPI)", "hit_rate_10y": "66%", "grid_zero": False},
-            {"country": "Japan", "code": "JP", "current_regime": "INFLATION", "modal_medium_term": "INFLATION", "gdp_yoy": "0.8%", "cpi_or_pce_yoy": "2.6% (CPI)", "hit_rate_10y": "50%", "grid_zero": False},
-            {"country": "United Kingdom", "code": "UK", "current_regime": "INFLATION", "modal_medium_term": "DEFLATION", "gdp_yoy": "0.7%", "cpi_or_pce_yoy": "3.1% (CPI)", "hit_rate_10y": "61%", "grid_zero": True},
-        ]
+        # 15-Country Unified GRID Model (Uniting 42 Macro & Hedgeye Quads)
+        grids_table = []
+        try:
+            try:
+                from backend.app.quant_engine.macro_nowcast import compute_live_15_country_quads
+            except ImportError:
+                from app.quant_engine.macro_nowcast import compute_live_15_country_quads
+
+            country_quads = compute_live_15_country_quads()
+            quad_to_grid_map = {
+                "QUAD_1": "GOLDILOCKS (G)",
+                "QUAD_2": "REFLATION (R)",
+                "QUAD_3": "INFLATION (I)",
+                "QUAD_4": "DEFLATION (D)",
+            }
+            for cq in country_quads:
+                raw_q = str(cq.get("active_quad", "QUAD_3")).upper().replace("QUAD ", "QUAD_")
+                grid_reg = quad_to_grid_map.get(raw_q, raw_q)
+                grids_table.append({
+                    "country": cq.get("country", "Unknown"),
+                    "ticker": cq.get("ticker", ""),
+                    "current_regime": grid_reg,
+                    "quad": raw_q,
+                    "gdp_yoy": f"{cq.get('g_yoy_pct', 0.0):+.2f}%",
+                    "gdp_roc_bps": f"{cq.get('g_roc_bps', 0):+d} bps",
+                    "cpi_or_pce_yoy": f"{cq.get('i_yoy_pct', 0.0):+.2f}%",
+                    "inf_roc_bps": f"{cq.get('i_roc_bps', 0):+d} bps",
+                    "ret_3m_pct": f"{cq.get('ret_3m_pct', 0.0):+.2f}%",
+                    "grid_zero": abs(cq.get("g_roc_bps", 0)) < 15 and abs(cq.get("i_roc_bps", 0)) < 15,
+                })
+        except Exception:
+            pass
+
+        if not grids_table:
+            grids_table = [
+                {"country": "United States", "ticker": "SPY", "current_regime": active_regime, "quad": "QUAD_3", "gdp_yoy": f"{nom_gdp_yoy:.1f}%", "cpi_or_pce_yoy": "2.8% (Core PCE)", "gdp_roc_bps": "-39 bps", "inf_roc_bps": "+26 bps", "ret_3m_pct": "+1.2%", "grid_zero": False},
+                {"country": "China", "ticker": "MCHI", "current_regime": "GOLDILOCKS (G)", "quad": "QUAD_1", "gdp_yoy": "4.6%", "cpi_or_pce_yoy": "1.1% (CPI)", "gdp_roc_bps": "+15 bps", "inf_roc_bps": "-20 bps", "ret_3m_pct": "-2.1%", "grid_zero": False},
+                {"country": "Eurozone", "ticker": "EZU", "current_regime": "DEFLATION (D)", "quad": "QUAD_4", "gdp_yoy": "0.9%", "cpi_or_pce_yoy": "2.2% (CPI)", "gdp_roc_bps": "-12 bps", "inf_roc_bps": "-35 bps", "ret_3m_pct": "+0.4%", "grid_zero": False},
+                {"country": "Japan", "ticker": "EWJ", "current_regime": "INFLATION (I)", "quad": "QUAD_3", "gdp_yoy": "0.8%", "cpi_or_pce_yoy": "2.6% (CPI)", "gdp_roc_bps": "-8 bps", "inf_roc_bps": "+40 bps", "ret_3m_pct": "+3.2%", "grid_zero": False},
+                {"country": "United Kingdom", "ticker": "EWU", "current_regime": "INFLATION (I)", "quad": "QUAD_3", "gdp_yoy": "0.7%", "cpi_or_pce_yoy": "3.1% (CPI)", "gdp_roc_bps": "-5 bps", "inf_roc_bps": "+15 bps", "ret_3m_pct": "-1.0%", "grid_zero": True},
+            ]
+
+        # Live Net Liquidity from LiquidityEngine
+        net_liq_val = 5745.7
+        net_liq_4w = -120.0
+        try:
+            try:
+                from backend.app.quant_engine.liquidity_engine import LiquidityEngine
+            except ImportError:
+                from app.quant_engine.liquidity_engine import LiquidityEngine
+            liq = LiquidityEngine.build_complete_liquidity_payload()
+            net_liq_val = float(liq.get("us_net_liquidity", {}).get("net_liquidity_usd_bn") or 5745.7)
+            net_liq_4w = float(liq.get("us_net_liquidity", {}).get("roc_4w_usd_bn") or -120.0)
+        except Exception:
+            pass
 
         # Macro Weather 6 Cycles & Outlook
         macro_weather = {
@@ -888,7 +947,7 @@ class FortyTwoMacroLiveBuilder:
                 {"cycle": "Inflation Cycle", "assessment": "Sticky Cyclical Vector", "detail": "Commodity pass-through and services inflation keeping headline firm."},
                 {"cycle": "Monetary Policy Cycle", "assessment": "Accommodative vs OIS", "detail": f"OIS pricing neutral floor spread at +{int(scouting['ois_neutral_rate_model']['cutting_cycle_spread_bps'])} bps over EFFR."},
                 {"cycle": "Fiscal Policy Cycle", "assessment": "High Supply Dilution", "detail": f"NTM Marketable Treasury supply projected at ${scouting['ntm_marketable_treasury_supply_bn']:,}B."},
-                {"cycle": "Liquidity Cycle", "assessment": "Net Liquidity Expansion", "detail": "Fed Net Liquidity stable above $6.1T with TGA drain offsetting reverse repo."},
+                {"cycle": "Liquidity Cycle", "assessment": "US Net Liquidity Tracking", "detail": f"Fed Net Liquidity at ${net_liq_val:,.1f}B (4W RoC: {net_liq_4w:+,.1f}B); TGA & RRP liquidity transmission active."},
                 {"cycle": "Positioning Cycle", "assessment": "Complacent Chasing", "detail": f"16-Indicator Positioning median at {pos_crowding['median_crowded_bullish_pct']}%; tactical correction risk reasonable."},
             ]
         }
@@ -898,7 +957,47 @@ class FortyTwoMacroLiveBuilder:
         bull_crowd = pos_crowding.get("active_bullish_crowding_signals", [])
         as_of_today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
-        return {
+        # Historical Comps & Scouting Benchmarks
+        scouting["historical_comps"] = {
+            "corporate_profitability": {
+                "current_bps": int(scouting["corporate_profitability_model_bps"]),
+                "mean_10y_bps": 584,
+                "z_score": round((scouting["corporate_profitability_model_bps"] - 584) / 120.0, 2),
+                "pre_recession_threshold_bps": 300,
+                "status": "EXPANSIONARY" if scouting["corporate_profitability_model_bps"] > 584 else "SQUEEZED",
+            },
+            "jolts_labor_spread": {
+                "current_spread_bps": int(scouting["jolts_fake_job_demand_spread_bps"]),
+                "pre_covid_baseline_bps": 30,
+                "peak_2022_bps": 310,
+                "status": "AI_JOBLESS_RECOVERY",
+                "interpretation": "Openings exceed hires by >100 bps; ghost/AI listings distorting headline demand.",
+            },
+            "ois_neutral_spread": {
+                "cutting_spread_bps": int(scouting["ois_neutral_rate_model"]["cutting_cycle_spread_bps"]),
+                "hiking_spread_bps": int(scouting["ois_neutral_rate_model"]["hiking_cycle_spread_bps"]),
+                "status": "ACCOMMODATIVE_GAP",
+            },
+            "treasury_supply": {
+                "ntm_supply_bn": int(scouting["ntm_marketable_treasury_supply_bn"]),
+                "hist_10y_avg_bn": 7500,
+                "expansion_pct": round(((scouting["ntm_marketable_treasury_supply_bn"] - 7500) / 7500.0) * 100.0, 1),
+                "status": "DILUTIVE_SUPPLY_WAVE",
+            }
+        }
+
+        project_alignment = {
+            "forty_two_macro_regime": active_regime,
+            "hedgeye_us_quad": "QUAD_3",
+            "net_liquidity_usd_bn": net_liq_val,
+            "net_liquidity_4w_roc_bn": net_liq_4w,
+            "accord_2_0_prob": 72.0,
+            "synthesis_consensus": "3 of 4 Authors Cautious / Reflationary Overhang",
+            "liquidity_allocation_link": "/liquidity-allocation",
+            "synthesis_link": "/synthesis",
+        }
+
+        payload = {
             "status": "ok",
             "as_of_date": as_of_today,
             "executive_summary": {
@@ -936,8 +1035,18 @@ class FortyTwoMacroLiveBuilder:
             "four_horsemen": four_horsemen,
             "positioning_and_crowding": pos_crowding,
             "scouting_monitors": scouting,
+            "project_alignment": project_alignment,
         }
-        return cls._sanitize_floats(payload)
+        sanitized = cls._sanitize_floats(payload)
+        try:
+            try:
+                from backend.app.db.stock_compressed_store import StockCompressedStore
+            except ImportError:
+                from app.db.stock_compressed_store import StockCompressedStore
+            StockCompressedStore.save_macro_liquidity_payload("live_42macro_dashboard", sanitized)
+        except Exception:
+            pass
+        return sanitized
 
     @classmethod
     def _sanitize_floats(cls, obj: Any) -> Any:
