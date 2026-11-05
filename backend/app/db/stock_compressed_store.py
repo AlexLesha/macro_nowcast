@@ -9,6 +9,7 @@ Supports PostgreSQL (Neon) and SQLite with automatic DSN normalization.
 
 import os
 import json
+import time
 import sqlite3
 import logging
 from datetime import datetime, timezone, timedelta
@@ -79,10 +80,60 @@ class StockCompressedStore:
                         updated_at TIMESTAMP WITH TIME ZONE NOT NULL
                     );
                 """)
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS stock_12q_walk_cache (
+                        ticker VARCHAR(32) PRIMARY KEY,
+                        quarters_payload_json TEXT NOT NULL,
+                        updated_at BIGINT NOT NULL
+                    );
+                """)
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS stock_daily_news_cache (
+                        ticker VARCHAR(32) NOT NULL,
+                        date DATE NOT NULL,
+                        day_name VARCHAR(16),
+                        price_action_json TEXT,
+                        bullet_points_json TEXT,
+                        tags_json TEXT,
+                        catalyst_type VARCHAR(32),
+                        sentiment VARCHAR(16),
+                        articles_count INTEGER DEFAULT 0,
+                        source VARCHAR(64),
+                        updated_at BIGINT NOT NULL,
+                        PRIMARY KEY (ticker, date)
+                    );
+                """)
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS sec_company_metadata (
+                        ticker VARCHAR(32) PRIMARY KEY,
+                        cik10 VARCHAR(10) NOT NULL,
+                        entity_name VARCHAR(256),
+                        sic_code VARCHAR(16),
+                        sic_description VARCHAR(256),
+                        gics_sector VARCHAR(128),
+                        gics_industry VARCHAR(128),
+                        updated_at BIGINT NOT NULL
+                    );
+                """)
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS options_microstructure (
+                        ticker VARCHAR(32) NOT NULL,
+                        date DATE NOT NULL,
+                        total_gex DOUBLE PRECISION,
+                        zero_dte_heat_ratio DOUBLE PRECISION,
+                        gamma_flip_level DOUBLE PRECISION,
+                        call_wall DOUBLE PRECISION,
+                        put_wall DOUBLE PRECISION,
+                        skew_25d DOUBLE PRECISION,
+                        put_call_vol_ratio DOUBLE PRECISION,
+                        crowding_z DOUBLE PRECISION,
+                        PRIMARY KEY (ticker, date)
+                    );
+                """)
                 conn.commit()
                 cursor.close()
                 conn.close()
-                logger.info("[StockCompressedStore] Postgres tables verified on Neon.")
+                logger.info("[StockCompressedStore] Postgres tables verified on Neon (OPT-1 through OPT-5).")
             except Exception as e:
                 logger.warning(f"[StockCompressedStore] Postgres init note: {e}")
         else:
@@ -115,8 +166,58 @@ class StockCompressedStore:
                         updated_at TEXT NOT NULL
                     );
                 """)
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS stock_12q_walk_cache (
+                        ticker TEXT PRIMARY KEY,
+                        quarters_payload_json TEXT NOT NULL,
+                        updated_at INTEGER NOT NULL
+                    );
+                """)
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS stock_daily_news_cache (
+                        ticker TEXT NOT NULL,
+                        date TEXT NOT NULL,
+                        day_name TEXT,
+                        price_action_json TEXT,
+                        bullet_points_json TEXT,
+                        tags_json TEXT,
+                        catalyst_type TEXT,
+                        sentiment TEXT,
+                        articles_count INTEGER DEFAULT 0,
+                        source TEXT,
+                        updated_at INTEGER NOT NULL,
+                        PRIMARY KEY (ticker, date)
+                    );
+                """)
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS sec_company_metadata (
+                        ticker TEXT PRIMARY KEY,
+                        cik10 TEXT NOT NULL,
+                        entity_name TEXT,
+                        sic_code TEXT,
+                        sic_description TEXT,
+                        gics_sector TEXT,
+                        gics_industry TEXT,
+                        updated_at INTEGER NOT NULL
+                    );
+                """)
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS options_microstructure (
+                        ticker TEXT NOT NULL,
+                        date TEXT NOT NULL,
+                        total_gex REAL,
+                        zero_dte_heat_ratio REAL,
+                        gamma_flip_level REAL,
+                        call_wall REAL,
+                        put_wall REAL,
+                        skew_25d REAL,
+                        put_call_vol_ratio REAL,
+                        crowding_z REAL,
+                        PRIMARY KEY (ticker, date)
+                    );
+                """)
                 conn.commit()
-                logger.info("[StockCompressedStore] SQLite tables verified.")
+                logger.info("[StockCompressedStore] SQLite tables verified (OPT-1 through OPT-5).")
 
     @classmethod
     def get_stock_payload(cls, ticker: str, max_age_days: int = 7) -> Optional[Dict[str, Any]]:
@@ -288,4 +389,475 @@ class StockCompressedStore:
             "options_surface": json.loads(opt_json) if opt_json else {},
             "forensic_dossier": json.loads(dos_json) if dos_json else {},
         }
+
+    # =========================================================================
+    # OPT-1: 12-Quarter Historical Statements DB Store (stock_12q_walk_cache)
+    # =========================================================================
+    @classmethod
+    def get_12q_walk(cls, ticker: str, max_age_days: int = 90) -> Optional[List[Dict[str, Any]]]:
+        """Returns parsed 12Q financial statement walk from database in <10ms."""
+        clean_t = ticker.strip().upper()
+        now_epoch = int(time.time())
+        max_age_sec = max_age_days * 86400
+        db_url = cls.get_db_url()
+
+        if "postgres" in db_url:
+            try:
+                import psycopg2
+                dsn = _get_pg_dsn(db_url)
+                with psycopg2.connect(dsn) as conn:
+                    with conn.cursor() as cursor:
+                        cursor.execute("SELECT quarters_payload_json, updated_at FROM stock_12q_walk_cache WHERE ticker = %s;", (clean_t,))
+                        row = cursor.fetchone()
+                        if row:
+                            q_json, upd = row
+                            if now_epoch - int(upd) < max_age_sec:
+                                return json.loads(q_json)
+            except Exception as e:
+                logger.warning(f"[StockCompressedStore] Postgres 12Q read error for {clean_t}: {e}")
+        else:
+            db_path = db_url.replace("sqlite:///", "")
+            try:
+                with sqlite3.connect(db_path) as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("SELECT quarters_payload_json, updated_at FROM stock_12q_walk_cache WHERE ticker = ?;", (clean_t,))
+                    row = cursor.fetchone()
+                    if row:
+                        q_json, upd = row
+                        if now_epoch - int(upd) < max_age_sec:
+                            return json.loads(q_json)
+            except Exception as e:
+                logger.warning(f"[StockCompressedStore] SQLite 12Q read error for {clean_t}: {e}")
+        return None
+
+    @classmethod
+    def save_12q_walk(cls, ticker: str, quarters: List[Dict[str, Any]]) -> None:
+        """Persists parsed 12Q financial statements into database."""
+        clean_t = ticker.strip().upper()
+        if not quarters:
+            return
+        now_epoch = int(time.time())
+        q_json = json.dumps(quarters)
+        db_url = cls.get_db_url()
+
+        if "postgres" in db_url:
+            try:
+                import psycopg2
+                dsn = _get_pg_dsn(db_url)
+                with psycopg2.connect(dsn) as conn:
+                    with conn.cursor() as cursor:
+                        cursor.execute("""
+                            INSERT INTO stock_12q_walk_cache (ticker, quarters_payload_json, updated_at)
+                            VALUES (%s, %s, %s)
+                            ON CONFLICT (ticker) DO UPDATE SET
+                                quarters_payload_json = EXCLUDED.quarters_payload_json,
+                                updated_at = EXCLUDED.updated_at;
+                        """, (clean_t, q_json, now_epoch))
+                        conn.commit()
+                        logger.info(f"[StockCompressedStore] Persisted 12Q walk for {clean_t} into Postgres.")
+            except Exception as e:
+                logger.warning(f"[StockCompressedStore] Postgres 12Q write error for {clean_t}: {e}")
+        else:
+            db_path = db_url.replace("sqlite:///", "")
+            try:
+                with sqlite3.connect(db_path) as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("""
+                        INSERT INTO stock_12q_walk_cache (ticker, quarters_payload_json, updated_at)
+                        VALUES (?, ?, ?)
+                        ON CONFLICT (ticker) DO UPDATE SET
+                            quarters_payload_json = excluded.quarters_payload_json,
+                            updated_at = excluded.updated_at;
+                    """, (clean_t, q_json, now_epoch))
+                    conn.commit()
+                    logger.info(f"[StockCompressedStore] Persisted 12Q walk for {clean_t} into SQLite.")
+            except Exception as e:
+                logger.warning(f"[StockCompressedStore] SQLite 12Q write error for {clean_t}: {e}")
+
+    # =========================================================================
+    # OPT-2: Historical Daily News DB Store (stock_daily_news_cache)
+    # =========================================================================
+    @classmethod
+    def get_daily_news_days(cls, ticker: str, dates: List[str]) -> Dict[str, Dict[str, Any]]:
+        """Returns static cached daily news breakdowns for completed past trading days."""
+        clean_t = ticker.strip().upper()
+        results: Dict[str, Dict[str, Any]] = {}
+        if not dates:
+            return results
+        db_url = cls.get_db_url()
+
+        if "postgres" in db_url:
+            try:
+                import psycopg2
+                dsn = _get_pg_dsn(db_url)
+                with psycopg2.connect(dsn) as conn:
+                    with conn.cursor() as cursor:
+                        placeholders = ",".join(["%s"] * len(dates))
+                        sql = f"""
+                            SELECT date, day_name, price_action_json, bullet_points_json, tags_json,
+                                   catalyst_type, sentiment, articles_count, source
+                            FROM stock_daily_news_cache
+                            WHERE ticker = %s AND date IN ({placeholders});
+                        """
+                        cursor.execute(sql, [clean_t] + dates)
+                        for r in cursor.fetchall():
+                            d_str = str(r[0])
+                            results[d_str] = {
+                                "date": d_str,
+                                "day_name": r[1],
+                                "price_action": json.loads(r[2]) if r[2] else {},
+                                "bullet_points": json.loads(r[3]) if r[3] else ["No events"],
+                                "tags": json.loads(r[4]) if r[4] else [r[5] or "TRADING_SESSION"],
+                                "catalyst_type": r[5] or "TRADING_SESSION",
+                                "sentiment": r[6] or "NEUTRAL",
+                                "articles_count": r[7] or 0,
+                                "source": r[8] or "DB_CACHE",
+                            }
+            except Exception as e:
+                logger.warning(f"[StockCompressedStore] Postgres news read error for {clean_t}: {e}")
+        else:
+            db_path = db_url.replace("sqlite:///", "")
+            try:
+                with sqlite3.connect(db_path) as conn:
+                    cursor = conn.cursor()
+                    placeholders = ",".join(["?"] * len(dates))
+                    sql = f"""
+                        SELECT date, day_name, price_action_json, bullet_points_json, tags_json,
+                               catalyst_type, sentiment, articles_count, source
+                        FROM stock_daily_news_cache
+                        WHERE ticker = ? AND date IN ({placeholders});
+                    """
+                    cursor.execute(sql, [clean_t] + dates)
+                    for r in cursor.fetchall():
+                        d_str = str(r[0])
+                        results[d_str] = {
+                            "date": d_str,
+                            "day_name": r[1],
+                            "price_action": json.loads(r[2]) if r[2] else {},
+                            "bullet_points": json.loads(r[3]) if r[3] else ["No events"],
+                            "tags": json.loads(r[4]) if r[4] else [r[5] or "TRADING_SESSION"],
+                            "catalyst_type": r[5] or "TRADING_SESSION",
+                            "sentiment": r[6] or "NEUTRAL",
+                            "articles_count": r[7] or 0,
+                            "source": r[8] or "DB_CACHE",
+                        }
+            except Exception as e:
+                logger.warning(f"[StockCompressedStore] SQLite news read error for {clean_t}: {e}")
+
+        return results
+
+    @classmethod
+    def save_daily_news_day(cls, ticker: str, day_dict: Dict[str, Any]) -> None:
+        """Persists a completed trading day's news & price action summary into DB."""
+        clean_t = ticker.strip().upper()
+        d_str = day_dict.get("date")
+        if not d_str:
+            return
+        now_epoch = int(time.time())
+        db_url = cls.get_db_url()
+
+        day_name = day_dict.get("day_name", "")
+        pa_json = json.dumps(day_dict.get("price_action", {}))
+        bullets_json = json.dumps(day_dict.get("bullet_points", ["No events"]))
+        tags_json = json.dumps(day_dict.get("tags", []))
+        cat = day_dict.get("catalyst_type", "TRADING_SESSION")
+        sent = day_dict.get("sentiment", "NEUTRAL")
+        art_count = day_dict.get("articles_count", 0)
+        source = day_dict.get("source", "SYNTHESIS")
+
+        if "postgres" in db_url:
+            try:
+                import psycopg2
+                dsn = _get_pg_dsn(db_url)
+                with psycopg2.connect(dsn) as conn:
+                    with conn.cursor() as cursor:
+                        cursor.execute("""
+                            INSERT INTO stock_daily_news_cache (
+                                ticker, date, day_name, price_action_json, bullet_points_json,
+                                tags_json, catalyst_type, sentiment, articles_count, source, updated_at
+                            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                            ON CONFLICT (ticker, date) DO UPDATE SET
+                                day_name = EXCLUDED.day_name,
+                                price_action_json = EXCLUDED.price_action_json,
+                                bullet_points_json = EXCLUDED.bullet_points_json,
+                                tags_json = EXCLUDED.tags_json,
+                                catalyst_type = EXCLUDED.catalyst_type,
+                                sentiment = EXCLUDED.sentiment,
+                                articles_count = EXCLUDED.articles_count,
+                                source = EXCLUDED.source,
+                                updated_at = EXCLUDED.updated_at;
+                        """, (clean_t, d_str, day_name, pa_json, bullets_json, tags_json, cat, sent, art_count, source, now_epoch))
+                        conn.commit()
+            except Exception as e:
+                logger.warning(f"[StockCompressedStore] Postgres news write error for {clean_t} {d_str}: {e}")
+        else:
+            db_path = db_url.replace("sqlite:///", "")
+            try:
+                with sqlite3.connect(db_path) as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("""
+                        INSERT INTO stock_daily_news_cache (
+                            ticker, date, day_name, price_action_json, bullet_points_json,
+                            tags_json, catalyst_type, sentiment, articles_count, source, updated_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ON CONFLICT (ticker, date) DO UPDATE SET
+                            day_name = excluded.day_name,
+                            price_action_json = excluded.price_action_json,
+                            bullet_points_json = excluded.bullet_points_json,
+                            tags_json = excluded.tags_json,
+                            catalyst_type = excluded.catalyst_type,
+                            sentiment = excluded.sentiment,
+                            articles_count = excluded.articles_count,
+                            source = excluded.source,
+                            updated_at = excluded.updated_at;
+                    """, (clean_t, d_str, day_name, pa_json, bullets_json, tags_json, cat, sent, art_count, source, now_epoch))
+                    conn.commit()
+            except Exception as e:
+                logger.warning(f"[StockCompressedStore] SQLite news write error for {clean_t} {d_str}: {e}")
+
+    # =========================================================================
+    # OPT-3: SEC Company Metadata & CIK DB Store (sec_company_metadata)
+    # =========================================================================
+    @classmethod
+    def get_sec_metadata(cls, ticker: str) -> Optional[Dict[str, Any]]:
+        """Returns cached SEC entity name, 10-digit CIK, and SIC code/desc in 0ms."""
+        clean_t = ticker.strip().upper()
+        db_url = cls.get_db_url()
+
+        if "postgres" in db_url:
+            try:
+                import psycopg2
+                dsn = _get_pg_dsn(db_url)
+                with psycopg2.connect(dsn) as conn:
+                    with conn.cursor() as cursor:
+                        cursor.execute("""
+                            SELECT cik10, entity_name, sic_code, sic_description, gics_sector, gics_industry
+                            FROM sec_company_metadata WHERE ticker = %s;
+                        """, (clean_t,))
+                        row = cursor.fetchone()
+                        if row:
+                            return {
+                                "cik10": row[0],
+                                "entity_name": row[1],
+                                "sic_code": row[2],
+                                "sic_description": row[3],
+                                "gics_sector": row[4],
+                                "gics_industry": row[5],
+                            }
+            except Exception as e:
+                logger.warning(f"[StockCompressedStore] Postgres SEC meta read error for {clean_t}: {e}")
+        else:
+            db_path = db_url.replace("sqlite:///", "")
+            try:
+                with sqlite3.connect(db_path) as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("""
+                        SELECT cik10, entity_name, sic_code, sic_description, gics_sector, gics_industry
+                        FROM sec_company_metadata WHERE ticker = ?;
+                    """, (clean_t,))
+                    row = cursor.fetchone()
+                    if row:
+                        return {
+                            "cik10": row[0],
+                            "entity_name": row[1],
+                            "sic_code": row[2],
+                            "sic_description": row[3],
+                            "gics_sector": row[4],
+                            "gics_industry": row[5],
+                        }
+            except Exception as e:
+                logger.warning(f"[StockCompressedStore] SQLite SEC meta read error for {clean_t}: {e}")
+
+        return None
+
+    @classmethod
+    def save_sec_metadata(
+        cls,
+        ticker: str,
+        cik10: str,
+        entity_name: str,
+        sic_code: str = "",
+        sic_description: str = "",
+        gics_sector: str = "",
+        gics_industry: str = "",
+    ) -> None:
+        """Persists verified SEC EDGAR CIK and classification metadata."""
+        clean_t = ticker.strip().upper()
+        if not cik10:
+            return
+        now_epoch = int(time.time())
+        db_url = cls.get_db_url()
+
+        if "postgres" in db_url:
+            try:
+                import psycopg2
+                dsn = _get_pg_dsn(db_url)
+                with psycopg2.connect(dsn) as conn:
+                    with conn.cursor() as cursor:
+                        cursor.execute("""
+                            INSERT INTO sec_company_metadata (
+                                ticker, cik10, entity_name, sic_code, sic_description, gics_sector, gics_industry, updated_at
+                            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                            ON CONFLICT (ticker) DO UPDATE SET
+                                cik10 = EXCLUDED.cik10,
+                                entity_name = COALESCE(EXCLUDED.entity_name, sec_company_metadata.entity_name),
+                                sic_code = COALESCE(EXCLUDED.sic_code, sec_company_metadata.sic_code),
+                                sic_description = COALESCE(EXCLUDED.sic_description, sec_company_metadata.sic_description),
+                                gics_sector = COALESCE(EXCLUDED.gics_sector, sec_company_metadata.gics_sector),
+                                gics_industry = COALESCE(EXCLUDED.gics_industry, sec_company_metadata.gics_industry),
+                                updated_at = EXCLUDED.updated_at;
+                        """, (clean_t, cik10, entity_name, sic_code, sic_description, gics_sector, gics_industry, now_epoch))
+                        conn.commit()
+            except Exception as e:
+                logger.warning(f"[StockCompressedStore] Postgres SEC meta write error for {clean_t}: {e}")
+        else:
+            db_path = db_url.replace("sqlite:///", "")
+            try:
+                with sqlite3.connect(db_path) as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("""
+                        INSERT INTO sec_company_metadata (
+                            ticker, cik10, entity_name, sic_code, sic_description, gics_sector, gics_industry, updated_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        ON CONFLICT (ticker) DO UPDATE SET
+                            cik10 = excluded.cik10,
+                            entity_name = coalesce(excluded.entity_name, sec_company_metadata.entity_name),
+                            sic_code = coalesce(excluded.sic_code, sec_company_metadata.sic_code),
+                            sic_description = coalesce(excluded.sic_description, sec_company_metadata.sic_description),
+                            gics_sector = coalesce(excluded.gics_sector, sec_company_metadata.gics_sector),
+                            gics_industry = coalesce(excluded.gics_industry, sec_company_metadata.gics_industry),
+                            updated_at = excluded.updated_at;
+                    """, (clean_t, cik10, entity_name, sic_code, sic_description, gics_sector, gics_industry, now_epoch))
+                    conn.commit()
+            except Exception as e:
+                logger.warning(f"[StockCompressedStore] SQLite SEC meta write error for {clean_t}: {e}")
+
+    # =========================================================================
+    # OPT-5: Options Microstructure Snapshot DB Store (options_microstructure)
+    # =========================================================================
+    @classmethod
+    def save_options_microstructure(cls, ticker: str, date_str: str, data: Dict[str, Any]) -> None:
+        """Stores daily options microstructure snapshot (GEX, walls, skew) into database."""
+        clean_t = ticker.strip().upper()
+        if not date_str:
+            return
+        db_url = cls.get_db_url()
+
+        total_gex = data.get("total_gex") or data.get("net_gamma_usd_m")
+        call_wall = data.get("call_wall")
+        put_wall = data.get("put_wall")
+        flip_level = data.get("gamma_flip_level") or data.get("vol_trigger")
+        skew = data.get("skew_25d")
+        pc_ratio = data.get("put_call_vol_ratio") or data.get("p_c_ratio")
+        zero_dte = data.get("zero_dte_heat_ratio")
+        crowding = data.get("crowding_z")
+
+        if "postgres" in db_url:
+            try:
+                import psycopg2
+                dsn = _get_pg_dsn(db_url)
+                with psycopg2.connect(dsn) as conn:
+                    with conn.cursor() as cursor:
+                        cursor.execute("""
+                            INSERT INTO options_microstructure (
+                                ticker, date, total_gex, zero_dte_heat_ratio, gamma_flip_level,
+                                call_wall, put_wall, skew_25d, put_call_vol_ratio, crowding_z
+                            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                            ON CONFLICT (ticker, date) DO UPDATE SET
+                                total_gex = COALESCE(EXCLUDED.total_gex, options_microstructure.total_gex),
+                                zero_dte_heat_ratio = COALESCE(EXCLUDED.zero_dte_heat_ratio, options_microstructure.zero_dte_heat_ratio),
+                                gamma_flip_level = COALESCE(EXCLUDED.gamma_flip_level, options_microstructure.gamma_flip_level),
+                                call_wall = COALESCE(EXCLUDED.call_wall, options_microstructure.call_wall),
+                                put_wall = COALESCE(EXCLUDED.put_wall, options_microstructure.put_wall),
+                                skew_25d = COALESCE(EXCLUDED.skew_25d, options_microstructure.skew_25d),
+                                put_call_vol_ratio = COALESCE(EXCLUDED.put_call_vol_ratio, options_microstructure.put_call_vol_ratio),
+                                crowding_z = COALESCE(EXCLUDED.crowding_z, options_microstructure.crowding_z);
+                        """, (clean_t, date_str, total_gex, zero_dte, flip_level, call_wall, put_wall, skew, pc_ratio, crowding))
+                        conn.commit()
+            except Exception as e:
+                logger.warning(f"[StockCompressedStore] Postgres options microstructure write error for {clean_t}: {e}")
+        else:
+            db_path = db_url.replace("sqlite:///", "")
+            try:
+                with sqlite3.connect(db_path) as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("""
+                        INSERT INTO options_microstructure (
+                            ticker, date, total_gex, zero_dte_heat_ratio, gamma_flip_level,
+                            call_wall, put_wall, skew_25d, put_call_vol_ratio, crowding_z
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ON CONFLICT (ticker, date) DO UPDATE SET
+                            total_gex = coalesce(excluded.total_gex, options_microstructure.total_gex),
+                            zero_dte_heat_ratio = coalesce(excluded.zero_dte_heat_ratio, options_microstructure.zero_dte_heat_ratio),
+                            gamma_flip_level = coalesce(excluded.gamma_flip_level, options_microstructure.gamma_flip_level),
+                            call_wall = coalesce(excluded.call_wall, options_microstructure.call_wall),
+                            put_wall = coalesce(excluded.put_wall, options_microstructure.put_wall),
+                            skew_25d = coalesce(excluded.skew_25d, options_microstructure.skew_25d),
+                            put_call_vol_ratio = coalesce(excluded.put_call_vol_ratio, options_microstructure.put_call_vol_ratio),
+                            crowding_z = coalesce(excluded.crowding_z, options_microstructure.crowding_z);
+                    """, (clean_t, date_str, total_gex, zero_dte, flip_level, call_wall, put_wall, skew, pc_ratio, crowding))
+                    conn.commit()
+            except Exception as e:
+                logger.warning(f"[StockCompressedStore] SQLite options microstructure write error for {clean_t}: {e}")
+
+    @classmethod
+    def get_latest_options_microstructure(cls, ticker: str) -> Optional[Dict[str, Any]]:
+        """Retrieves most recent options snapshot from database."""
+        clean_t = ticker.strip().upper()
+        db_url = cls.get_db_url()
+
+        if "postgres" in db_url:
+            try:
+                import psycopg2
+                dsn = _get_pg_dsn(db_url)
+                with psycopg2.connect(dsn) as conn:
+                    with conn.cursor() as cursor:
+                        cursor.execute("""
+                            SELECT date, total_gex, zero_dte_heat_ratio, gamma_flip_level,
+                                   call_wall, put_wall, skew_25d, put_call_vol_ratio, crowding_z
+                            FROM options_microstructure WHERE ticker = %s ORDER BY date DESC LIMIT 1;
+                        """, (clean_t,))
+                        row = cursor.fetchone()
+                        if row:
+                            return {
+                                "date": str(row[0]),
+                                "total_gex": row[1],
+                                "zero_dte_heat_ratio": row[2],
+                                "gamma_flip_level": row[3],
+                                "call_wall": row[4],
+                                "put_wall": row[5],
+                                "skew_25d": row[6],
+                                "put_call_vol_ratio": row[7],
+                                "crowding_z": row[8],
+                            }
+            except Exception as e:
+                logger.warning(f"[StockCompressedStore] Postgres options read error for {clean_t}: {e}")
+        else:
+            db_path = db_url.replace("sqlite:///", "")
+            try:
+                with sqlite3.connect(db_path) as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("""
+                        SELECT date, total_gex, zero_dte_heat_ratio, gamma_flip_level,
+                               call_wall, put_wall, skew_25d, put_call_vol_ratio, crowding_z
+                        FROM options_microstructure WHERE ticker = ? ORDER BY date DESC LIMIT 1;
+                    """, (clean_t,))
+                    row = cursor.fetchone()
+                    if row:
+                        return {
+                            "date": str(row[0]),
+                            "total_gex": row[1],
+                            "zero_dte_heat_ratio": row[2],
+                            "gamma_flip_level": row[3],
+                            "call_wall": row[4],
+                            "put_wall": row[5],
+                            "skew_25d": row[6],
+                            "put_call_vol_ratio": row[7],
+                            "crowding_z": row[8],
+                        }
+            except Exception as e:
+                logger.warning(f"[StockCompressedStore] SQLite options read error for {clean_t}: {e}")
+
+        return None
+
 

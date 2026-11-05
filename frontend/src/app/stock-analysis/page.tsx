@@ -470,12 +470,12 @@ export default function SingleStockAnalysisPage() {
         {/* SECTIONS 1 TO 6: RENDERED ONLY WHEN DATA IS LOADED */}
         {data && (
           <>
-          {/* HOT NEWS: 7-DAY DAY-BY-DAY AI INTELLIGENCE & PRICE IMPACT SECTION */}
-          {hotNews && hotNews?.days && hotNews.days.length > 0 && (
-            <section className="bg-slate-900/60 border border-slate-800 rounded-lg p-5 space-y-4">
-              <div className="flex flex-wrap items-center justify-between pb-3 border-b border-slate-800/80 gap-3">
+          {/* HOT NEWS: 2-WEEK WORKING DAYS INTELLIGENCE & PRICE IMPACT TABLE */}
+          {hotNews && (hotNews?.columns || (hotNews?.days && hotNews.days.length > 0)) && (
+            <section className="bg-slate-900/60 border border-slate-800 rounded-lg p-4 space-y-3.5">
+              <div className="flex flex-wrap items-center justify-between pb-2.5 border-b border-slate-800/80 gap-2">
                 <div>
-                  <div className="flex items-center gap-2 mb-1">
+                  <div className="flex flex-wrap items-center gap-2 mb-1">
                     <span className="text-xs font-mono font-bold uppercase tracking-wider text-amber-400">
                       Hot News Intelligence
                     </span>
@@ -483,7 +483,7 @@ export default function SingleStockAnalysisPage() {
                       {hotNews?.source === "GROQ_LLAMA_3_3_70B" ? "GROQ LLAMA-3.3 70B AI" : "FINNHUB & MASSIVE REAL-TIME"}
                     </span>
                     <span className="text-xs font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300">
-                      {hotNews?.time_window || "Past 7 Days"}
+                      {hotNews?.time_window || "Last 2 Working Weeks (10 Trading Days)"}
                     </span>
                     <span className={`text-xs font-mono px-2 py-0.5 rounded border font-semibold ${
                       hotNews?.overall_sentiment === "BULLISH"
@@ -496,15 +496,15 @@ export default function SingleStockAnalysisPage() {
                     </span>
                   </div>
                   <h2 className="text-base font-bold font-mono text-slate-100">
-                    Hot News: 7-Day Day-by-Day Intelligence & Price Impact: {data?.company_name || activeTicker} ({activeTicker})
+                    Hot News: 2-Week Working Days Intelligence: {data?.company_name || activeTicker} ({activeTicker})
                   </h2>
                 </div>
 
-                {hotNews?.net_7d_price_change_pct != null && (
-                  <div className="flex items-center gap-2 bg-slate-950 p-2 rounded-lg border border-slate-800 text-xs font-mono">
-                    <span className="text-slate-400">Net 7-Day Move:</span>
-                    <span className={`font-bold ${hotNews.net_7d_price_change_pct >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
-                      {hotNews.net_7d_price_change_pct >= 0 ? "+" : ""}{hotNews.net_7d_price_change_pct}%
+                {hotNews?.net_price_change_pct != null && (
+                  <div className="flex items-center gap-2 bg-slate-950 px-2.5 py-1.5 rounded-lg border border-slate-800 text-xs font-mono">
+                    <span className="text-slate-400">Net 2-Week Move:</span>
+                    <span className={`font-bold ${hotNews.net_price_change_pct >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                      {hotNews.net_price_change_pct >= 0 ? "+" : ""}{hotNews.net_price_change_pct}%
                     </span>
                   </div>
                 )}
@@ -512,99 +512,137 @@ export default function SingleStockAnalysisPage() {
 
               {/* WEEKLY EXECUTIVE TAKEAWAY BANNER */}
               {hotNews?.weekly_takeaway && (
-                <div className="rounded-lg border border-amber-500/30 bg-slate-950/80 p-3.5 space-y-1.5">
+                <div className="rounded-lg border border-amber-500/30 bg-slate-950/80 p-3 space-y-1">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-mono font-bold uppercase tracking-wide text-amber-400">
-                      7-Day Flow Synthesis & Catalysts
+                      2-Week Market Moving Catalysts & Positioning
                     </span>
                     <span className="text-xs font-mono text-slate-400">
-                      Past 7 Calendar Days
+                      Working Days (Mon – Fri)
                     </span>
                   </div>
-                  <p className="text-sm text-slate-200 leading-relaxed font-sans">
+                  <p className="text-xs text-slate-200 leading-relaxed font-sans">
                     {hotNews.weekly_takeaway}
                   </p>
                 </div>
               )}
 
-              {/* 7-DAY DAY-BY-DAY CARDS */}
-              <div className="space-y-3 pt-1">
-                {hotNews.days.map((dayItem: any, idx: number) => {
+              {/* COMPACT 2-COLUMN TABLE (WEEK 1 vs WEEK 2 WORKING DAYS) */}
+              {(() => {
+                const weekCurrentDays = hotNews?.columns?.week_current?.days || (hotNews?.days ? hotNews.days.slice(0, 5) : []);
+                const weekPriorDays = hotNews?.columns?.week_prior?.days || (hotNews?.days ? hotNews.days.slice(5, 10) : []);
+
+                const renderTradingDayCell = (dayItem: any, idx: number) => {
                   const pa = dayItem.price_action || {};
                   const isTraded = pa.traded === true;
-                  const chgPct = pa.change_pct;
+                  const chgPct = pa.change_pct ?? 0.0;
+                  const bullets = dayItem.bullet_points || (dayItem.summary ? [dayItem.summary] : ["No events"]);
+                  const tags = dayItem.tags || (dayItem.catalyst_type ? [dayItem.catalyst_type] : []);
 
                   return (
-                    <div
-                      key={dayItem.date || idx}
-                      className="rounded-lg border border-slate-800/90 bg-slate-950/70 p-4 space-y-2.5 transition-all hover:border-slate-700"
-                    >
-                      {/* Top Row: Date, Day, Badges, Price Action Pill */}
-                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/70 pb-2">
-                        <div className="flex flex-wrap items-center gap-2">
+                    <div key={dayItem.date || idx} className="p-3 space-y-1.5 transition-colors hover:bg-slate-900/40">
+                      {/* Compact Header: Date/Day + Tags + Metrics Pill */}
+                      <div className="flex flex-wrap items-center justify-between gap-1.5">
+                        <div className="flex flex-wrap items-center gap-1.5">
                           <span className="text-xs font-mono font-bold text-cyan-300">
-                            {dayItem.date} • {dayItem.day_name}
+                            {dayItem.date} <span className="text-slate-400 font-normal">({dayItem.day_name?.slice(0, 3)})</span>
                           </span>
-                          <span className="text-xs font-mono px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-300">
-                            {dayItem.catalyst_type || "NEWS"}
-                          </span>
-                          <span className={`text-xs font-mono px-2 py-0.5 rounded border font-semibold ${
-                            dayItem.sentiment === "BULLISH"
-                              ? "bg-emerald-950/40 border-emerald-500/40 text-emerald-300"
-                              : dayItem.sentiment === "BEARISH"
-                              ? "bg-rose-950/40 border-rose-500/40 text-rose-300"
-                              : "bg-amber-950/40 border-amber-500/40 text-amber-300"
-                          }`}>
-                            {dayItem.sentiment || "NEUTRAL"}
-                          </span>
+                          {tags.map((tag: string, tIdx: number) => (
+                            <span
+                              key={tIdx}
+                              className={`text-xs font-mono px-1.5 py-0.5 rounded font-semibold border ${
+                                tag === "EARNINGS"
+                                  ? "bg-purple-950/50 border-purple-500/40 text-purple-300"
+                                  : tag === "C-LEVEL"
+                                  ? "bg-amber-950/50 border-amber-500/40 text-amber-300"
+                                  : tag === "LEGAL"
+                                  ? "bg-rose-950/50 border-rose-500/40 text-rose-300"
+                                  : tag === "M&A"
+                                  ? "bg-blue-950/50 border-blue-500/40 text-blue-300"
+                                  : tag === "ANALYST"
+                                  ? "bg-emerald-950/50 border-emerald-500/40 text-emerald-300"
+                                  : "bg-slate-900 border-slate-800 text-slate-300"
+                              }`}
+                            >
+                              {tag}
+                            </span>
+                          ))}
                         </div>
 
-                        {/* Price Action Pill */}
+                        {/* Metrics Pill (Open, Close, Change %, Volume) */}
                         <div className="text-xs font-mono">
                           {isTraded && pa.close != null ? (
-                            <span className="px-2.5 py-1 rounded bg-slate-900 border border-slate-800 text-slate-300 flex items-center gap-2">
-                              <span>Open: ${Number(pa.open).toFixed(2)} → Close: ${Number(pa.close).toFixed(2)}</span>
+                            <span className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-300 flex items-center gap-1.5">
+                              {pa.open != null && <span>O: ${Number(pa.open).toFixed(2)}</span>}
+                              <span>C: ${Number(pa.close).toFixed(2)}</span>
                               <span className={`font-bold ${chgPct >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
                                 ({chgPct >= 0 ? "+" : ""}{chgPct}%)
                               </span>
-                              {pa.volume_str && <span className="text-slate-400">Vol: {pa.volume_str}</span>}
+                              {pa.volume_str && pa.volume_str !== "—" && (
+                                <span className="text-slate-400">Vol: {pa.volume_str}</span>
+                              )}
                             </span>
                           ) : (
-                            <span className="px-2 py-0.5 rounded bg-slate-900/50 border border-slate-800/60 text-slate-400">
-                              Market Closed ({pa.day_range || "Weekend / Non-Trading"})
+                            <span className="px-2 py-0.5 rounded bg-slate-900/60 border border-slate-800 text-slate-400">
+                              Active Trading
                             </span>
                           )}
                         </div>
                       </div>
 
-                      {/* Daily Headline */}
-                      <h3 className="text-sm font-bold text-white font-mono">
-                        {dayItem.headline}
-                      </h3>
-
-                      {/* Daily 4-5 Sentence Summary */}
-                      <p className="text-xs text-slate-300 leading-relaxed font-sans">
-                        {dayItem.summary}
-                      </p>
-
-                      {/* Key Figures & Entities */}
-                      {dayItem.key_figures && dayItem.key_figures.length > 0 && (
-                        <div className="flex flex-wrap items-center gap-1.5 pt-1 text-xs font-mono">
-                          <span className="text-slate-400 text-xs">Key Figures & Names:</span>
-                          {dayItem.key_figures.map((fig: string, fIdx: number) => (
-                            <span
-                              key={fIdx}
-                              className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-amber-300 font-semibold text-xs"
-                            >
-                              {fig}
+                      {/* 3-5 Sharp, Concise Bullet Points (No Day Title) */}
+                      <ul className="space-y-1 text-xs text-slate-300 font-sans pt-0.5">
+                        {bullets.map((pt: string, pIdx: number) => (
+                          <li key={pIdx} className="flex items-start gap-1.5 leading-snug">
+                            <span className="text-cyan-400 select-none font-bold mt-0.5">•</span>
+                            <span className={pt === "No events" ? "text-slate-500 italic" : "text-slate-200"}>
+                              {pt}
                             </span>
-                          ))}
-                        </div>
-                      )}
+                          </li>
+                        ))}
+                      </ul>
                     </div>
                   );
-                })}
-              </div>
+                };
+
+                return (
+                  <div className="rounded-lg border border-slate-800 bg-slate-950/70 overflow-hidden font-mono text-xs">
+                    {/* 2-Column Table Headers */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 border-b border-slate-800 bg-slate-900/90 divide-y lg:divide-y-0 lg:divide-x divide-slate-800">
+                      <div className="px-3.5 py-2 flex items-center justify-between">
+                        <span className="font-bold text-cyan-400 uppercase tracking-wider">
+                          Current Week (Last 5 Trading Days)
+                        </span>
+                        <span className="text-slate-400 text-xs">Week 1</span>
+                      </div>
+                      <div className="px-3.5 py-2 flex items-center justify-between">
+                        <span className="font-bold text-slate-300 uppercase tracking-wider">
+                          Prior Week (Preceding 5 Trading Days)
+                        </span>
+                        <span className="text-slate-400 text-xs">Week 2</span>
+                      </div>
+                    </div>
+
+                    {/* 2-Column Table Body */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-slate-800">
+                      <div className="divide-y divide-slate-800/60">
+                        {weekCurrentDays.length > 0 ? (
+                          weekCurrentDays.map(renderTradingDayCell)
+                        ) : (
+                          <div className="p-4 text-center text-slate-500 italic text-xs">No trading sessions recorded</div>
+                        )}
+                      </div>
+                      <div className="divide-y divide-slate-800/60">
+                        {weekPriorDays.length > 0 ? (
+                          weekPriorDays.map(renderTradingDayCell)
+                        ) : (
+                          <div className="p-4 text-center text-slate-500 italic text-xs">No trading sessions recorded</div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
             </section>
           )}
 

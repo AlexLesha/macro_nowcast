@@ -232,10 +232,22 @@ class SingleStockXRayEngine:
 
     @classmethod
     def resolve_cik(cls, ticker: str) -> Optional[str]:
-        """Resolves ticker to 10-digit zero-padded CIK string using SEC company_tickers.json with in-memory caching."""
+        """Resolves ticker to 10-digit zero-padded CIK string with DB persistence & memory caching (OPT-3)."""
         clean_t = ticker.strip().upper()
         if clean_t in cls._CIK_MAP_CACHE:
             return cls._CIK_MAP_CACHE[clean_t]
+
+        # 1. Check local database store first (0ms)
+        try:
+            from app.db.stock_compressed_store import StockCompressedStore
+            db_meta = StockCompressedStore.get_sec_metadata(clean_t)
+            if db_meta and db_meta.get("cik10"):
+                cls._CIK_MAP_CACHE[clean_t] = db_meta["cik10"]
+                return db_meta["cik10"]
+        except Exception:
+            pass
+
+        # 2. Query SEC EDGAR company_tickers.json on cold miss
         try:
             with httpx.Client(headers=SEC_EDGAR_HEADERS, timeout=8.0) as client:
                 r_map = client.get("https://www.sec.gov/files/company_tickers.json")
@@ -245,6 +257,14 @@ class SingleStockXRayEngine:
                         cik_str = str(item.get("cik_str", "")).zfill(10)
                         if t_sym:
                             cls._CIK_MAP_CACHE[t_sym] = cik_str
+                    # Persist resolved CIK into DB
+                    if clean_t in cls._CIK_MAP_CACHE:
+                        resolved_cik = cls._CIK_MAP_CACHE[clean_t]
+                        try:
+                            from app.db.stock_compressed_store import StockCompressedStore
+                            StockCompressedStore.save_sec_metadata(clean_t, resolved_cik, "")
+                        except Exception:
+                            pass
         except Exception as e:
             logger.warning(f"Error resolving CIK for {clean_t}: {e}")
         return cls._CIK_MAP_CACHE.get(clean_t)
@@ -334,6 +354,26 @@ class SingleStockXRayEngine:
 
         api_key = cls._get_massive_api_key()
         alpha_key = cls._get_alpha_api_key()
+
+        # OPT-3: Local Database Metadata Fast Lookup (0ms)
+        try:
+            from app.db.stock_compressed_store import StockCompressedStore
+            db_meta = StockCompressedStore.get_sec_metadata(clean_t)
+            if db_meta and db_meta.get("entity_name") and db_meta.get("gics_sector"):
+                gics = cls.resolve_industry_from_db(db, sic_code=db_meta.get("sic_code"), raw_industry=db_meta.get("gics_industry"))
+                return {
+                    "ticker": clean_t,
+                    "company_name": db_meta["entity_name"],
+                    "sector": gics["sector"],
+                    "industry": gics["industry"],
+                    "industry_group": gics["industry_group"],
+                    "benchmark_etf": gics["benchmark_etf"],
+                    "market_cap_bn": None,
+                    "cik": db_meta.get("cik10") or cls.resolve_cik(clean_t),
+                    "source": "DB_SEC_METADATA_CACHE",
+                }
+        except Exception:
+            pass
 
         # ---------------------------------------------------------------------
         # TIER 1: Massive API v3 Reference
@@ -672,8 +712,18 @@ class SingleStockXRayEngine:
 
     @classmethod
     def fetch_12q_financials(cls, ticker: str, cik: Optional[str]) -> List[Dict[str, Any]]:
-        """Pulls 12 consecutive quarters from Massive /stocks/financials/v1/*; falls back to SEC EDGAR facts."""
+        """Pulls 12 consecutive quarters with DB cache (OPT-1: 90-day TTL) -> Massive -> SEC EDGAR facts."""
         clean_t = ticker.strip().upper()
+
+        # OPT-1: Check 12Q Walk Cache in DB (<10ms)
+        try:
+            from app.db.stock_compressed_store import StockCompressedStore
+            cached_12q = StockCompressedStore.get_12q_walk(clean_t, max_age_days=90)
+            if cached_12q and len(cached_12q) >= 4:
+                return cached_12q
+        except Exception:
+            pass
+
         api_key = cls._get_massive_api_key()
         if api_key:
             headers = {"Authorization": f"Bearer {api_key}"}
@@ -727,20 +777,50 @@ class SingleStockXRayEngine:
                                 "quick_ratio": round(cash / cl, 2) if cl > 0 else None,
                                 "source": "MASSIVE_V1_FINANCIALS",
                             })
-                        if quarters:
+                        if quarters and len(quarters) >= 4:
+                            try:
+                                from app.db.stock_compressed_store import StockCompressedStore
+                                StockCompressedStore.save_12q_walk(clean_t, quarters)
+                            except Exception:
+                                pass
                             return quarters
             except Exception as e:
                 logger.warning(f"Massive financials fetch failed for {clean_t}: {e}")
 
         # Fallback to SEC EDGAR facts if Massive fundamentals are un-entitled or empty
         edgar = cls.fetch_sec_edgar_12q_financials(clean_t)
-        return edgar.get("quarters", [])
+        eq = edgar.get("quarters", [])
+        if eq and len(eq) >= 4:
+            try:
+                from app.db.stock_compressed_store import StockCompressedStore
+                StockCompressedStore.save_12q_walk(clean_t, eq)
+            except Exception:
+                pass
+        return eq
 
     @classmethod
-    def fetch_sec_company_metadata(cls, cik10: str) -> Dict[str, Any]:
-        """Retrieves real company name, SIC code, and business classification directly from SEC EDGAR Submissions API."""
+    def fetch_sec_company_metadata(cls, cik10: str, ticker: Optional[str] = None) -> Dict[str, Any]:
+        """Retrieves real company name, SIC code, and business classification directly from SEC EDGAR Submissions API with DB cache (OPT-3)."""
+        clean_t = ticker.strip().upper() if ticker else None
+        if clean_t:
+            try:
+                from app.db.stock_compressed_store import StockCompressedStore
+                db_meta = StockCompressedStore.get_sec_metadata(clean_t)
+                if db_meta and db_meta.get("entity_name") and db_meta.get("gics_sector"):
+                    return {
+                        "entity_name": db_meta["entity_name"],
+                        "sector": db_meta["gics_sector"],
+                        "industry": db_meta["gics_industry"],
+                        "sic": db_meta.get("sic_code"),
+                        "sic_desc": db_meta.get("sic_description"),
+                    }
+            except Exception:
+                pass
+
         url = f"https://data.sec.gov/submissions/CIK{cik10}.json"
         meta: Dict[str, Any] = {"entity_name": None, "sector": "Other", "industry": "General"}
+        sic = ""
+        sic_desc = ""
         try:
             with httpx.Client(headers=SEC_EDGAR_HEADERS, timeout=8.0) as client:
                 resp = client.get(url)
@@ -782,8 +862,27 @@ class SingleStockXRayEngine:
                                     meta["sector"] = "Industrials"
                             except ValueError:
                                 pass
+
+                    # Persist metadata into DB (OPT-3)
+                    if clean_t and meta.get("entity_name"):
+                        try:
+                            from app.db.stock_compressed_store import StockCompressedStore
+                            StockCompressedStore.save_sec_metadata(
+                                ticker=clean_t,
+                                cik10=cik10,
+                                entity_name=meta["entity_name"],
+                                sic_code=sic,
+                                sic_description=sic_desc,
+                                gics_sector=meta["sector"],
+                                gics_industry=meta["industry"],
+                            )
+                        except Exception:
+                            pass
         except Exception as e:
-            logger.warning(f"Error fetching SEC company metadata for CIK {cik10}: {e}")
+            logger.warning(f"SEC metadata extraction error for CIK {cik10}: {e}")
+
+        meta["sic"] = sic
+        meta["sic_desc"] = sic_desc
         return meta
 
     @staticmethod
@@ -808,10 +907,27 @@ class SingleStockXRayEngine:
     @classmethod
     def fetch_sec_edgar_12q_financials(cls, ticker: str) -> Dict[str, Any]:
         """
-        Fetches 12 consecutive quarters of audited GAAP facts from SEC EDGAR XBRL
+        Fetches 12 consecutive quarters of audited GAAP facts with DB cache (OPT-1) -> SEC EDGAR XBRL
         for Section 2 (12-Quarter Financial & Solvency Walk) and Section 3 (Hedgeye 3 Pods).
         """
         clean_t = ticker.strip().upper()
+
+        # OPT-1: Check DB 12Q Walk Cache first (<10ms)
+        try:
+            from app.db.stock_compressed_store import StockCompressedStore
+            cached_12q = StockCompressedStore.get_12q_walk(clean_t, max_age_days=90)
+            if cached_12q and len(cached_12q) >= 4:
+                meta = StockCompressedStore.get_sec_metadata(clean_t) or {}
+                return {
+                    "ticker": clean_t,
+                    "cik": meta.get("cik10") or cls.resolve_cik(clean_t),
+                    "entity_name": meta.get("entity_name") or clean_t,
+                    "status": "AUDITED_SEC_EDGAR_DETERMINISTIC",
+                    "quarters": cached_12q,
+                }
+        except Exception:
+            pass
+
         result: Dict[str, Any] = {
             "ticker": clean_t,
             "cik": None,
@@ -1761,6 +1877,14 @@ class SingleStockXRayEngine:
             active_economic_quad=active_economic_quad,
             options_snapshot=options_snapshot,
         )
+
+        # OPT-5: Persist options microstructure snapshot into DB
+        try:
+            from app.db.stock_compressed_store import StockCompressedStore
+            today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+            StockCompressedStore.save_options_microstructure(clean_ticker, today_str, options_surface_data)
+        except Exception as e:
+            logger.warning(f"Error saving options microstructure for {clean_ticker}: {e}")
 
         latest_12q = quarters_12q[0] if quarters_12q else {}
         cash_m_val = float(latest_12q.get("cash_and_equivalents_m") or (float(header_metrics.get("total_cash_bn") or 0.0) * 1000.0) or 0.0)

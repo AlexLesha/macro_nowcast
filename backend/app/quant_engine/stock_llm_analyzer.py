@@ -930,6 +930,15 @@ async def resolve_gics_industry(ticker: str) -> str:
         if ticker in peers:
             return industry
 
+    # OPT-3: Check central SEC metadata DB store (0ms)
+    try:
+        from app.db.stock_compressed_store import StockCompressedStore
+        meta = StockCompressedStore.get_sec_metadata(ticker)
+        if meta and meta.get("gics_industry") and meta["gics_industry"] != "General":
+            return meta["gics_industry"]
+    except Exception:
+        pass
+
     cached = _DB_CACHE.get_fundamentals(ticker, allow_stale=True)
     if cached and cached.get("gics_industry") in PEER_UNIVERSES:
         return cached["gics_industry"]
@@ -1550,27 +1559,16 @@ class StockLLMAnalyzer:
         target_metrics = await fetch_finnhub_metrics(ticker, gics_industry=industry)
         was_cache_hit = bool(target_metrics.get("_cache_hit", False))
 
-        # 3. Fetch Massive REST v1 Income Statements (https://api.massive.com/stocks/financials/v1/income-statements)
-        #    with automatic SEC EDGAR 12Q XBRL fallback & 7-Day TTL cache
+        # 3. OPT-4: Unified 12-Quarter Financial Statements backed by DB Cache (OPT-1)
         try:
             from backend.app.quant_engine.stock_analyzer import SingleStockXRayEngine
         except ImportError:
             from app.quant_engine.stock_analyzer import SingleStockXRayEngine
 
-        edgar_12q: Dict[str, Any] = {}
-        try:
-            edgar_12q = await asyncio.to_thread(SingleStockXRayEngine.fetch_sec_edgar_12q_financials, ticker)
-        except Exception as e:
-            logger.warning(f"SEC EDGAR 12Q extraction fallback note for {ticker}: {e}")
-
-        edgar_quarters_desc = edgar_12q.get("quarters", [])
-        hist_12q = await fetch_polygon_12q_financials(ticker)
-        financial_walk_12q = (
-            list(reversed(hist_12q))
-            if hist_12q and hist_12q[-1].get("source") == "MASSIVE_V1_INCOME_STATEMENTS"
-            else (edgar_quarters_desc if edgar_quarters_desc else list(reversed(hist_12q)))
-        )
+        financial_walk_12q = await asyncio.to_thread(SingleStockXRayEngine.fetch_12q_financials, ticker, None)
+        hist_12q = financial_walk_12q or []
         pod2_unit_economics = SingleStockXRayEngine._compute_pod2_unit_economics_from_12q(financial_walk_12q)
+        edgar_quarters_desc = financial_walk_12q
 
         # Ground target_metrics in Audited SEC EDGAR 10-Q/10-K facts whenever available
         if edgar_quarters_desc:

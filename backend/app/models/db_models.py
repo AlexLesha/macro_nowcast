@@ -314,3 +314,66 @@ class Stock12QWalkCache(Base):
             "quarters_payload_json": self.quarters_payload_json,
             "updated_at": self.updated_at,
         }
+
+
+class StockDailyNewsCache(Base):
+    """Cached daily news intelligence and price impact per ticker and date (OPT-2)."""
+    __tablename__ = "stock_daily_news_cache"
+
+    ticker = Column(String(32), nullable=False, index=True)
+    date = Column(Date, nullable=False, index=True)
+    day_name = Column(String(16), nullable=True)
+    price_action_json = Column(Text, nullable=True)
+    bullet_points_json = Column(Text, nullable=True)
+    tags_json = Column(Text, nullable=True)
+    catalyst_type = Column(String(32), nullable=True)
+    sentiment = Column(String(16), nullable=True)
+    articles_count = Column(Integer, nullable=True, default=0)
+    source = Column(String(64), nullable=True)
+    updated_at = Column(BigInteger, nullable=False, index=True)
+
+    __table_args__ = (
+        PrimaryKeyConstraint("ticker", "date", name="pk_stock_daily_news"),
+        Index("idx_stock_daily_news_lookup", "ticker", "date"),
+    )
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "ticker": self.ticker,
+            "date": self.date.isoformat() if self.date else None,
+            "day_name": self.day_name,
+            "price_action_json": self.price_action_json,
+            "bullet_points_json": self.bullet_points_json,
+            "tags_json": self.tags_json,
+            "catalyst_type": self.catalyst_type,
+            "sentiment": self.sentiment,
+            "articles_count": self.articles_count,
+            "source": self.source,
+            "updated_at": self.updated_at,
+        }
+
+
+class SecCompanyMetadata(Base):
+    """Cached SEC EDGAR company metadata, CIK, SIC, and official entity names (OPT-3)."""
+    __tablename__ = "sec_company_metadata"
+
+    ticker = Column(String(32), primary_key=True, index=True)
+    cik10 = Column(String(10), nullable=False, index=True)
+    entity_name = Column(String(256), nullable=True)
+    sic_code = Column(String(16), nullable=True)
+    sic_description = Column(String(256), nullable=True)
+    gics_sector = Column(String(128), nullable=True)
+    gics_industry = Column(String(128), nullable=True)
+    updated_at = Column(BigInteger, nullable=False, index=True)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "ticker": self.ticker,
+            "cik10": self.cik10,
+            "entity_name": self.entity_name,
+            "sic_code": self.sic_code,
+            "sic_description": self.sic_description,
+            "gics_sector": self.gics_sector,
+            "gics_industry": self.gics_industry,
+            "updated_at": self.updated_at,
+        }
