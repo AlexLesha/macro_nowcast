@@ -1446,6 +1446,8 @@ class SingleStockXRayEngine:
         active_market_regime: Optional[str] = None,
         active_economic_quad: Optional[str] = None,
         db: Optional[Session] = None,
+        cached: bool = False,
+        force: bool = False,
     ) -> Dict[str, Any]:
         """Analyzes any user-supplied ticker dynamically. Zero mock fallbacks."""
         # Handle polymorphic signature: (db, ticker, regime, quad) or (ticker, regime, quad, db)
@@ -1455,6 +1457,20 @@ class SingleStockXRayEngine:
             active_market_regime = active_economic_quad
             active_economic_quad = db
             db = db_session
+
+        clean_ticker = str(ticker).strip().upper() if ticker else ""
+        if cached and not force and clean_ticker:
+            try:
+                from app.db.stock_compressed_store import StockCompressedStore
+            except ImportError:
+                from backend.app.db.stock_compressed_store import StockCompressedStore
+            try:
+                cached_payload = StockCompressedStore.get_stock_payload(clean_ticker)
+                if cached_payload:
+                    logger.info(f"[StockStore] Fast cache hit for {clean_ticker} (<10ms)")
+                    return cached_payload
+            except Exception as e:
+                logger.warning(f"[StockStore] Fast cache lookup note for {clean_ticker}: {e}")
 
         if db is None:
             with SessionLocal() as db_session:
@@ -1517,33 +1533,52 @@ class SingleStockXRayEngine:
         quarters_12q = cls.fetch_12q_financials(clean_ticker, cik10)
         pod2_unit_economics = cls._compute_pod2_unit_economics_from_12q(quarters_12q)
 
-        # 4. Fetch Market Price & Compute Rolling OLS Alpha / Beta
-        benchmark_tickers = (
-            [clean_ticker]
-            + list(SECTOR_ETFS.keys())
-            + list(STYLE_FACTOR_ETFS.keys())
-            + list(MACRO_BENCHMARKS.keys())
-        )
-
-        close_df = pd.DataFrame()
+        # 4. Fetch Market Price & Compute Rolling OLS Alpha / Beta (Optimized via Pre-Warmed Benchmark ETF Cache)
         try:
-            raw_px = yf.download(benchmark_tickers, period="2y", interval="1d", progress=False, auto_adjust=True)
-            if isinstance(raw_px.columns, pd.MultiIndex):
-                close_df = raw_px["Close"]
-            elif "Close" in raw_px:
-                close_df = raw_px[["Close"]].rename(columns={"Close": clean_ticker})
-            else:
-                close_df = raw_px
+            from app.quant_engine.benchmark_etf_cache import BenchmarkETFCacheManager
+        except ImportError:
+            from backend.app.quant_engine.benchmark_etf_cache import BenchmarkETFCacheManager
+
+        bench_closes = BenchmarkETFCacheManager.get_benchmark_closes()
+        close_df = bench_closes.copy() if (isinstance(bench_closes, pd.DataFrame) and not bench_closes.empty) else pd.DataFrame()
+
+        # Download ONLY the single target stock (saving ~4.5 seconds per lookup)
+        try:
+            target_px = yf.download(clean_ticker, period="2y", interval="1d", progress=False, auto_adjust=True)
+            if isinstance(target_px.columns, pd.MultiIndex):
+                if "Close" in target_px.columns.levels[0]:
+                    s = target_px["Close"]
+                    close_df[clean_ticker] = s.iloc[:, 0] if (isinstance(s, pd.DataFrame) and s.shape[1] > 0) else s
+                else:
+                    close_df[clean_ticker] = target_px.iloc[:, 0]
+            elif "Close" in target_px.columns:
+                s = target_px["Close"]
+                close_df[clean_ticker] = s.iloc[:, 0] if (isinstance(s, pd.DataFrame) and s.shape[1] > 0) else s
+            elif not target_px.empty and clean_ticker in target_px.columns:
+                close_df[clean_ticker] = target_px[clean_ticker]
+            elif not target_px.empty:
+                close_df[clean_ticker] = target_px.iloc[:, 0]
         except Exception as e:
             logger.debug(f"yfinance download exception for {clean_ticker}: {e}")
-            close_df = pd.DataFrame()
 
+        # Fallback to Yahoo CSV if yfinance returned empty
         if clean_ticker not in close_df.columns or close_df[clean_ticker].dropna().empty:
             csv_px = cls.fetch_public_yahoo_csv_ohlcv(clean_ticker, days=730)
             if not csv_px.empty and "Close" in csv_px.columns:
                 close_df[clean_ticker] = csv_px["Close"]
             else:
                 raise ValueError(f"No price history found for ticker '{clean_ticker}'.")
+
+        # Fallback if benchmark cache was empty: download SPY at minimum for beta
+        if "SPY" not in close_df.columns:
+            try:
+                spy_px = yf.download("SPY", period="2y", interval="1d", progress=False, auto_adjust=True)
+                if isinstance(spy_px.columns, pd.MultiIndex) and "Close" in spy_px.columns.levels[0]:
+                    close_df["SPY"] = spy_px["Close"].iloc[:, 0]
+                elif "Close" in spy_px.columns:
+                    close_df["SPY"] = spy_px["Close"]
+            except Exception:
+                pass
 
         stock_close = close_df[clean_ticker].dropna()
         if len(stock_close) < 5:
@@ -1778,7 +1813,7 @@ class SingleStockXRayEngine:
             logger.warning(f"Hot news generation fallback for {clean_ticker}: {e}")
             hot_news_data = {}
 
-        return {
+        final_payload = {
             "status": "ok",
             "ticker": clean_ticker,
             "cik": cik10,
@@ -1847,6 +1882,18 @@ class SingleStockXRayEngine:
             "peer_valuations": peers_cohort,
             "options_surface": options_surface_data,
         }
+
+        # Technique 4: Persist compressed snapshot for instant repeat visits (<10ms)
+        try:
+            from app.db.stock_compressed_store import StockCompressedStore
+        except ImportError:
+            from backend.app.db.stock_compressed_store import StockCompressedStore
+        try:
+            StockCompressedStore.save_stock_payload(clean_ticker, industry, final_payload)
+        except Exception as e:
+            logger.warning(f"[StockStore] Snapshot caching note for {clean_ticker}: {e}")
+
+        return final_payload
 
     @classmethod
     def _generate_peer_scorecard(

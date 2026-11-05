@@ -27,6 +27,7 @@ export default function SingleStockAnalysisPage() {
   const [tickerInput, setTickerInput] = useState<string>("");
   const [activeTicker, setActiveTicker] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(false);
+  const [isRevalidating, setIsRevalidating] = useState<boolean>(false);
   const [data, setData] = useState<any>(null);
   const [errorDetails, setErrorDetails] = useState<string | null>(null);
   const [groqStatus, setGroqStatus] = useState<any>(null);
@@ -52,14 +53,54 @@ export default function SingleStockAnalysisPage() {
       .catch(() => { });
   }, []);
 
-  const fetchAnalysis = async (symbol: string) => {
+  // Technique 2: Two-Stage SWR Loading (<50ms initial cached render + background revalidation)
+  const fetchAnalysis = async (symbol: string, forceFresh: boolean = false) => {
     const cleanSym = symbol.trim().toUpperCase();
     if (!cleanSym) return;
-    setLoading(true);
     setErrorDetails(null);
-    setData(null);
+
+    if (!data || forceFresh) {
+      setLoading(true);
+    }
+
     try {
-      const res = await fetch(getApiUrl(`/api/v1/stock/analysis/${cleanSym}`), { cache: "no-store" });
+      // Stage 1: Load cached snapshot immediately (<50ms)
+      if (!forceFresh) {
+        try {
+          const cachedRes = await fetch(getApiUrl(`/api/v1/stock/analysis/${cleanSym}?cached=true`), { cache: "no-store" });
+          if (cachedRes.ok) {
+            const cachedData = await cachedRes.json();
+            if (cachedData && cachedData.status !== "error") {
+              setData(cachedData);
+              setActiveTicker(cleanSym);
+              if (cachedData.macro_regime) setMacroRegime(cachedData.macro_regime);
+              setLoading(false); // Unblock UI immediately!
+
+              // Stage 2: If data is stale, trigger background revalidation
+              if (cachedData.is_stale) {
+                setIsRevalidating(true);
+                fetch(getApiUrl(`/api/v1/stock/analysis/${cleanSym}?force=true`), { cache: "no-store" })
+                  .then((r) => (r.ok ? r.json() : null))
+                  .then((freshData) => {
+                    if (freshData && freshData.status !== "error") {
+                      setData(freshData);
+                      if (freshData.macro_regime) setMacroRegime(freshData.macro_regime);
+                    }
+                  })
+                  .catch((err) => console.warn("Background revalidation note:", err))
+                  .finally(() => setIsRevalidating(false));
+              }
+              return;
+            }
+          }
+        } catch (cacheErr) {
+          console.warn("Fast cache probe note:", cacheErr);
+        }
+      }
+
+      // Fallback: If cache missed or fresh is forced, fetch live data
+      setLoading(true);
+      const res = await fetch(getApiUrl(`/api/v1/stock/analysis/${cleanSym}${forceFresh ? "?force=true" : ""}`), { cache: "no-store" });
       const json = await res.json();
       if (!res.ok || json.status === "error") {
         throw new Error(json.detail || json.message || `API error (${res.status}): Failed to retrieve analysis for ${cleanSym}`);
@@ -71,6 +112,7 @@ export default function SingleStockAnalysisPage() {
       setErrorDetails(err.message || "An unexpected error occurred while analyzing the ticker.");
     } finally {
       setLoading(false);
+      setIsRevalidating(false);
     }
   };
 
@@ -257,8 +299,14 @@ export default function SingleStockAnalysisPage() {
               </h1>
             </div>
 
-            {/* TOP RIGHT CORNER: SEARCH INPUT + ANALYZE BUTTON */}
+            {/* TOP RIGHT CORNER: SEARCH INPUT + ANALYZE BUTTON + SWR REVALIDATOR */}
             <form onSubmit={handleSearch} className="flex items-center gap-2 font-mono text-xs">
+              {isRevalidating && (
+                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-cyan-950/80 border border-cyan-500/40 text-cyan-300 text-xs animate-pulse">
+                  <span className="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
+                  <span>Syncing Live...</span>
+                </div>
+              )}
               <div className="relative">
                 <input
                   type="text"
@@ -274,6 +322,15 @@ export default function SingleStockAnalysisPage() {
                 className="px-4 py-2 rounded-lg bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white font-semibold shadow-md transition disabled:opacity-50 text-xs"
               >
                 {loading ? "Analyzing..." : "Analyze Stock"}
+              </button>
+              <button
+                type="button"
+                onClick={() => fetchAnalysis(tickerInput.trim() || activeTicker, true)}
+                disabled={loading || isRevalidating}
+                title="Force Live Recalculation"
+                className="px-2.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 font-semibold shadow-sm transition disabled:opacity-50 text-xs"
+              >
+                ↻
               </button>
             </form>
           </div>

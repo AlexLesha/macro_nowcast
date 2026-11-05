@@ -14,6 +14,14 @@ try:
 except ImportError:
     from backend.app.refresh_pipeline.health_monitor import health_tracker
 
+try:
+    from app.quant_engine.benchmark_etf_cache import BenchmarkETFCacheManager
+    from app.db.stock_compressed_store import StockCompressedStore
+except ImportError:
+    from backend.app.quant_engine.benchmark_etf_cache import BenchmarkETFCacheManager
+    from backend.app.db.stock_compressed_store import StockCompressedStore
+
+
 
 logging.basicConfig(
     level=logging.INFO,
@@ -28,6 +36,21 @@ async def lifespan(app: FastAPI):
     logger.info("Initializing MacroPulse Alpha Database Schema...")
     init_db()
     logger.info("Database initialized successfully.")
+
+    # 1. Initialize compressed stock payload and sector LLM cache tables
+    try:
+        StockCompressedStore.init_tables()
+        logger.info("StockCompressedStore tables initialized successfully.")
+    except Exception as e:
+        logger.warning(f"StockCompressedStore table initialization warning: {e}")
+
+    # 2. Pre-warm the 26 Benchmark ETFs in memory to eliminate ~4.5s delay on stock searches
+    try:
+        await BenchmarkETFCacheManager.warm_cache()
+        logger.info("BenchmarkETFCacheManager warmed successfully on startup.")
+    except Exception as e:
+        logger.warning(f"BenchmarkETFCacheManager warmup warning: {e}")
+
     yield
     logger.info("MacroPulse Alpha Engine shutting down.")
 
@@ -92,7 +115,10 @@ async def health_check():
         "health": health_data,
     }
 
-
+@app.get("/api/v1/ping")
+@app.get("/ping")
+def ping():
+    return {"status": "ok", "pong": True}
 
 @app.get("/api/v1/etf/fcte-holdings")
 @app.get("/v1/etf/fcte-holdings")

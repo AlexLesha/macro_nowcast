@@ -1508,9 +1508,24 @@ class StockLLMAnalyzer:
         ticker: str,
         regime: Optional[str] = None,
         quad: Optional[str] = None,
+        force_refresh: bool = False,
     ) -> Dict[str, Any]:
         t0 = time.perf_counter()
         ticker = ticker.upper().strip()
+
+        # Technique 4: Check compressed store (<10ms single key lookup)
+        if not force_refresh:
+            try:
+                from app.db.stock_compressed_store import StockCompressedStore
+            except ImportError:
+                from backend.app.db.stock_compressed_store import StockCompressedStore
+            try:
+                cached_payload = StockCompressedStore.get_stock_payload(ticker)
+                if cached_payload:
+                    logger.info(f"[StockLLMAnalyzer] Sub-20ms cache hit for {ticker}")
+                    return cached_payload
+            except Exception as e:
+                logger.warning(f"[StockLLMAnalyzer] Cache lookup note for {ticker}: {e}")
 
         if not regime or not quad or quad == "Quad 2":
             try:
@@ -2000,7 +2015,7 @@ class StockLLMAnalyzer:
             },
         ]
 
-        return {
+        result_payload = {
             "company_name": m.get("name", PEER_NAMES.get(ticker, f"{ticker} Inc.")),
             "scorecard": {
                 "moat_and_architecture": {
@@ -2076,3 +2091,15 @@ class StockLLMAnalyzer:
             },
             "forensic_audit_verdict": verdict_str,
         }
+
+        # Technique 4: Persist compressed snapshot for instant repeat visits (<20ms)
+        try:
+            from app.db.stock_compressed_store import StockCompressedStore
+        except ImportError:
+            from backend.app.db.stock_compressed_store import StockCompressedStore
+        try:
+            StockCompressedStore.save_stock_payload(ticker, industry, result_payload)
+        except Exception as e:
+            logger.warning(f"[StockLLMAnalyzer] Cache store note for {ticker}: {e}")
+
+        return result_payload

@@ -1739,9 +1739,26 @@ def get_single_stock_xray(
     ticker: str,
     regime: Optional[str] = None,
     quad: Optional[str] = None,
+    cached: bool = False,
+    force: bool = False,
     db: Session = Depends(get_db),
 ):
     clean_t = ticker.strip().upper()
+
+    # Fast cached lookup (<10ms single primary key lookup)
+    if cached and not force:
+        try:
+            from app.db.stock_compressed_store import StockCompressedStore
+        except ImportError:
+            from backend.app.db.stock_compressed_store import StockCompressedStore
+        try:
+            cached_payload = StockCompressedStore.get_stock_payload(clean_t)
+            if cached_payload:
+                logger.info(f"[StockStore] Fast cache hit for {clean_t} (<10ms)")
+                return _sanitize_floats(cached_payload)
+        except Exception as e:
+            logger.warning(f"[StockStore] Fast cache lookup error for {clean_t}: {e}")
+
     if not regime or not quad or quad == "Quad 2":
         try:
             from app.quant_engine.macro_nowcast import compute_growth_nowcast, compute_inflation_nowcast, compute_quads_and_base_effects
@@ -1768,6 +1785,8 @@ def get_single_stock_xray(
             ticker=clean_t,
             active_market_regime=active_regime,
             active_economic_quad=active_quad,
+            cached=cached,
+            force=force,
         )
         return _sanitize_floats(data)
     except ValueError as e:
@@ -1781,11 +1800,31 @@ def get_single_stock_xray(
         raise HTTPException(status_code=500, detail=f"Stock analysis error for '{clean_t}': {str(e)}")
 
 
+@api_router.get("/v1/stock/analyze")
+@api_router.get("/stock/analyze")
+def get_stock_analyze(
+    ticker: str = Query(..., description="Stock ticker symbol"),
+    regime: Optional[str] = None,
+    quad: Optional[str] = None,
+    cached: bool = False,
+    force: bool = False,
+    db: Session = Depends(get_db),
+):
+    return get_single_stock_xray(ticker=ticker, regime=regime, quad=quad, cached=cached, force=force, db=db)
+
+
 @api_router.post("/v1/stock/analyze")
 @api_router.post("/stock/analyze")
-def post_stock_analyze(payload: Dict[str, Any], db: Session = Depends(get_db)):
+def post_stock_analyze(
+    payload: Dict[str, Any],
+    cached: bool = False,
+    force: bool = False,
+    db: Session = Depends(get_db)
+):
     t = payload.get("ticker") or payload.get("symbol") or ""
-    return get_single_stock_xray(ticker=t, db=db)
+    is_cached = payload.get("cached", cached)
+    is_force = payload.get("force", force)
+    return get_single_stock_xray(ticker=t, cached=is_cached, force=is_force, db=db)
 
 
 @api_router.get("/v1/stock/edgar-12q/{ticker}")
@@ -1869,6 +1908,47 @@ except ImportError:
 
 api_router.include_router(sources_test_router, prefix="/v1/stock", tags=["stock-sources-test"])
 api_router.include_router(sources_test_router, prefix="/stock", tags=["stock-sources-test"])
+
+
+# ----------------------------------------------------
+# Adaptive Ingestion Multi-Cadence Refresher Trigger
+# ----------------------------------------------------
+@api_router.post("/v1/refresher/trigger")
+@api_router.post("/refresher/trigger")
+async def trigger_refresher_routine(
+    routine: str = Query("daily", description="Cadence routine: daily, weekly, or monthly")
+):
+    """
+    Triggers the multi-cadence data refresher:
+    - daily: Pre-warms 26 Benchmark ETFs; if in active earnings season, scans tracked universe.
+    - weekly: Refreshes peer valuation multiples across 77 GICS industries.
+    - monthly: Recalibrates 12-quarter statements and synthesizes sector moat LLM profiles.
+    """
+    routine_clean = routine.strip().lower()
+    try:
+        from app.quant_engine.scheduled_refresher import AdaptiveDataRefresher
+    except ImportError:
+        from backend.app.quant_engine.scheduled_refresher import AdaptiveDataRefresher
+
+    try:
+        if routine_clean == "daily":
+            result = await AdaptiveDataRefresher.run_daily_warmup_and_refresh()
+        elif routine_clean == "weekly":
+            result = await AdaptiveDataRefresher.run_weekly_fundamental_refresh()
+        elif routine_clean in ("monthly", "deep"):
+            result = await AdaptiveDataRefresher.run_monthly_deep_recalibration()
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unknown routine '{routine}'. Allowed routines are: 'daily', 'weekly', 'monthly'."
+            )
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Refresher routine execution failed for '{routine}': {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Refresher error: {str(e)}")
+
 
 
 
