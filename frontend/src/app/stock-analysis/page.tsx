@@ -380,6 +380,28 @@ export default function SingleStockAnalysisPage() {
             </form>
           </div>
 
+          {/* QUICK TICKER SHORTCUT PILLS */}
+          <div className="flex flex-wrap items-center gap-1.5 font-mono text-xs text-slate-400">
+            <span className="text-slate-400">Quick:</span>
+            {["LAND", "NVDA", "AAPL", "MSFT", "ENPH", "TSLA", "GOOGL", "PLTR", "XOM"].map((sym) => (
+              <button
+                key={sym}
+                type="button"
+                onClick={() => {
+                  setTickerInput(sym);
+                  fetchAnalysis(sym);
+                }}
+                className={`px-2 py-0.5 rounded border transition text-xs ${
+                  activeTicker === sym
+                    ? "bg-cyan-950/80 border-cyan-500 text-cyan-300 font-bold"
+                    : "bg-slate-900/80 border-slate-800 text-slate-400 hover:text-white hover:border-slate-700"
+                }`}
+              >
+                {sym}
+              </button>
+            ))}
+          </div>
+
           {/* 3-LINE TOP HEADER METRIC RIBBON */}
           {data && (
             <div className="rounded-lg border border-slate-800/90 bg-slate-950/70 p-2.5 space-y-1.5 font-mono text-xs">

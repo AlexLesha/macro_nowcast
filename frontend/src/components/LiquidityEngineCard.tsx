@@ -16,9 +16,22 @@ import {
 
 import { getApiUrl } from "@/lib/api";
 
-export const LiquidityEngineCard: React.FC = () => {
-  const [data, setData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+interface LiquidityEngineCardProps {
+  initialData?: any;
+}
+
+export const LiquidityEngineCard: React.FC<LiquidityEngineCardProps> = ({ initialData }) => {
+  const [data, setData] = useState<any>(initialData || null);
+  const [loading, setLoading] = useState(!initialData);
+
+  useEffect(() => {
+    if (initialData) {
+      setData(initialData);
+      setLoading(false);
+      return;
+    }
+    fetchLiquidityData();
+  }, [initialData]);
 
   const fetchLiquidityData = async () => {
     setLoading(true);
@@ -34,10 +47,6 @@ export const LiquidityEngineCard: React.FC = () => {
     }
   };
 
-  useEffect(() => {
-    fetchLiquidityData();
-  }, []);
-
   if (loading && !data) {
     return (
       <div className="bg-[#0e1626] border border-slate-800 rounded-xl p-8 text-center text-slate-400 font-mono text-sm flex items-center justify-center gap-3">
@@ -49,9 +58,9 @@ export const LiquidityEngineCard: React.FC = () => {
 
   if (!data) return null;
 
-  const usLiq = data.us_net_liquidity;
-  const globalDebt = data.global_debt_ratios;
-  const bondAccord = data.bond_stress_accord;
+  const usLiq = data.us_net_liquidity || {};
+  const globalDebt = data.global_debt_ratios || data.global_liquidity || {};
+  const bondAccord = data.bond_stress_accord || data.bond_stress_and_accord || {};
 
   const accordGauge = bondAccord?.fed_treasury_accord_gauge;
   const yieldDecomp = bondAccord?.yield_decomposition;

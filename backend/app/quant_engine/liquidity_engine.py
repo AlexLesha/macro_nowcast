@@ -418,6 +418,20 @@ class LiquidityEngine:
 
     @classmethod
     def build_complete_liquidity_payload(cls) -> Dict[str, Any]:
+        try:
+            from app.db.stock_compressed_store import StockCompressedStore
+            raw_cached = StockCompressedStore.get_macro_liquidity_payload("raw_liquidity_engine", max_age_seconds=900)
+            if raw_cached:
+                return raw_cached
+        except Exception:
+            try:
+                from backend.app.db.stock_compressed_store import StockCompressedStore
+                raw_cached = StockCompressedStore.get_macro_liquidity_payload("raw_liquidity_engine", max_age_seconds=900)
+                if raw_cached:
+                    return raw_cached
+            except Exception:
+                pass
+
         us_nl = cls.compute_us_net_liquidity_live()
         glob_liq = cls.compute_global_liquidity_and_debt_ratios_live(us_nl)
         bond_stress = cls.compute_bond_stress_and_accord_trigger_live()
@@ -428,7 +442,17 @@ class LiquidityEngine:
             "global_liquidity": glob_liq,
             "bond_stress_and_accord": bond_stress,
         }
-        return _sanitize_floats(res)
+        res_clean = _sanitize_floats(res)
+        try:
+            from app.db.stock_compressed_store import StockCompressedStore
+            StockCompressedStore.save_macro_liquidity_payload("raw_liquidity_engine", res_clean)
+        except Exception:
+            try:
+                from backend.app.db.stock_compressed_store import StockCompressedStore
+                StockCompressedStore.save_macro_liquidity_payload("raw_liquidity_engine", res_clean)
+            except Exception:
+                pass
+        return res_clean
 
 
 # ==============================================================================

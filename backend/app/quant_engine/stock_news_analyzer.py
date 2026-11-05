@@ -32,6 +32,9 @@ logger = logging.getLogger("macropulse.stock_news_analyzer")
 _HOT_NEWS_CACHE: Dict[str, Dict[str, Any]] = {}
 _HOT_NEWS_TTL_SECONDS = 900  # 15 minutes
 
+# Circuit breaker for Alpha Vantage rate-limit exhaustion (24-hour backoff)
+_ALPHA_CIRCUIT_BREAKER_UNTIL: float = 0.0
+
 
 class StockHotNewsEngine:
     """Institutional 2-Week Working Days News Intelligence & Price Impact Engine."""
@@ -76,32 +79,37 @@ class StockHotNewsEngine:
             except Exception as e:
                 logger.warning(f"Finnhub news fetch error for {clean_t}: {e}")
 
-        # 2. Alpha Vantage Fallback if Finnhub returned empty
-        if not articles and settings.ALPHA_API_KEY:
+        # 2. Alpha Vantage Fallback (Protected by 24h Circuit Breaker)
+        global _ALPHA_CIRCUIT_BREAKER_UNTIL
+        if not articles and settings.ALPHA_API_KEY and time.time() >= _ALPHA_CIRCUIT_BREAKER_UNTIL:
             try:
                 url = (
                     f"https://www.alphavantage.co/query"
                     f"?function=NEWS_SENTIMENT&tickers={clean_t}&limit=50&apikey={settings.ALPHA_API_KEY}"
                 )
-                with httpx.Client(timeout=8.0) as client:
+                with httpx.Client(timeout=6.0) as client:
                     resp = client.get(url)
                     if resp.status_code == 200:
-                        data = resp.json()
-                        feed = data.get("feed", [])
-                        for item in feed:
-                            time_pub = item.get("time_published", "")
-                            dt_str = end_date
-                            if len(time_pub) >= 8:
-                                dt_str = f"{time_pub[:4]}-{time_pub[4:6]}-{time_pub[6:8]}"
-                            articles.append({
-                                "headline": item.get("title", "").strip(),
-                                "summary": item.get("summary", "").strip(),
-                                "source": item.get("source", "Alpha Vantage"),
-                                "url": item.get("url", ""),
-                                "date": dt_str,
-                                "datetime_epoch": int(time.time()),
-                            })
-                        logger.info(f"Fetched {len(articles)} Alpha Vantage news items for {clean_t}")
+                        data = resp.json() or {}
+                        if data.get("Note") or data.get("Information"):
+                            _ALPHA_CIRCUIT_BREAKER_UNTIL = time.time() + 86400
+                            logger.info(f"[AlphaCircuitBreaker] News rate limit tripped; 24h backoff active.")
+                        else:
+                            feed = data.get("feed", [])
+                            for item in feed:
+                                time_pub = item.get("time_published", "")
+                                dt_str = end_date
+                                if len(time_pub) >= 8:
+                                    dt_str = f"{time_pub[:4]}-{time_pub[4:6]}-{time_pub[6:8]}"
+                                articles.append({
+                                    "headline": item.get("title", "").strip(),
+                                    "summary": item.get("summary", "").strip(),
+                                    "source": item.get("source", "Alpha Vantage"),
+                                    "url": item.get("url", ""),
+                                    "date": dt_str,
+                                    "datetime_epoch": int(time.time()),
+                                })
+                            logger.info(f"Fetched {len(articles)} Alpha Vantage news items for {clean_t}")
             except Exception as e:
                 logger.warning(f"Alpha Vantage news fetch error for {clean_t}: {e}")
 
@@ -153,40 +161,46 @@ class StockHotNewsEngine:
             except Exception as e:
                 logger.warning(f"Massive bars fetch error for {clean_t}: {e}")
 
-        # 2. Alpha Vantage TIME_SERIES_DAILY Fallback if Massive is empty
-        if not bars_by_date and settings.ALPHA_API_KEY:
+        # 2. Alpha Vantage TIME_SERIES_DAILY Fallback (Protected by 24h Circuit Breaker)
+        global _ALPHA_CIRCUIT_BREAKER_UNTIL
+        if not bars_by_date and settings.ALPHA_API_KEY and time.time() >= _ALPHA_CIRCUIT_BREAKER_UNTIL:
             try:
                 url = (
                     f"https://www.alphavantage.co/query"
                     f"?function=TIME_SERIES_DAILY&symbol={clean_t}&apikey={settings.ALPHA_API_KEY}"
                 )
-                with httpx.Client(timeout=8.0) as client:
+                with httpx.Client(timeout=6.0) as client:
                     resp = client.get(url)
                     if resp.status_code == 200:
-                        ts = resp.json().get("Time Series (Daily)", {})
-                        for dt_str, data in ts.items():
-                            if start_date <= dt_str <= end_date:
-                                open_px = round(float(data.get("1. open", 0.0)), 2)
-                                close_px = round(float(data.get("4. close", 0.0)), 2)
-                                high_px = round(float(data.get("2. high", 0.0)), 2)
-                                low_px = round(float(data.get("3. low", 0.0)), 2)
-                                vol = float(data.get("5. volume", 0.0))
-                                pct_chg = round(((close_px - open_px) / open_px) * 100, 2) if open_px > 0 else 0.0
-                                direction = "UP" if pct_chg > 0.15 else ("DOWN" if pct_chg < -0.15 else "FLAT")
-                                vol_str = f"{vol / 1e6:.1f}M" if vol >= 1e6 else f"{vol / 1e3:.0f}K"
-                                bars_by_date[dt_str] = {
-                                    "traded": vol > 0,
-                                    "open": open_px,
-                                    "close": close_px,
-                                    "high": high_px,
-                                    "low": low_px,
-                                    "volume": vol,
-                                    "volume_str": vol_str,
-                                    "change_pct": pct_chg,
-                                    "direction": direction,
-                                    "day_range": f"${low_px:.2f} - ${high_px:.2f}",
-                                }
-                        logger.info(f"Loaded {len(bars_by_date)} daily bars from Alpha Vantage for {clean_t}")
+                        data = resp.json() or {}
+                        if data.get("Note") or data.get("Information"):
+                            _ALPHA_CIRCUIT_BREAKER_UNTIL = time.time() + 86400
+                            logger.info(f"[AlphaCircuitBreaker] Bars rate limit tripped; 24h backoff active.")
+                        else:
+                            ts = data.get("Time Series (Daily)", {})
+                            for dt_str, data in ts.items():
+                                if start_date <= dt_str <= end_date:
+                                    open_px = round(float(data.get("1. open", 0.0)), 2)
+                                    close_px = round(float(data.get("4. close", 0.0)), 2)
+                                    high_px = round(float(data.get("2. high", 0.0)), 2)
+                                    low_px = round(float(data.get("3. low", 0.0)), 2)
+                                    vol = float(data.get("5. volume", 0.0))
+                                    pct_chg = round(((close_px - open_px) / open_px) * 100, 2) if open_px > 0 else 0.0
+                                    direction = "UP" if pct_chg > 0.15 else ("DOWN" if pct_chg < -0.15 else "FLAT")
+                                    vol_str = f"{vol / 1e6:.1f}M" if vol >= 1e6 else f"{vol / 1e3:.0f}K"
+                                    bars_by_date[dt_str] = {
+                                        "traded": vol > 0,
+                                        "open": open_px,
+                                        "close": close_px,
+                                        "high": high_px,
+                                        "low": low_px,
+                                        "volume": vol,
+                                        "volume_str": vol_str,
+                                        "change_pct": pct_chg,
+                                        "direction": direction,
+                                        "day_range": f"${low_px:.2f} - ${high_px:.2f}",
+                                    }
+                            logger.info(f"Loaded {len(bars_by_date)} daily bars from Alpha Vantage for {clean_t}")
             except Exception as e:
                 logger.warning(f"Alpha Vantage bars fetch error for {clean_t}: {e}")
 

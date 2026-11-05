@@ -44,8 +44,11 @@ except ImportError:
 MASSIVE_BASE_URL = "https://api.massive.com"
 MASSIVE_API_KEY = (os.getenv("MASSIVE_API_KEY") or getattr(settings, "MASSIVE_API_KEY", "") or "").strip()
 
+# Circuit breaker for Alpha Vantage rate-limit exhaustion (24-hour backoff)
+_ALPHA_CIRCUIT_BREAKER_UNTIL: float = 0.0
 
-def fetch_finnhub_fundamentals_and_revisions(ticker: str) -> Dict[str, Any]:
+
+def fetch_company_fundamentals_and_revisions(ticker: str) -> Dict[str, Any]:
     """
     Unified individual stock financial details fetcher using:
       Data Scope: https://api.massive.com/stocks/financials/v1/income-statements
@@ -109,6 +112,10 @@ def fetch_finnhub_fundamentals_and_revisions(ticker: str) -> Dict[str, Any]:
         logger.debug(f"Massive v1 / SEC EDGAR fundamentals fetch note for {clean_tk}: {e}")
 
     return out
+
+
+# Backward-compatible alias
+fetch_finnhub_fundamentals_and_revisions = fetch_company_fundamentals_and_revisions
 
 
 # SEC EDGAR requires a descriptive User-Agent header (zero registration or API key needed)
@@ -547,9 +554,10 @@ class SingleStockXRayEngine:
                 logger.debug(f"Tier 1 (Massive) query error for {clean_t}: {e}")
 
         # ---------------------------------------------------------------------
-        # TIER 2: ALPHA VANTAGE API FALLBACK
+        # TIER 2: ALPHA VANTAGE API FALLBACK (Protected by 24h Circuit Breaker)
         # (Engaged for missing fields: short interest, DTC, institutional %, forward P/E, beta, or if Tier 1 lacked price/mcap)
         # ---------------------------------------------------------------------
+        global _ALPHA_CIRCUIT_BREAKER_UNTIL
         needs_alpha = (
             short_float_pct is None
             or days_to_cover is None
@@ -558,18 +566,21 @@ class SingleStockXRayEngine:
             or live_price is None
             or mkt_cap_bn is None
         )
-        if needs_alpha and alpha_key:
+        if needs_alpha and alpha_key and time.time() >= _ALPHA_CIRCUIT_BREAKER_UNTIL:
             try:
                 desktop_headers = {
                     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
                     "Accept": "application/json",
                 }
-                with httpx.Client(headers=desktop_headers, timeout=6.0) as client:
+                with httpx.Client(headers=desktop_headers, timeout=5.0) as client:
                     # 1. Alpha Vantage OVERVIEW
                     r_ov = client.get(f"https://www.alphavantage.co/query?function=OVERVIEW&symbol={clean_t}&apikey={alpha_key}")
                     if r_ov.status_code == 200:
                         ov_json = r_ov.json() or {}
-                        if not ov_json.get("Information") and not ov_json.get("Note"):
+                        if ov_json.get("Information") or ov_json.get("Note"):
+                            _ALPHA_CIRCUIT_BREAKER_UNTIL = time.time() + 86400
+                            logger.info(f"[AlphaCircuitBreaker] Alpha Vantage rate limit note received; tripping circuit breaker for 24h.")
+                        else:
                             source_tier = "MASSIVE_V3_WITH_ALPHA_FUNDAMENTALS"
                             if mkt_cap_bn is None and ov_json.get("MarketCapitalization"):
                                 try:
@@ -1718,40 +1729,56 @@ class SingleStockXRayEngine:
             quarters_12q=quarters_12q,
         )
 
-        tk = yf.Ticker(clean_ticker)
-        info = {}
-        try:
-            info = tk.info or {}
-        except Exception:
-            info = {}
-
-        sector = overview.get("sector") or info.get("sector") or "Unclassified"
-        industry = overview.get("industry") or info.get("industry") or "Unclassified Industry"
-        entity_name = overview.get("company_name") or info.get("shortName") or info.get("longName") or clean_ticker
+        sector = overview.get("sector") or "Unclassified"
+        industry = overview.get("industry") or "Unclassified Industry"
+        entity_name = overview.get("company_name") or clean_ticker
         benchmark_etf = overview.get("benchmark_etf") or "SPY"
 
         curr_px = header_metrics.get("live_price") or curr_px
         if header_metrics.get("price_change_pct") is not None:
             px_chg_pct = header_metrics["price_change_pct"]
 
-        mkt_cap_bn = header_metrics.get("market_cap_bn") or overview.get("market_cap_bn") or (
-            round(info.get("marketCap") / 1e9, 2) if info.get("marketCap") else None
-        )
-        ev_bn = header_metrics.get("enterprise_value_bn") or (
-            round(info.get("enterpriseValue") / 1e9, 2) if info.get("enterpriseValue") else None
-        )
-        raw_fpe = header_metrics.get("forward_pe") or info.get("forwardPE")
+        mkt_cap_bn = header_metrics.get("market_cap_bn") or overview.get("market_cap_bn")
+        ev_bn = header_metrics.get("enterprise_value_bn")
+        raw_fpe = header_metrics.get("forward_pe")
         fwd_pe_val = round(float(raw_fpe), 1) if (raw_fpe is not None and float(raw_fpe) > 0) else None
+
+        # Fast Path: Check if overview + header_metrics already provide all core metadata
+        info: Dict[str, Any] = {}
+        # Only query tk.info as a fallback if essential stats are missing
+        if not mkt_cap_bn or entity_name == clean_ticker:
+            try:
+                tk = yf.Ticker(clean_ticker)
+                info = tk.info or {}
+                if not mkt_cap_bn and info.get("marketCap"):
+                    mkt_cap_bn = round(info.get("marketCap") / 1e9, 2)
+                if not ev_bn and info.get("enterpriseValue"):
+                    ev_bn = round(info.get("enterpriseValue") / 1e9, 2)
+                if fwd_pe_val is None and info.get("forwardPE"):
+                    fwd_pe_val = round(float(info.get("forwardPE")), 1)
+                if entity_name == clean_ticker and (info.get("shortName") or info.get("longName")):
+                    entity_name = info.get("shortName") or info.get("longName")
+                if sector == "Unclassified" and info.get("sector"):
+                    sector = info.get("sector")
+                if industry == "Unclassified Industry" and info.get("industry"):
+                    industry = info.get("industry")
+            except Exception:
+                pass
 
         options_snapshot = cls.fetch_massive_options_snapshot(clean_ticker)
 
-        if not info and quarters_12q:
+        if quarters_12q:
             latest_q = quarters_12q[0]
             rev_ann = float(latest_q.get("revenue", 0.0) or 0.0) * 4.0
             op_ann = float(latest_q.get("operating_income", 0.0) or 0.0) * 4.0
             cor_ann = float(latest_q.get("cost_of_revenue", 0.0) or 0.0) * 4.0
             info = {
+                **info,
                 "longName": entity_name,
+                "currentPrice": curr_px,
+                "regularMarketPrice": curr_px,
+                "marketCap": (mkt_cap_bn * 1e9) if mkt_cap_bn else None,
+                "enterpriseValue": (ev_bn * 1e9) if ev_bn else None,
                 "operatingMargins": (op_ann / rev_ann) if rev_ann > 0 else 0.18,
                 "grossMargins": ((rev_ann - cor_ann) / rev_ann) if rev_ann > 0 else 0.42,
             }
@@ -1764,17 +1791,42 @@ class SingleStockXRayEngine:
             info["longName"] = entity_name
 
         q_fin, q_bal, q_cf, eps_trend_df, eps_rev_df = pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
-        try:
-            q_fin = tk.quarterly_income_stmt if hasattr(tk, "quarterly_income_stmt") else tk.quarterly_financials
-            q_bal = tk.quarterly_balance_sheet
-            q_cf = tk.quarterly_cashflow
-        except Exception:
-            pass
-        try:
-            eps_trend_df = tk.eps_trend if hasattr(tk, "eps_trend") and tk.eps_trend is not None else pd.DataFrame()
-            eps_rev_df = tk.eps_revisions if hasattr(tk, "eps_revisions") and tk.eps_revisions is not None else pd.DataFrame()
-        except Exception:
-            pass
+        if quarters_12q:
+            try:
+                # Fast Audited Synthesis: Construct quarterly DataFrames directly from 12Q walk
+                # Eliminates slow Yahoo quarterly financials HTTP roundtrips & rate limits
+                q_cols = [q.get("fiscal_period") or q.get("date") or f"Q{i}" for i, q in enumerate(quarters_12q[:8])]
+                rev_row = [float(q.get("revenue") or (float(q.get("revenue_m") or 0.0) * 1e6) or 0.0) for q in quarters_12q[:8]]
+                op_row = [float(q.get("operating_income") or (float(q.get("operating_income_m") or 0.0) * 1e6) or 0.0) for q in quarters_12q[:8]]
+                cor_row = [float(q.get("cost_of_revenue") or (float(q.get("cost_of_revenue_m") or 0.0) * 1e6) or 0.0) for q in quarters_12q[:8]]
+                net_row = [float(q.get("net_income") or (float(q.get("net_income_m") or 0.0) * 1e6) or 0.0) for q in quarters_12q[:8]]
+                sbc_row = [float(q.get("sbc_expense_m") or 0.0) * 1e6 for q in quarters_12q[:8]]
+
+                q_fin = pd.DataFrame({
+                    "Total Revenue": rev_row,
+                    "Operating Income": op_row,
+                    "Cost Of Revenue": cor_row,
+                    "Net Income": net_row,
+                    "Stock Based Compensation": sbc_row,
+                }, index=q_cols).T
+
+                debt_row = [float(q.get("total_debt_m") or (float(q.get("total_debt") or 0.0) / 1e6) or 0.0) * 1e6 for q in quarters_12q[:8]]
+                cash_row = [float(q.get("cash_and_equivalents_m") or (float(q.get("cash_and_equiv") or 0.0) / 1e6) or 0.0) * 1e6 for q in quarters_12q[:8]]
+                q_bal = pd.DataFrame({
+                    "Total Debt": debt_row,
+                    "Cash And Cash Equivalents": cash_row,
+                }, index=q_cols).T
+
+                ocf_row = [float(q.get("operating_cash_flow_m") or (float(q.get("operating_cash_flow") or 0.0) / 1e6) or 0.0) * 1e6 for q in quarters_12q[:8]]
+                fcf_row = [float(q.get("free_cash_flow_m") or 0.0) * 1e6 for q in quarters_12q[:8]]
+                capex_row = [float(q.get("capital_expenditure_m") or (float(q.get("capex") or 0.0) / 1e6) or 0.0) * 1e6 for q in quarters_12q[:8]]
+                q_cf = pd.DataFrame({
+                    "Operating Cash Flow": ocf_row,
+                    "Free Cash Flow": fcf_row,
+                    "Capital Expenditure": capex_row,
+                }, index=q_cols).T
+            except Exception as e:
+                logger.debug(f"Direct 12Q DataFrame synthesis note: {e}")
 
         # Sub-engines
         eps_revisions = cls._compute_live_eps_revisions(info, eps_trend_df, eps_rev_df)

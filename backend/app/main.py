@@ -182,13 +182,16 @@ async def analyze_stock_endpoint(req: StockAnalyzeRequest):
         active_regime = req.regime
 
     try:
-        from backend.app.quant_engine.stock_llm_analyzer import StockLLMAnalyzer
+        from app.quant_engine.stock_analyzer import SingleStockXRayEngine
     except ImportError:
-        from app.quant_engine.stock_llm_analyzer import StockLLMAnalyzer
-    return await StockLLMAnalyzer.analyze_stock(
-        ticker=req.ticker,
-        regime=active_regime,
-        quad=active_quad
+        from backend.app.quant_engine.stock_analyzer import SingleStockXRayEngine
+
+    import asyncio
+    return await asyncio.to_thread(
+        SingleStockXRayEngine.analyze_ticker,
+        req.ticker,
+        active_regime,
+        active_quad,
     )
 
 
@@ -216,13 +219,16 @@ async def analyze_stock_get_endpoint(
         active_regime = regime
 
     try:
-        from backend.app.quant_engine.stock_llm_analyzer import StockLLMAnalyzer
+        from app.quant_engine.stock_analyzer import SingleStockXRayEngine
     except ImportError:
-        from app.quant_engine.stock_llm_analyzer import StockLLMAnalyzer
-    return await StockLLMAnalyzer.analyze_stock(
-        ticker=ticker,
-        regime=active_regime,
-        quad=active_quad,
+        from backend.app.quant_engine.stock_analyzer import SingleStockXRayEngine
+
+    import asyncio
+    return await asyncio.to_thread(
+        SingleStockXRayEngine.analyze_ticker,
+        ticker,
+        active_regime,
+        active_quad,
     )
 
 
@@ -616,8 +622,23 @@ async def get_live_framework_synthesis():
 
 @app.get("/api/v1/liquidity-allocation")
 @app.get("/api/liquidity-allocation")
-async def get_live_liquidity_and_horizons():
+async def get_live_liquidity_and_horizons(force: bool = False):
     """Resolves Audit Item #24: Returns live Liquidity series + dynamic 0-6M, 6-12M, and 12-36M allocation matrix."""
+    if not force:
+        try:
+            from app.db.stock_compressed_store import StockCompressedStore
+            cached_macro = StockCompressedStore.get_macro_liquidity_payload("full_liquidity_allocation", max_age_seconds=900)
+            if cached_macro:
+                return _sanitize_floats(cached_macro)
+        except Exception:
+            try:
+                from backend.app.db.stock_compressed_store import StockCompressedStore
+                cached_macro = StockCompressedStore.get_macro_liquidity_payload("full_liquidity_allocation", max_age_seconds=900)
+                if cached_macro:
+                    return _sanitize_floats(cached_macro)
+            except Exception:
+                pass
+
     liq = LiquidityEngine.build_complete_liquidity_payload()
     ftm = FortyTwoMacroLiveBuilder.build_live_42macro_dashboard()
     countries = compute_live_15_country_quads()
@@ -642,9 +663,42 @@ async def get_live_liquidity_and_horizons():
     gld_w = int(round(float(kiss_exp.get("GLDM", 20.0))))
     btc_w = int(round(float(kiss_exp.get("FBTC", 5.0))))
 
+    macro_regime_summary = {
+        "active_quad": us_quad_str,
+        "active_quad_code": us_country.get("active_quad", "QUAD_3"),
+        "regime_name": ftm["global_macro_risk_matrix"]["active_regime_label"],
+        "primary_regime": ftm["global_macro_risk_matrix"].get("primary_regime", "INFLATION"),
+        "probability_risk_on_pct": ftm["global_macro_risk_matrix"]["probability_risk_on_pct"],
+        "probability_risk_off_pct": ftm["global_macro_risk_matrix"]["probability_risk_off_pct"],
+        "cacri_state": ftm["global_macro_risk_matrix"].get("cacri_state", "RISK_OFF"),
+        "net_liquidity_usd_bn": us_nl["net_liquidity_usd_bn"],
+        "roc_4w_bn": us_nl["roc_4w_bn"],
+        "liquidity_impulse_state": us_nl["liquidity_impulse_state"],
+        "debt_to_liquidity_pct": glob["us_debt_to_liquidity_pct"],
+        "accord_2_0_prob": bond["accord_2_0_probability_pct"],
+        "tbill_issuance_share_pct": bond["tbill_issuance_share_pct"],
+        "move_index": bond["move_index"],
+        "vix_index": bond["vix_index"],
+        "real_10y_tips_pct": bond["real_10y_tips_yield_pct"],
+    }
+
+    cftc_summary = []
+    try:
+        from app.ingestion.cftc_sentiment_client import CftcSentimentClient
+        cftc_summary = CftcSentimentClient().fetch_cot_summary()
+    except Exception:
+        try:
+            from backend.app.ingestion.cftc_sentiment_client import CftcSentimentClient
+            cftc_summary = CftcSentimentClient().fetch_cot_summary()
+        except Exception:
+            pass
+
     res = {
         "status": "ok",
         "as_of_utc": liq["as_of_utc"],
+        "macro_regime": macro_regime_summary,
+        "cftc_positioning": cftc_summary,
+        "kiss_portfolio": ftm["kiss_and_drmo"]["kiss_portfolio"],
         "liquidity": liq,
         "country_quads": countries,
         "dr_mo_matrix": drmo,
@@ -796,6 +850,16 @@ async def get_live_liquidity_and_horizons():
             },
         },
     }
+    try:
+        from app.db.stock_compressed_store import StockCompressedStore
+        StockCompressedStore.save_macro_liquidity_payload("full_liquidity_allocation", res)
+    except Exception:
+        try:
+            from backend.app.db.stock_compressed_store import StockCompressedStore
+            StockCompressedStore.save_macro_liquidity_payload("full_liquidity_allocation", res)
+        except Exception:
+            pass
+
     return _sanitize_floats(res)
 
 

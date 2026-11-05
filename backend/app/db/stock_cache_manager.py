@@ -1,5 +1,6 @@
 """
-Stock Fundamentals & 77 GICS Peer Scorecard Cache Manager (SQLite / Cloudflare D1 Ready)
+DEPRECATED: Superceded by backend.app.db.stock_compressed_store.StockCompressedStore (Neon PostgreSQL + SQLite).
+Stock Fundamentals & 77 GICS Peer Scorecard Cache Manager (Legacy Reference)
 ========================================================================================
 Implements a 7-Day Time-To-Live (TTL) cache for:
   1. Single-Stock Fundamental & Solvency Metrics (Cash, Debt, FCF, Margins, ROE, Multiples)

@@ -1870,7 +1870,7 @@ def get_stock_hot_news(
     refresh: bool = False,
     db: Session = Depends(get_db),
 ):
-    """Direct endpoint for 7-day day-by-day news & price impact intelligence."""
+    """Direct fast-path endpoint for 10-trading-day day-by-day news & price impact intelligence."""
     clean_t = ticker.strip().upper()
     try:
         from app.quant_engine.stock_news_analyzer import StockHotNewsEngine
@@ -1878,15 +1878,39 @@ def get_stock_hot_news(
         from backend.app.quant_engine.stock_news_analyzer import StockHotNewsEngine
 
     try:
-        from app.quant_engine.stock_analyzer import SingleStockXRayEngine
-        data = SingleStockXRayEngine.analyze_ticker(db=db, ticker=clean_t)
-        entity_name = data.get("company_name", clean_t)
-        sector = data.get("gics_sector", "")
-        industry = data.get("gics_industry", "")
-    except Exception:
-        entity_name = clean_t
-        sector = ""
-        industry = ""
+        from app.db.stock_compressed_store import StockCompressedStore
+    except ImportError:
+        from backend.app.db.stock_compressed_store import StockCompressedStore
+
+    # Fast Path 1: Check compressed store (<10ms)
+    cached_payload = None
+    try:
+        cached_payload = StockCompressedStore.get_stock_payload(clean_t)
+        if not refresh and cached_payload and cached_payload.get("hot_news"):
+            logger.info(f"[HotNews] Fast payload cache hit for {clean_t} (<10ms)")
+            return _sanitize_floats(cached_payload["hot_news"])
+    except Exception as e:
+        logger.debug(f"[HotNews] Fast cache check note for {clean_t}: {e}")
+
+    # Extract metadata without triggering multi-second full stock analysis
+    entity_name = clean_t
+    sector = ""
+    industry = ""
+    if cached_payload:
+        entity_name = cached_payload.get("company_name") or cached_payload.get("entity_name") or clean_t
+        sector = cached_payload.get("gics_sector") or ""
+        industry = cached_payload.get("gics_industry") or ""
+    else:
+        try:
+            from app.quant_engine.stock_analyzer import SingleStockXRayEngine
+            overview = SingleStockXRayEngine.fetch_company_overview(db, clean_t)
+            entity_name = overview.get("company_name", clean_t)
+            sector = overview.get("sector", "")
+            industry = overview.get("industry", "")
+        except Exception:
+            entity_name = clean_t
+            sector = ""
+            industry = ""
 
     hot_news = StockHotNewsEngine.generate_hot_news_analysis(
         ticker=clean_t,
@@ -1895,6 +1919,15 @@ def get_stock_hot_news(
         industry=industry,
         force_refresh=refresh,
     )
+
+    # Sync back into payload cache if available
+    if cached_payload and hot_news:
+        try:
+            cached_payload["hot_news"] = hot_news
+            StockCompressedStore.save_stock_payload(clean_t, industry or "General", cached_payload)
+        except Exception as e:
+            logger.debug(f"[HotNews] Cache sync note for {clean_t}: {e}")
+
     return _sanitize_floats(hot_news)
 
 

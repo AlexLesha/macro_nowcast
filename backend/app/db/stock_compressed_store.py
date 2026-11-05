@@ -129,6 +129,11 @@ class StockCompressedStore:
                         crowding_z DOUBLE PRECISION,
                         PRIMARY KEY (ticker, date)
                     );
+                    CREATE TABLE IF NOT EXISTS macro_liquidity_cache (
+                        cache_key VARCHAR(64) PRIMARY KEY,
+                        payload_json TEXT NOT NULL,
+                        updated_at TIMESTAMP WITH TIME ZONE NOT NULL
+                    );
                 """)
                 conn.commit()
                 cursor.close()
@@ -214,6 +219,11 @@ class StockCompressedStore:
                         put_call_vol_ratio REAL,
                         crowding_z REAL,
                         PRIMARY KEY (ticker, date)
+                    );
+                    CREATE TABLE IF NOT EXISTS macro_liquidity_cache (
+                        cache_key TEXT PRIMARY KEY,
+                        payload_json TEXT NOT NULL,
+                        updated_at TEXT NOT NULL
                     );
                 """)
                 conn.commit()
@@ -859,5 +869,109 @@ class StockCompressedStore:
                 logger.warning(f"[StockCompressedStore] SQLite options read error for {clean_t}: {e}")
 
         return None
+
+    # =========================================================================
+    # OPT-6: Macro Liquidity & Multi-Horizon Allocation DB Cache (macro_liquidity_cache)
+    # =========================================================================
+    @classmethod
+    def get_macro_liquidity_payload(cls, cache_key: str = "full_liquidity_allocation", max_age_seconds: int = 900) -> Optional[Dict[str, Any]]:
+        """Returns pre-computed synthesized macro liquidity & asset allocation payload in <10ms."""
+        db_url = cls.get_db_url()
+        now_dt = datetime.now(timezone.utc)
+
+        if "postgres" in db_url:
+            try:
+                import psycopg2
+                dsn = _get_pg_dsn(db_url)
+                with psycopg2.connect(dsn) as conn:
+                    with conn.cursor() as cursor:
+                        cursor.execute("SELECT payload_json, updated_at FROM macro_liquidity_cache WHERE cache_key = %s;", (cache_key,))
+                        row = cursor.fetchone()
+                        if row:
+                            payload_json, updated_at = row
+                            age_sec = (now_dt - updated_at).total_seconds()
+                            if age_sec < max_age_seconds:
+                                data = json.loads(payload_json)
+                                data["_cache_hit"] = True
+                                data["_cached_age_seconds"] = round(age_sec, 1)
+                                return data
+            except Exception as e:
+                logger.debug(f"[StockCompressedStore] Postgres macro liquidity cache read note: {e}")
+        else:
+            db_path = db_url.replace("sqlite:///", "")
+            try:
+                with sqlite3.connect(db_path) as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("SELECT payload_json, updated_at FROM macro_liquidity_cache WHERE cache_key = ?;", (cache_key,))
+                    row = cursor.fetchone()
+                    if row:
+                        payload_json, updated_at_str = row
+                        upd_dt = datetime.fromisoformat(str(updated_at_str).replace("Z", "+00:00"))
+                        age_sec = (now_dt - upd_dt).total_seconds()
+                        if age_sec < max_age_seconds:
+                            data = json.loads(payload_json)
+                            data["_cache_hit"] = True
+                            data["_cached_age_seconds"] = round(age_sec, 1)
+                            return data
+            except Exception as e:
+                logger.debug(f"[StockCompressedStore] SQLite macro liquidity cache read note: {e}")
+
+        return None
+
+    @classmethod
+    def save_macro_liquidity_payload(cls, cache_key: str, payload: Dict[str, Any]) -> None:
+        """Persists synthesized macro liquidity payload into database."""
+        db_url = cls.get_db_url()
+        now_dt = datetime.now(timezone.utc)
+        now_iso = now_dt.isoformat()
+        payload_copy = dict(payload)
+        payload_copy.pop("_cache_hit", None)
+        payload_copy.pop("_cached_age_seconds", None)
+        p_json = json.dumps(payload_copy)
+
+        if "postgres" in db_url:
+            try:
+                import psycopg2
+                dsn = _get_pg_dsn(db_url)
+                with psycopg2.connect(dsn) as conn:
+                    with conn.cursor() as cursor:
+                        cursor.execute("""
+                            CREATE TABLE IF NOT EXISTS macro_liquidity_cache (
+                                cache_key VARCHAR(64) PRIMARY KEY,
+                                payload_json TEXT NOT NULL,
+                                updated_at TIMESTAMP WITH TIME ZONE NOT NULL
+                            );
+                            INSERT INTO macro_liquidity_cache (cache_key, payload_json, updated_at)
+                            VALUES (%s, %s, %s)
+                            ON CONFLICT (cache_key) DO UPDATE SET
+                                payload_json = EXCLUDED.payload_json,
+                                updated_at = EXCLUDED.updated_at;
+                        """, (cache_key, p_json, now_dt))
+                        conn.commit()
+                        logger.info(f"[StockCompressedStore] Successfully saved macro liquidity snapshot ({cache_key}) into Postgres.")
+            except Exception as e:
+                logger.warning(f"[StockCompressedStore] Postgres macro liquidity write error: {e}")
+        else:
+            db_path = db_url.replace("sqlite:///", "")
+            try:
+                with sqlite3.connect(db_path) as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("""
+                        CREATE TABLE IF NOT EXISTS macro_liquidity_cache (
+                            cache_key TEXT PRIMARY KEY,
+                            payload_json TEXT NOT NULL,
+                            updated_at TEXT NOT NULL
+                        );
+                        INSERT INTO macro_liquidity_cache (cache_key, payload_json, updated_at)
+                        VALUES (?, ?, ?)
+                        ON CONFLICT (cache_key) DO UPDATE SET
+                            payload_json = excluded.payload_json,
+                            updated_at = excluded.updated_at;
+                    """, (cache_key, p_json, now_iso))
+                    conn.commit()
+                    logger.info(f"[StockCompressedStore] Successfully saved macro liquidity snapshot ({cache_key}) into SQLite.")
+            except Exception as e:
+                logger.warning(f"[StockCompressedStore] SQLite macro liquidity write error: {e}")
+
 
 
