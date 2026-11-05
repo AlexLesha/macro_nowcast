@@ -385,11 +385,20 @@ class StockHotNewsEngine:
                 days_context=days_context,
             )
 
-        # Merge in any pre-cached DB days
+        # Merge in any pre-cached DB days (and clean legacy price action sentences)
         for i, day_dict in enumerate(payload.get("days", [])):
             d_date = day_dict.get("date")
             if d_date in cached_days_by_date:
-                payload["days"][i] = cached_days_by_date[d_date]
+                cached_d = dict(cached_days_by_date[d_date])
+                raw_b = cached_d.get("bullet_points", [])
+                if isinstance(raw_b, list):
+                    cleaned_b = [
+                        b for b in raw_b
+                        if not re.match(r"^Stock (?:advanced|declined|held flat)", str(b), re.I)
+                        and not re.match(r"^Regular trading session logged", str(b), re.I)
+                    ]
+                    cached_d["bullet_points"] = cleaned_b if cleaned_b else ["No events"]
+                payload["days"][i] = cached_d
 
         # OPT-2: Persist newly synthesized days into database
         try:
@@ -466,6 +475,9 @@ class StockHotNewsEngine:
             "You are a Wall Street quantitative equity analyst. Your job is to produce a compact, high-impact "
             "news intelligence breakdown for portfolio managers across the last 10 working trading days. "
             "Strictly follow the bullet-point rules: sharp, concise, mentioning exact numbers and names. "
+            "DO NOT include any price action descriptive sentences like 'Stock declined -4.88% to close at $7.41 (open: $7.79)...' "
+            "or 'Regular trading session logged'. Prices and changes are already displayed in the UI header. "
+            "Keep only events and stock-moving data. Add 1-2 bullet points for relevant whole market (SPY) or sector moving events if applicable. "
             "Never output day titles or headlines. Only output bullet points."
         )
 
@@ -477,8 +489,10 @@ MARKET DATA & NEWS FEED:
 
 CRITICAL FORMATTING INSTRUCTIONS:
 1. For EACH of the 10 trading days:
-   - Provide 3 to 5 SHARP, CONCISE bullet points highlighting ONLY market-moving events (financial figures, numbers, percentages, catalysts, partners, contracts, earnings, management/director changes, legal/regulatory developments).
-   - If there was no major move (change between -0.3% and +0.3%) and no major news/filings, output exactly ONE bullet point: ["No events"].
+   - Provide 2 to 4 SHARP, CONCISE bullet points highlighting ONLY market-moving events (financial figures, numbers, percentages, catalysts, partners, contracts, earnings, management/director changes, legal/regulatory developments).
+   - DO NOT include price action description sentences (such as 'Stock declined -4.88% to close at $7.41...').
+   - Include 1 to 2 bullet points on relevant whole market (S&P 500 / SPY) or sector ETF movements on that day if applicable.
+   - If there was no major company event and no market/sector move, output exactly ONE bullet point: ["No events"].
    - DO NOT provide a day title, headline, or introductory sentence. Only output the bullet points array.
    - Assign appropriate high-impact tags from: ["EARNINGS", "C-LEVEL", "LEGAL", "M&A", "ANALYST", "PRODUCT", "MACRO"]. If quiet session, use ["TRADING_SESSION"].
 2. Output STRICT JSON only (no markdown formatting, no commentary) matching this schema:
@@ -558,6 +572,35 @@ CRITICAL FORMATTING INSTRUCTIONS:
         up_days = 0
         down_days = 0
 
+        # Pre-calculate ETF returns once before loop
+        sector_etf = "XLRE" if "reit" in (sector + industry).lower() or "real estate" in (sector + industry).lower() else "SPY"
+        for s_key, etf_sym in [
+            ("tech", "XLK"), ("financial", "XLF"), ("energy", "XLE"), ("health", "XLV"),
+            ("industrial", "XLI"), ("consumer disc", "XLY"), ("staple", "XLP"),
+            ("utilit", "XLU"), ("material", "XLB"), ("communicat", "XLC"), ("real estate", "XLRE"),
+        ]:
+            if s_key in (sector + " " + industry).lower():
+                sector_etf = etf_sym
+                break
+
+        ret_by_date: Dict[str, Dict[str, float]] = {}
+        try:
+            from app.quant_engine.benchmark_etf_cache import BenchmarkETFCacheManager
+            bench_df = BenchmarkETFCacheManager.get_benchmark_closes()
+            if bench_df is not None and not bench_df.empty:
+                cols_to_check = [c for c in ["SPY", sector_etf] if c in bench_df.columns]
+                if cols_to_check:
+                    ret_df = bench_df[cols_to_check].pct_change() * 100.0
+                    for idx, row in ret_df.iterrows():
+                        d_key = idx.strftime("%Y-%m-%d")
+                        ret_by_date[d_key] = {}
+                        if "SPY" in row and not pd.isna(row["SPY"]):
+                            ret_by_date[d_key]["SPY"] = round(float(row["SPY"]), 2)
+                        if sector_etf in row and not pd.isna(row[sector_etf]):
+                            ret_by_date[d_key][sector_etf] = round(float(row[sector_etf]), 2)
+        except Exception:
+            pass
+
         for d in days_context:
             dt_str = d["date"]
             day_name = d["day_name"]
@@ -584,11 +627,11 @@ CRITICAL FORMATTING INSTRUCTIONS:
 
             # Classify High-Impact Tags
             tags: List[str] = []
-            if any(k in text_lower for k in ["earnings", "revenue", "eps", "guidance", "results", "quarterly", "dividend"]):
+            if any(k in text_lower for k in ["earnings", "revenue", "eps", "guidance", "results", "quarterly", "dividend", "ffo"]):
                 tags.append("EARNINGS")
-            if any(k in text_lower for k in ["ceo", "cfo", "director", "board", "executive", "chief", "tenure", "insider", "form 4", "management"]):
+            if any(k in text_lower for k in ["ceo", "cfo", "director", "board", "executive", "chief", "tenure", "insider", "form 4", "management", "appoint", "resign"]):
                 tags.append("C-LEVEL")
-            if any(k in text_lower for k in ["lawsuit", "sec", "doj", "investigation", "antitrust", "court", "patent", "litigation", "regulatory"]):
+            if any(k in text_lower for k in ["lawsuit", "sec", "doj", "investigation", "antitrust", "court", "patent", "litigation", "regulatory", "injunction", "item 401"]):
                 tags.append("LEGAL")
             if any(k in text_lower for k in ["acquisition", "merger", "buyout", "partnership", "contract", "deal", "strategic agreement"]):
                 tags.append("M&A")
@@ -597,8 +640,15 @@ CRITICAL FORMATTING INSTRUCTIONS:
             if any(k in text_lower for k in ["launch", "product", "platform", "unveil", "system", "technology"]):
                 tags.append("PRODUCT")
 
+            # Extract market/sector performance for date from pre-computed map
+            date_rets = ret_by_date.get(dt_str, {})
+            spy_pct = date_rets.get("SPY")
+            sec_pct = date_rets.get(sector_etf)
+
             if not tags:
-                if abs(chg_pct) >= 1.0:
+                if spy_pct is not None and abs(spy_pct) >= 1.0:
+                    tags.append("MACRO")
+                elif abs(chg_pct) >= 1.0:
                     tags.append("VOLATILITY")
                 else:
                     tags.append("TRADING_SESSION")
@@ -606,38 +656,39 @@ CRITICAL FORMATTING INSTRUCTIONS:
             primary_tag = tags[0] if tags else "TRADING_SESSION"
             sentiment = "BULLISH" if chg_pct > 0.3 else ("BEARISH" if chg_pct < -0.3 else "NEUTRAL")
 
-            # Build 3 to 5 sharp, concise bullet points (or 'No events' if quiet)
+            # Build sharp, concise bullet points (ONLY events & stock-moving data, NO descriptive price action sentences)
             bullet_points: List[str] = []
 
-            if not top_headlines and abs(chg_pct) < 0.3:
+            # 1. Company-specific news headlines and developments
+            if top_headlines:
+                h1 = top_headlines[0].replace('"', "'")
+                bullet_points.append(f"{h1}.")
+                if len(top_headlines) > 1:
+                    h2 = top_headlines[1].replace('"', "'")
+                    bullet_points.append(f"{h2}.")
+
+            # 2. Key financial numbers/figures cited in text
+            found_figs = re.findall(r"\$\d+(?:\.\d+)?[MBKmbk]?|\b\d+(?:\.\d+)?%", text_corpus)
+            if found_figs:
+                unique_figs = list(dict.fromkeys(found_figs))[:3]
+                bullet_points.append(f"Key cited figures: {', '.join(unique_figs)} reported across disclosures.")
+
+            # 3. Add relevant whole market or sector moving event (1-2 bullet points if applicable)
+            if spy_pct is not None or sec_pct is not None:
+                market_parts = []
+                if spy_pct is not None and abs(spy_pct) >= 0.3:
+                    dir_label = "rallied" if spy_pct > 0 else "pulled back"
+                    market_parts.append(f"S&P 500 (SPY {spy_pct:+.2f}%) {dir_label}")
+                if sec_pct is not None and abs(sec_pct) >= 0.4 and sector_etf != "SPY":
+                    dir_label = "gained" if sec_pct > 0 else "declined"
+                    market_parts.append(f"{sector or 'Sector'} ({sector_etf} {sec_pct:+.2f}%) {dir_label}")
+
+                if market_parts:
+                    bullet_points.append(f"Market & Sector Context: {', '.join(market_parts)} on macro rate/liquidity dynamics.")
+
+            # 4. If no events and no major market move
+            if not bullet_points:
                 bullet_points = ["No events"]
-            else:
-                # Bullet 1: Core price move / session dynamic
-                if open_px is not None and close_px is not None:
-                    dir_str = "advanced" if chg_pct > 0 else ("declined" if chg_pct < 0 else "held flat")
-                    bullet_points.append(
-                        f"Stock {dir_str} {chg_pct:+.2f}% to close at ${close_px:.2f} (open: ${open_px:.2f}) on {vol_str} volume within range {day_range}."
-                    )
-                else:
-                    bullet_points.append(f"Regular trading session logged on {day_name} ({dt_str}).")
-
-                # Bullets 2 & 3: Market moving news headlines and specific details
-                if top_headlines:
-                    h1 = top_headlines[0].replace('"', "'")
-                    bullet_points.append(f"{h1}.")
-                    if len(top_headlines) > 1:
-                        h2 = top_headlines[1].replace('"', "'")
-                        bullet_points.append(f"Additional development: {h2}.")
-
-                # Bullet 4: Key financial figures or catalyst impact if available
-                found_figs = re.findall(r"\$\d+(?:\.\d+)?[MBKmbk]?|\b\d+(?:\.\d+)?%", text_corpus)
-                if found_figs:
-                    unique_figs = list(dict.fromkeys(found_figs))[:3]
-                    bullet_points.append(f"Key cited figures: {', '.join(unique_figs)} reported across disclosures.")
-                elif abs(chg_pct) >= 1.0:
-                    bullet_points.append(
-                        f"Price volatility of {abs(chg_pct):.2f}% catalyzed by systematic factor flow and options dealer delta hedging."
-                    )
 
             days_list.append({
                 "date": dt_str,
