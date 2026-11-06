@@ -327,6 +327,12 @@ export default function CommoditiesAlternativesPage() {
 
   useEffect(() => {
     loadData(false);
+
+    const handleGlobalRefresh = () => {
+      loadData(false);
+    };
+    window.addEventListener("macro-nowcast-global-refresh", handleGlobalRefresh);
+    return () => window.removeEventListener("macro-nowcast-global-refresh", handleGlobalRefresh);
   }, []);
 
   const s1 = data.structure_1_term_structure || FALLBACK_COMMODITIES_DATA.structure_1_term_structure;

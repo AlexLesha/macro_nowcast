@@ -184,6 +184,12 @@ export default function OptionsAndVolatilityLabPage() {
 
   useEffect(() => {
     fetchDashboard(selectedTicker, false);
+
+    const handleGlobalRefresh = () => {
+      fetchDashboard(selectedTicker, false);
+    };
+    window.addEventListener("macro-nowcast-global-refresh", handleGlobalRefresh);
+    return () => window.removeEventListener("macro-nowcast-global-refresh", handleGlobalRefresh);
   }, [selectedTicker]);
 
   const regime = data?.macro_regime;

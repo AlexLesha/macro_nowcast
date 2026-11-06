@@ -29,7 +29,7 @@ export default function LiquidityAllocationPage() {
   const [liveAllocationData, setLiveAllocationData] = useState<any>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
-  useEffect(() => {
+  const fetchAllocation = () => {
     setLoading(true);
     fetch(getApiUrl("/api/v1/liquidity-allocation"))
       .then((r) => (r.ok ? r.json() : null))
@@ -38,6 +38,16 @@ export default function LiquidityAllocationPage() {
       })
       .catch((e) => console.error("Error loading live liquidity allocation:", e))
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    fetchAllocation();
+
+    const handleGlobalRefresh = () => {
+      fetchAllocation();
+    };
+    window.addEventListener("macro-nowcast-global-refresh", handleGlobalRefresh);
+    return () => window.removeEventListener("macro-nowcast-global-refresh", handleGlobalRefresh);
   }, []);
 
   const macroRegime = liveAllocationData?.macro_regime;

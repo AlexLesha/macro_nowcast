@@ -144,6 +144,19 @@ class RefreshPipelineOrchestrator:
             )
             grid_regime = grid_matrix.get("active_regime_label", "DEFLATION" if "3" in current_quad else "REFLATION")
 
+            # Trigger core engine live recalculations with DB persistence
+            try:
+                from app.quant_engine.commodities_engine import CommoditiesEngine
+                await CommoditiesEngine.build_commodities_dashboard(force_refresh=True)
+            except Exception as e:
+                logger.warning(f"[Pipeline] CommoditiesEngine refresh warning: {e}")
+
+            try:
+                from app.quant_engine.options_surface_engine import OptionsAndVolatilitySurfaceEngine
+                OptionsAndVolatilitySurfaceEngine.build_options_lab_dashboard("SPY", force_refresh=True)
+            except Exception as e:
+                logger.warning(f"[Pipeline] OptionsEngine refresh warning: {e}")
+
             today = datetime.now(timezone.utc).date()
             snapshot = db.query(RegimeSnapshot).filter_by(date=today).first()
             if not snapshot:
@@ -280,40 +293,71 @@ async def run_refresh_pipeline_stream() -> AsyncGenerator[str, None]:
                     "bond_stress_and_accord": {"real_rate_share_of_yield_change_pct": 79.3}
                 }
 
-            # Stage 2: Quantitative Model Recalculation
+            # Stage 2: Quantitative Model Recalculation across all 5 Core Engines
             refresh_orchestrator.current_stage = "quant_math"
             refresh_orchestrator.progress_pct = 45
-            health_tracker.record_market_status(True, "yfinance / CBOE Ready")
+            health_tracker.record_market_status(True, "yfinance / CBOE / FRED Ready")
             p2 = {
                 "stage": 2,
                 "step": "quant_math",
                 "status": "RUNNING",
-                "message": "Recalculating 42-Market VAMS, Risk Ranges, and Net GEX...",
+                "message": "Recalculating 42 Macro GRID, US Net Liquidity, Commodities Term-Structure & Options Surface...",
                 "progress_pct": 45,
             }
             refresh_orchestrator.logs.append(p2)
             yield f"event: progress\ndata: {json.dumps(p2)}\n\n"
             yield f"data: {json.dumps(p2)}\n\n"
 
-            # Execute real FortyTwoMacroLiveBuilder live calculation
+            # Execute real FortyTwoMacroLiveBuilder live calculation (forces DB cache refresh)
             try:
                 try:
                     from app.quant_engine.forty_two_macro_engine import FortyTwoMacroLiveBuilder
                 except ImportError:
                     from backend.app.quant_engine.forty_two_macro_engine import FortyTwoMacroLiveBuilder
-                live_42 = FortyTwoMacroLiveBuilder.build_live_42macro_dashboard()
+                live_42 = FortyTwoMacroLiveBuilder.build_live_42macro_dashboard(force=True)
             except Exception as e:
                 logger.warning(f"Live FortyTwoMacroLiveBuilder execution failed: {e}")
-                live_42 = {"grid_regime": "Reflation Watch", "move_index": 108.0}
+                live_42 = {"grid_regime": "DEFLATION", "move_index": 98.0}
 
-            net_liq_val = liq_payload.get("us_net_liquidity", {}).get("net_liquidity_usd_bn", 5801.4)
+            # Execute CommoditiesEngine live calculation (forces DB cache refresh)
+            try:
+                try:
+                    from app.quant_engine.commodities_engine import CommoditiesEngine
+                except ImportError:
+                    from backend.app.quant_engine.commodities_engine import CommoditiesEngine
+                await CommoditiesEngine.build_commodities_dashboard(force_refresh=True)
+            except Exception as e:
+                logger.warning(f"Live CommoditiesEngine refresh failed: {e}")
+
+            # Execute OptionsAndVolatilitySurfaceEngine live calculation (forces DB cache refresh & GEX snapshot)
+            try:
+                try:
+                    from app.quant_engine.options_surface_engine import OptionsAndVolatilitySurfaceEngine
+                except ImportError:
+                    from backend.app.quant_engine.options_surface_engine import OptionsAndVolatilitySurfaceEngine
+                OptionsAndVolatilitySurfaceEngine.build_options_lab_dashboard(target_ticker="SPY", force_refresh=True)
+            except Exception as e:
+                logger.warning(f"Live OptionsEngine refresh failed: {e}")
+
+            # Pre-warm benchmark ETF cache in background
+            try:
+                try:
+                    from app.quant_engine.benchmark_etf_cache import BenchmarkETFCacheManager
+                except ImportError:
+                    from backend.app.quant_engine.benchmark_etf_cache import BenchmarkETFCacheManager
+                asyncio.create_task(BenchmarkETFCacheManager.warm_cache())
+            except Exception as e:
+                logger.warning(f"BenchmarkETFCacheManager warmup note: {e}")
+
+            net_liq_val = liq_payload.get("us_net_liquidity", {}).get("net_liquidity_usd_bn", 5745.7)
             real_rate_share = liq_payload.get("bond_stress_and_accord", {}).get("real_rate_share_of_yield_change_pct", 79.3)
+            active_grid_label = live_42.get("global_macro_risk_matrix", {}).get("primary_regime") or live_42.get("grid_regime", "DEFLATION")
 
             current_math_snapshot = {
-                "us_monthly_quad": live_42.get("grid_regime", "Reflation Watch"),
-                "grid_regime": live_42.get("grid_regime", "Reflation Watch"),
+                "us_monthly_quad": active_grid_label,
+                "grid_regime": active_grid_label,
                 "net_liquidity_usd_bn": net_liq_val,
-                "vol_cosigner": f"MOVE Index {live_42.get('move_index', 108.0)} (Real Rate Driver: {real_rate_share}%)",
+                "vol_cosigner": f"MOVE Index {live_42.get('move_index', 98.0)} (Real Rate Driver: {real_rate_share}%)",
             }
 
             # Stage 3: Date-Bounded Media & Intelligence Sweep
@@ -358,10 +402,13 @@ async def run_refresh_pipeline_stream() -> AsyncGenerator[str, None]:
                 if not snap:
                     snap = RegimeSnapshot(date=today)
                     db.add(snap)
-                snap.us_monthly_quad = current_math_snapshot.get("us_monthly_quad", "QUAD_2")
-                snap.quad_2_prob = 0.58
-                snap.quad_3_prob = 0.10
-                snap.grid_regime = current_math_snapshot.get("grid_regime", "REFLATION")
+                active_regime = current_math_snapshot.get("grid_regime", "DEFLATION")
+                snap.us_monthly_quad = "Quad 3" if "DEF" in active_regime or "3" in active_regime else "Quad 2"
+                snap.quad_1_prob = 0.10
+                snap.quad_2_prob = 0.15
+                snap.quad_3_prob = 0.65
+                snap.quad_4_prob = 0.10
+                snap.grid_regime = active_regime
                 snap.net_liquidity_usd_bn = current_math_snapshot["net_liquidity_usd_bn"]
 
                 for author_item in structured_delta.authors:

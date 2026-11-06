@@ -215,7 +215,7 @@ export default function FortyTwoMacroSubPage() {
   const [gridRegionFilter, setGridRegionFilter] = useState<"ALL" | "G7" | "EM">("ALL");
   const [apiStatus, setApiStatus] = useState<"synced" | "cached" | "fallback">("fallback");
 
-  useEffect(() => {
+  const fetch42Macro = () => {
     fetch(getApiUrl("/api/v1/42macro/dashboard"), { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
       .then((json) => {
@@ -274,6 +274,16 @@ export default function FortyTwoMacroSubPage() {
       .catch(() => {
         setApiStatus("fallback");
       });
+  };
+
+  useEffect(() => {
+    fetch42Macro();
+
+    const handleGlobalRefresh = () => {
+      fetch42Macro();
+    };
+    window.addEventListener("macro-nowcast-global-refresh", handleGlobalRefresh);
+    return () => window.removeEventListener("macro-nowcast-global-refresh", handleGlobalRefresh);
   }, []);
 
   const themes = safeArray(data.active_themes, FALLBACK_DATA.active_themes);
