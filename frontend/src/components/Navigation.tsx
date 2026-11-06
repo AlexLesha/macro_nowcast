@@ -238,9 +238,9 @@ export const Navigation: React.FC = () => {
             </div>
           </div>
 
-          {/* SINGLE-ROW TEXT-BASED NAVIGATION WITH PIPE SEPARATORS */}
+          {/* TEXT-BASED NAVIGATION WITH PIPE SEPARATORS (IDENTICAL TO BOTTOM FOOTER) */}
           <nav
-            id="footer-text-navigation-bar"
+            id="header-text-navigation-bar"
             className="flex flex-wrap items-center justify-center gap-y-1 font-mono text-xs md:text-sm"
           >
             {MAIN_NAV_ITEMS.map((item, idx) => {
@@ -252,11 +252,12 @@ export const Navigation: React.FC = () => {
                   )}
                   <Link
                     href={item.href}
-                    id={`footer-nav-link-${item.href.replace("/", "") || "summary"}`}
-                    className={`transition font-medium ${isActive
+                    id={`header-nav-link-${item.href.replace("/", "") || "summary"}`}
+                    className={`transition font-medium ${
+                      isActive
                         ? "text-cyan-300 font-bold underline underline-offset-4 decoration-cyan-400"
                         : "text-slate-400 hover:text-white hover:underline underline-offset-4 decoration-slate-600"
-                      }`}
+                    }`}
                   >
                     {item.label}
                   </Link>
