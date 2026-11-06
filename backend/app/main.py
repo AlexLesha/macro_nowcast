@@ -284,6 +284,19 @@ async def get_options_lab_dashboard(ticker: str = "SPY", force: bool = False):
     )
 
 
+@app.get("/api/v1/options-lab/cross-asset-volatility")
+@app.get("/api/options-lab/cross-asset-volatility")
+async def get_options_lab_cross_asset_volatility():
+    """Returns unified cross-asset volatility snapshot (MOVE, VIX, VVIX, VRP, SKEW) for project-wide integration."""
+    try:
+        from backend.app.quant_engine.options_surface_engine import OptionsAndVolatilitySurfaceEngine
+    except ImportError:
+        from app.quant_engine.options_surface_engine import OptionsAndVolatilitySurfaceEngine
+
+    return OptionsAndVolatilitySurfaceEngine.get_volatility_cross_asset_summary()
+
+
+
 @app.get("/api/v1/synthesis/dashboard")
 @app.get("/api/synthesis/dashboard")
 @app.get("/v1/synthesis/dashboard")
