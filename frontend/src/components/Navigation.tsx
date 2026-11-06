@@ -156,11 +156,10 @@ export const Navigation: React.FC = () => {
               </span>
               <Link
                 href="/sources-test"
-                className={`hidden md:inline-flex items-center px-1.5 py-0.5 rounded border text-xs font-mono transition ${
-                  pathname === "/sources-test"
+                className={`hidden md:inline-flex items-center px-1.5 py-0.5 rounded border text-xs font-mono transition ${pathname === "/sources-test"
                     ? "bg-cyan-600/30 border-cyan-400 text-cyan-300 font-semibold"
                     : "bg-slate-900/60 border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700"
-                }`}
+                  }`}
               >
                 🔬Lab
               </Link>
@@ -181,22 +180,20 @@ export const Navigation: React.FC = () => {
                     checkHealth();
                   }
                 }}
-                className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded border transition ${
-                  apiOnline
+                className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded border transition ${apiOnline
                     ? "bg-emerald-950/40 border-emerald-500/40 text-emerald-300"
                     : backendStatus === "waking" || backendStatus === "checking"
-                    ? "bg-amber-950/40 border-amber-500/40 text-amber-300"
-                    : "bg-rose-950/40 border-rose-500/40 text-rose-300 cursor-pointer"
-                }`}
+                      ? "bg-amber-950/40 border-amber-500/40 text-amber-300"
+                      : "bg-rose-950/40 border-rose-500/40 text-rose-300 cursor-pointer"
+                  }`}
               >
                 <span
-                  className={`h-1.5 w-1.5 rounded-full ${
-                    apiOnline
+                  className={`h-1.5 w-1.5 rounded-full ${apiOnline
                       ? "bg-emerald-400 animate-pulse shadow-[0_0_6px_#10b981]"
                       : backendStatus === "waking" || backendStatus === "checking"
-                      ? "bg-amber-400 animate-spin"
-                      : "bg-rose-500"
-                  }`}
+                        ? "bg-amber-400 animate-spin"
+                        : "bg-rose-500"
+                    }`}
                 />
                 {apiStatusLabel}
               </button>
@@ -243,25 +240,23 @@ export const Navigation: React.FC = () => {
 
           {/* SINGLE-ROW TEXT-BASED NAVIGATION WITH PIPE SEPARATORS */}
           <nav
-            id="header-text-navigation-bar"
-            className="flex items-center overflow-x-auto whitespace-nowrap scrollbar-none py-0.5 font-mono text-xs md:text-sm"
+            id="footer-text-navigation-bar"
+            className="flex flex-wrap items-center justify-center gap-y-1 font-mono text-xs md:text-sm"
           >
             {MAIN_NAV_ITEMS.map((item, idx) => {
-              const active = pathname === item.href;
+              const isActive = pathname === item.href;
               return (
                 <React.Fragment key={item.href}>
                   {idx > 0 && (
-                    <span className="text-slate-600 px-1.5 md:px-2 select-none font-normal">|</span>
+                    <span className="text-slate-600 px-1.5 md:px-2 select-none">|</span>
                   )}
                   <Link
-                    key={item.href}
-                    id={`nav-link-${item.href.replace("/", "") || "summary"}`}
                     href={item.href}
-                    className={`transition font-medium ${
-                      active
+                    id={`footer-nav-link-${item.href.replace("/", "") || "summary"}`}
+                    className={`transition font-medium ${isActive
                         ? "text-cyan-300 font-bold underline underline-offset-4 decoration-cyan-400"
                         : "text-slate-400 hover:text-white hover:underline underline-offset-4 decoration-slate-600"
-                    }`}
+                      }`}
                   >
                     {item.label}
                   </Link>
