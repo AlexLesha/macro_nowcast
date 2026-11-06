@@ -1528,6 +1528,18 @@ async def get_speculation_ideas(force: bool = False, db: Session = Depends(get_d
         })
 
 
+@api_router.get("/v1/commodities-alternatives/dashboard")
+@api_router.get("/commodities-alternatives/dashboard")
+async def get_commodities_alternatives_dashboard_route(force: bool = False):
+    """Returns live-priced Structures #1, #2, and #3 for the /commodities-alternatives sub-page with <15ms DB caching."""
+    try:
+        from backend.app.quant_engine.commodities_engine import CommoditiesAndAlternativesEngine
+    except ImportError:
+        from app.quant_engine.commodities_engine import CommoditiesAndAlternativesEngine
+
+    return await CommoditiesAndAlternativesEngine.build_dashboard_payload(force=force)
+
+
 @api_router.get("/v1/scenarios")
 @api_router.get("/scenarios")
 def get_macro_scenarios(db: Session = Depends(get_db)):

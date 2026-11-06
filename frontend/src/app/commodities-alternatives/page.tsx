@@ -1,10 +1,20 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import Link from "next/link";
 import { getApiUrl } from "@/lib/api";
 
 const FALLBACK_COMMODITIES_DATA = {
   as_of_utc: "Live Syncing...",
+  macro_regime: {
+    active_regime_label: "DEFLATION",
+    hedgeye_quad: "QUAD_3",
+    net_liquidity_usd_bn: 5745.7,
+    net_liquidity_4w_roc_bn: -120.0,
+    probability_risk_on_pct: 70.0,
+    accord_2_0_prob: 72.0,
+    synthesis_consensus: "3 of 4 Authors Cautious / Reflationary Overhang",
+  },
   structure_1_term_structure: {
     sofr_benchmark_pct: 3.62,
     eia_live_inventories: {
@@ -13,6 +23,7 @@ const FALLBACK_COMMODITIES_DATA = {
       crude_inventory_52w_z: -1.12,
       natgas_working_storage_bcf: 2940.0,
       natgas_inventory_52w_z: 0.25,
+      combined_oil_days_cover: 31.4,
       eia_source_status: "LIVE_EIA_V2_API",
     },
     term_structure_matrix: [
@@ -27,6 +38,7 @@ const FALLBACK_COMMODITIES_DATA = {
         rate_adjusted_net_convenience_yield_pct: 10.9,
         curve_state: "BACKWARDATION",
         cot_spec_pct_oi: 34.0,
+        cot_crowding_status: "BALANCED",
         rsi_14d: 48.0,
         range_52w_pct: 38.0,
         inventory_z: -1.12,
@@ -45,6 +57,7 @@ const FALLBACK_COMMODITIES_DATA = {
         rate_adjusted_net_convenience_yield_pct: 0.46,
         curve_state: "CONTANGO",
         cot_spec_pct_oi: 28.0,
+        cot_crowding_status: "CAPITULATION BOTTOM",
         rsi_14d: 49.0,
         range_52w_pct: 44.0,
         inventory_z: -1.9,
@@ -63,6 +76,7 @@ const FALLBACK_COMMODITIES_DATA = {
         rate_adjusted_net_convenience_yield_pct: -1.15,
         curve_state: "CONTANGO",
         cot_spec_pct_oi: 58.0,
+        cot_crowding_status: "BALANCED",
         rsi_14d: 54.0,
         range_52w_pct: 62.0,
         inventory_z: -1.4,
@@ -81,6 +95,7 @@ const FALLBACK_COMMODITIES_DATA = {
         rate_adjusted_net_convenience_yield_pct: -29.01,
         curve_state: "CONTANGO",
         cot_spec_pct_oi: 24.0,
+        cot_crowding_status: "CAPITULATION BOTTOM",
         rsi_14d: 46.0,
         range_52w_pct: 35.0,
         inventory_z: 0.25,
@@ -99,6 +114,7 @@ const FALLBACK_COMMODITIES_DATA = {
         rate_adjusted_net_convenience_yield_pct: 0.04,
         curve_state: "CONTANGO",
         cot_spec_pct_oi: 74.0,
+        cot_crowding_status: "CROWDED SPECULATIVE LONG",
         rsi_14d: 62.0,
         range_52w_pct: 88.0,
         inventory_z: -0.8,
@@ -117,6 +133,7 @@ const FALLBACK_COMMODITIES_DATA = {
         rate_adjusted_net_convenience_yield_pct: 8.47,
         curve_state: "BACKWARDATION",
         cot_spec_pct_oi: 45.0,
+        cot_crowding_status: "BALANCED",
         rsi_14d: 58.0,
         range_52w_pct: 78.0,
         inventory_z: -0.7,
@@ -215,17 +232,54 @@ const FALLBACK_COMMODITIES_DATA = {
     },
   },
   structure_3_feedback_loops: {
-    gold_to_oil_ratio: 38.5,
+    copper_gold_barometer: {
+      copper_gold_ratio: 1.535,
+      ratio_200d_sma: 1.485,
+      ratio_63d_z_score: 0.45,
+      trend_state: "PRO-GROWTH EXPANSION (Yield Support)",
+      us_10y_yield_pct: 4.45,
+      projected_10y_yield_direction: "RISING / PRESSURING YIELDS HIGHER",
+      correlation_to_yields: 0.82,
+      macro_signal: "Copper/Gold at 1.535 (200D MA: 1.485 | Z=+0.45σ). Signal indicates PRO-GROWTH EXPANSION. Leads 10Y Yields by ~75 days.",
+      actionable_expression: "Overweight Base Metal Miners ($COPX, $FCX) and Short Nominal Duration ($TLT) while Ratio > 200D MA.",
+    },
+    gold_to_oil_ratio_comps: {
+      gold_oil_ratio: 38.5,
+      historical_median: 16.5,
+      pct_above_median: 133.3,
+      is_extreme_undervaluation: true,
+      signal_status: "EXTREME ENERGY UNDERVALUATION (38.5x vs. 16.5x Median — +133.3% Premium)",
+      historical_comps: [
+        { year: 1973, ratio_peak: 32.4, forward_3y_oil_perf_pct: "+280%", outcome: "First OPEC Oil Embargo; energy supercycle ignited." },
+        { year: 1986, ratio_peak: 35.1, forward_3y_oil_perf_pct: "+115%", outcome: "Saudi market share war bottom; massive capex rebuild." },
+        { year: 1998, ratio_peak: 41.2, forward_3y_oil_perf_pct: "+210%", outcome: "Asian Financial Crisis trough; commodity supercycle began." },
+        { year: 2016, ratio_peak: 38.6, forward_3y_oil_perf_pct: "+135%", outcome: "US Shale bust bottom; multi-year FCF recovery." },
+        { year: 2020, ratio_peak: 85.0, forward_3y_oil_perf_pct: "+320%", outcome: "COVID negative oil crash; explosive 2021-2022 energy rally." },
+      ],
+      actionable_trade: "Gold/Oil ratio of 38.5x sits in the top 3rd historical percentile. Historically, readings >30x mark secular bottoms for physical energy. Strategy: Accumulate Tier-1 Cash Flow Energy ($TPL, $XLE) and Nuclear Fuel ($SRUUF, $CCJ) for 12M–3Y+ mean-reversion.",
+    },
+    global_liquidity_betas: {
+      net_liquidity_4w_roc_bn: -120.0,
+      net_liquidity_4w_roc_pct: -2.09,
+      asset_beta_matrix: [
+        { asset: "Bitcoin ($IBIT / BTC)", beta: 3.20, role: "Exponential Shadow Liquidity Sponge", projected_30d_impulse_pct: -6.7, impulse_state: "BEARISH DRAG" },
+        { asset: "Copper & Base Metals ($COPX)", beta: 1.45, role: "Global Electrification & Industrial Beta", projected_30d_impulse_pct: -3.0, impulse_state: "BEARISH DRAG" },
+        { asset: "WTI Crude Oil ($CL / $XLE)", beta: 1.20, role: "Cyclical Growth & Reflation Carry", projected_30d_impulse_pct: -2.5, impulse_state: "BEARISH DRAG" },
+        { asset: "Gold Bullion ($GLDM / $WPM)", beta: 1.10, role: "Sovereign Debasement Anchor", projected_30d_impulse_pct: -2.3, impulse_state: "BEARISH DRAG" },
+        { asset: "Agriculture ($DBA)", beta: 0.85, role: "Inelastic Supply & Fertilizer Pass-Through", projected_30d_impulse_pct: -1.8, impulse_state: "NEUTRAL CHOP" },
+      ],
+      howell_summary: "With Net Liquidity 4-week rate of change at -$120.0B (-2.09%), high-beta assets (Bitcoin β=3.2x, Copper β=1.45x) face short-term liquidity drag, while sovereign debasement stores ($GLDM, $WPM) hold resilient cash floors.",
+    },
     feedback_channels: [
       {
         channel: "1. Inflation Nowcast Pass-Through (Prometheus & 3Fourteen)",
-        status: "MODERATE HEADLINE IMPULSE (+18 bps to 30D CPI Nowcast)",
+        status: "MODERATE HEADLINE IMPULSE (+18 bps to 30D CPI Nowcast at $71.50 WTI)",
         mechanism: "WTI Crude feeds into headline CPI energy vector, while core services demand (~75% of PCE) remains sticky.",
         portfolio_action: "Overweight Permian Royalties ($TPL) & Broad Commodities ($PDBC) over long-duration nominal bonds ($TLT).",
       },
       {
         channel: "2. Central Bank Reaction & Accord 2.0 Trigger (42 Macro)",
-        status: "FED LOOKS THROUGH SUPPLY SHOCKS WHILE MOVE < 100",
+        status: "REGIME: DEFLATION • FED TOLERATES SUPPLY SHOCKS WHILE MOVE < 100",
         mechanism: "Under Paradigm C, the FOMC tolerates commodity-driven CPI bumps unless 5Y5Y inflation swaps (>2.65%) and MOVE (>110) break out simultaneously.",
         portfolio_action: "Hold Yield Curve Steepeners ($IVOL) and Floating-Rate Cash ($USFR).",
       },
@@ -237,7 +291,7 @@ const FALLBACK_COMMODITIES_DATA = {
       },
       {
         channel: "4. Secular Capex & Gold-to-Oil Ratio Signal",
-        status: "GOLD/OIL RATIO AT 38.5x (Historically Elevated vs. 16x Median)",
+        status: "GOLD/OIL RATIO AT 38.5x (+133.3% vs. 16.5x Median)",
         mechanism: "Crude oil and physical energy producers are structurally cheap relative to monetary gold.",
         portfolio_action: "Accumulate unloved physical energy & nuclear fuel ($SRUUF, $CCJ, $TPL) for 12M–3Y+ mean reversion.",
       },
@@ -248,32 +302,114 @@ const FALLBACK_COMMODITIES_DATA = {
 export default function CommoditiesAlternativesPage() {
   const [data, setData] = useState<any>(FALLBACK_COMMODITIES_DATA);
   const [viewMode, setViewMode] = useState<"ALL" | "OPTION_A" | "OPTION_B">("ALL");
+  const [complexFilter, setComplexFilter] = useState<"ALL" | "ENERGY" | "METALS" | "ALTS">("ALL");
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastRefreshedAt, setLastRefreshedAt] = useState<string>("Loading...");
 
-  useEffect(() => {
-    fetch(getApiUrl("/api/v1/commodities-alternatives/dashboard"), { cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
-      .then((json) => {
+  const loadData = async (force: boolean = false) => {
+    if (force) setIsRefreshing(true);
+    try {
+      const url = getApiUrl(`/api/v1/commodities-alternatives/dashboard${force ? "?force=true" : ""}`);
+      const res = await fetch(url, { cache: "no-store" });
+      if (res.ok) {
+        const json = await res.json();
         if (json?.structure_1_term_structure) {
           setData(json);
+          setLastRefreshedAt(json.as_of_utc || new Date().toISOString().slice(11, 19) + " UTC");
         }
-      })
-      .catch(() => {});
+      }
+    } catch (err) {
+      console.error("Commodities dashboard fetch error:", err);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData(false);
   }, []);
 
   const s1 = data.structure_1_term_structure || FALLBACK_COMMODITIES_DATA.structure_1_term_structure;
   const s2 = data.structure_2_shadow_plumbing || FALLBACK_COMMODITIES_DATA.structure_2_shadow_plumbing;
   const s3 = data.structure_3_feedback_loops || FALLBACK_COMMODITIES_DATA.structure_3_feedback_loops;
+  const regime = data.macro_regime || FALLBACK_COMMODITIES_DATA.macro_regime;
 
   const m2a = s2.module_2a_onchain_whales;
   const m2b = s2.module_2b_stablecoins_and_drainage;
   const m2c = s2.module_2c_cayman_basis_trade;
   const m2d = s2.module_2d_sovereign_gold_bid;
 
+  const cuAu = s3.copper_gold_barometer || FALLBACK_COMMODITIES_DATA.structure_3_feedback_loops.copper_gold_barometer;
+  const auOil = s3.gold_to_oil_ratio_comps || FALLBACK_COMMODITIES_DATA.structure_3_feedback_loops.gold_to_oil_ratio_comps;
+  const liqBetas = s3.global_liquidity_betas || FALLBACK_COMMODITIES_DATA.structure_3_feedback_loops.global_liquidity_betas;
+
+  // Filter complexes
+  const filteredComplexes = (s1.term_structure_matrix || []).filter((row: any) => {
+    if (complexFilter === "ALL") return true;
+    if (complexFilter === "ENERGY") return row.commodity.includes("Crude") || row.commodity.includes("Natural Gas");
+    if (complexFilter === "METALS") return row.commodity.includes("Copper") || row.commodity.includes("Gold");
+    if (complexFilter === "ALTS") return row.commodity.includes("Uranium") || row.commodity.includes("Agriculture");
+    return true;
+  });
+
   return (
     <div className="min-h-screen bg-[#090D16] text-slate-100">
-      <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 space-y-6">
-        {/* TOP HEADER */}
-        <section className="rounded-xl border border-slate-800 bg-[#111827] p-5 shadow-lg">
+      <div className="max-w-7xl mx-auto px-4 md:px-6 py-5 space-y-5">
+        
+        {/* 1. PROJECT-GLOBAL MACRO REGIME ALIGNMENT STRIP */}
+        <div className="rounded-xl border border-slate-800 bg-[#111827] p-4 shadow-lg space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800/80 pb-3">
+            <div className="flex items-center gap-3">
+              <span className="px-2.5 py-1 rounded bg-blue-500/15 border border-blue-500/30 text-blue-300 font-mono text-xs font-bold">
+                CANONICAL REGIME: {regime?.active_regime_label} • {regime?.hedgeye_quad}
+              </span>
+              <span className="hidden sm:inline-block text-xs font-mono text-slate-400">
+                Risk-On Prob: <strong className="text-emerald-400">{regime?.probability_risk_on_pct}%</strong>
+              </span>
+              <span className="hidden md:inline-block text-xs font-mono text-slate-400">
+                US Net Liq: <strong className="text-cyan-300">${regime?.net_liquidity_usd_bn}B</strong> ({regime?.net_liquidity_4w_roc_bn > 0 ? "+" : ""}{regime?.net_liquidity_4w_roc_bn}B 4W)
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-mono text-slate-400">
+                {data._cache_hit ? "⚡ Fast DB Cache (<15ms)" : "Live Synced"} • {lastRefreshedAt}
+              </span>
+              <button
+                onClick={() => loadData(true)}
+                disabled={isRefreshing}
+                className="px-3 py-1 rounded bg-cyan-600/30 border border-cyan-400/50 text-cyan-200 text-xs font-mono font-semibold hover:bg-cyan-600/50 transition disabled:opacity-50"
+              >
+                {isRefreshing ? "Syncing..." : "Sync Live Data"}
+              </button>
+            </div>
+          </div>
+
+          {/* Project Cross-Navigation Hub */}
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-mono text-slate-400">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-slate-500">Cross-Module Bridges:</span>
+              <Link href="/liquidity-allocation" className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-300 hover:text-cyan-300 hover:border-slate-700 transition">
+                💧 Liquidity Allocation
+              </Link>
+              <Link href="/42-macro" className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-300 hover:text-cyan-300 hover:border-slate-700 transition">
+                🌐 42 Macro 15-GRID
+              </Link>
+              <Link href="/synthesis" className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-300 hover:text-cyan-300 hover:border-slate-700 transition">
+                ⚖️ Framework Synthesis
+              </Link>
+              <Link href="/speculation" className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-300 hover:text-cyan-300 hover:border-slate-700 transition">
+                🎯 Speculation Matrix
+              </Link>
+            </div>
+            <div className="text-slate-400 text-xs">
+              Synthesis Consensus: <span className="text-amber-300 font-semibold">{regime?.synthesis_consensus}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* 2. TOP HEADER & PRESENTATION CONTROLS */}
+        <section className="rounded-xl border border-slate-800 bg-[#111827] p-4 shadow-lg">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <span className="text-xs font-mono uppercase tracking-wider text-cyan-400">
@@ -284,13 +420,13 @@ export default function CommoditiesAlternativesPage() {
               </h1>
             </div>
             <div className="flex items-center gap-2 text-xs font-mono">
-              <span className="text-slate-400">Chart Presentation Mode:</span>
+              <span className="text-slate-400">Presentation Mode:</span>
               {(["ALL", "OPTION_A", "OPTION_B"] as const).map((m) => (
                 <button
                   key={m}
                   id={`view-mode-button-${m.toLowerCase()}`}
                   onClick={() => setViewMode(m)}
-                  className={`px-3 py-1.5 rounded border transition ${
+                  className={`px-3 py-1 rounded border transition ${
                     viewMode === m
                       ? "bg-blue-600 text-white border-blue-400 font-semibold"
                       : "bg-slate-900 text-slate-300 border-slate-800 hover:bg-slate-800"
@@ -303,22 +439,61 @@ export default function CommoditiesAlternativesPage() {
           </div>
         </section>
 
-        {/* STRUCTURE #1: TERM-STRUCTURE, RATE-ADJUSTED ROLL YIELD & EIA INVENTORIES */}
+        {/* 3. STRUCTURE #1: PHYSICAL TERM-STRUCTURE & EIA INVENTORIES */}
         <section className="rounded-xl border border-slate-800 bg-[#111827] p-5 space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3">
             <div>
               <h2 className="text-base font-bold text-white">
                 Structure #1 — Physical Term-Structure, Rate-Adjusted Convenience Yield & Vehicle Router
               </h2>
-              <p className="text-xs text-slate-400">
-                Live yfinance Spot / 14D RSI / 52W Range % • Live EIA Weekly Crude ({s1.eia_live_inventories?.us_crude_commercial_mbbl}M bbl, Z={s1.eia_live_inventories?.crude_inventory_52w_z}σ) & NatGas ({s1.eia_live_inventories?.natgas_working_storage_bcf} Bcf)
+              <p className="text-xs text-slate-400 mt-0.5">
+                Kaldor-Working Storage Theory • Real-Time Futures Roll Yield vs. Cash Carry (SOFR {s1.sofr_benchmark_pct}%)
               </p>
             </div>
-            <span className="text-xs font-mono px-2.5 py-1 rounded bg-cyan-950/50 border border-cyan-500/40 text-cyan-300">
-              SOFR Benchmark: {s1.sofr_benchmark_pct}%
-            </span>
+            
+            {/* Sector Filter Tabs */}
+            <div className="flex items-center gap-1.5 text-xs font-mono">
+              {(["ALL", "ENERGY", "METALS", "ALTS"] as const).map((f) => (
+                <button
+                  key={f}
+                  onClick={() => setComplexFilter(f)}
+                  className={`px-2.5 py-1 rounded border transition ${
+                    complexFilter === f
+                      ? "bg-cyan-600/30 border-cyan-400 text-cyan-200 font-semibold"
+                      : "bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200"
+                  }`}
+                >
+                  {f === "ALL" ? "All Complexes" : f === "ENERGY" ? "Energy" : f === "METALS" ? "Metals" : "Uranium & Ag"}
+                </button>
+              ))}
+            </div>
           </div>
 
+          {/* EIA Physical Depletion Cover Strip */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3 rounded-lg bg-slate-900/60 border border-slate-800/80 text-xs font-mono">
+            <div>
+              <span className="text-slate-400 block">Commercial Crude:</span>
+              <span className="text-white font-bold">{s1.eia_live_inventories?.us_crude_commercial_mbbl}M bbl</span>
+              <span className="text-amber-400 block text-xs">Z = {s1.eia_live_inventories?.crude_inventory_52w_z}σ (Tight)</span>
+            </div>
+            <div>
+              <span className="text-slate-400 block">Strategic Reserve (SPR):</span>
+              <span className="text-white font-bold">{s1.eia_live_inventories?.us_spr_mbbl}M bbl</span>
+              <span className="text-rose-400 block text-xs">38% Below 2020 Peak</span>
+            </div>
+            <div>
+              <span className="text-slate-400 block">Total Oil Cover:</span>
+              <span className="text-cyan-300 font-bold">{s1.eia_live_inventories?.combined_oil_days_cover || 31.4} Days</span>
+              <span className="text-slate-400 block text-xs">Historic Avg: 55 Days</span>
+            </div>
+            <div>
+              <span className="text-slate-400 block">NatGas Storage:</span>
+              <span className="text-white font-bold">{s1.eia_live_inventories?.natgas_working_storage_bcf} Bcf</span>
+              <span className="text-emerald-400 block text-xs">Z = +{s1.eia_live_inventories?.natgas_inventory_52w_z}σ (Normal)</span>
+            </div>
+          </div>
+
+          {/* Main Term Structure Table */}
           <div className="overflow-x-auto border border-slate-800 rounded-lg">
             <table className="w-full text-left text-xs font-mono">
               <thead className="bg-slate-900 text-slate-400 border-b border-slate-800">
@@ -327,22 +502,30 @@ export default function CommoditiesAlternativesPage() {
                   <th className="py-2.5 px-3">Live Spot</th>
                   <th className="py-2.5 px-3">Ann. Roll / Net Conv.</th>
                   <th className="py-2.5 px-3">52W Range % / 14D RSI</th>
-                  <th className="py-2.5 px-3">EIA Inv Z / COT % OI</th>
+                  <th className="py-2.5 px-3">COT Spec Net / Crowding</th>
                   <th className="py-2.5 px-3">Live Regime Setup</th>
-                  <th className="py-2.5 px-3">Optimal Vehicle Routing</th>
+                  <th className="py-2.5 px-3">Optimal Vehicle Routing & Equities</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60">
-                {(s1.term_structure_matrix || []).map((row: any, i: number) => (
+                {filteredComplexes.map((row: any, i: number) => (
                   <tr key={i} className="hover:bg-slate-800/40 transition">
-                    <td className="py-2.5 px-3 font-bold text-white">{row.commodity}</td>
-                    <td className="py-2.5 px-3 text-cyan-300 font-bold">${row.spot_price}</td>
+                    <td className="py-2.5 px-3 font-bold text-white">
+                      <div>{row.commodity}</div>
+                      <span className="text-slate-500 text-xs">Ticker: {row.spot_ticker}</span>
+                    </td>
+                    <td className="py-2.5 px-3 text-cyan-300 font-bold">
+                      ${row.spot_price}
+                    </td>
                     <td className="py-2.5 px-3">
-                      <span className={row.annualized_roll_yield_pct >= 0 ? "text-emerald-400 font-semibold" : "text-rose-400"}>
+                      <span className={row.annualized_roll_yield_pct >= 0 ? "text-emerald-400 font-semibold" : "text-rose-400 font-semibold"}>
                         {row.annualized_roll_yield_pct > 0 ? "+" : ""}
                         {row.annualized_roll_yield_pct}%
                       </span>{" "}
                       / <span className="text-slate-300">{row.rate_adjusted_net_convenience_yield_pct}%</span>
+                      <span className={`block text-xs font-semibold ${row.curve_state === "BACKWARDATION" ? "text-emerald-400" : "text-amber-400"}`}>
+                        {row.curve_state}
+                      </span>
                     </td>
                     <td className="py-2.5 px-3">
                       <span className={row.range_52w_pct >= 80 ? "text-amber-300 font-bold" : "text-emerald-300"}>
@@ -351,10 +534,30 @@ export default function CommoditiesAlternativesPage() {
                       • RSI {row.rsi_14d}
                     </td>
                     <td className="py-2.5 px-3 text-slate-300">
-                      {row.inventory_z}σ • COT {row.cot_spec_pct_oi}%
+                      <div>{row.cot_spec_pct_oi}% Net OI</div>
+                      <span className={`text-xs ${row.cot_crowding_status === "CROWDED SPECULATIVE LONG" ? "text-rose-400" : row.cot_crowding_status === "CAPITULATION BOTTOM" ? "text-emerald-400 font-semibold" : "text-slate-400"}`}>
+                        {row.cot_crowding_status || "BALANCED"}
+                      </span>
                     </td>
                     <td className="py-2.5 px-3 text-slate-200">{row.regime_setup}</td>
-                    <td className="py-2.5 px-3 text-emerald-300 font-sans">{row.routed_vehicle}</td>
+                    <td className="py-2.5 px-3 text-emerald-300 font-sans">
+                      <div>{row.routed_vehicle}</div>
+                      {row.producer_vehicles && (
+                        <div className="flex items-center gap-1.5 mt-1">
+                          <span className="text-slate-500 font-mono text-xs">Analyze:</span>
+                          {row.producer_vehicles.map((v: string) => (
+                            <Link
+                              key={v}
+                              href={`/stock-analysis?ticker=${v}`}
+                              className="px-1.5 py-0.5 rounded bg-slate-800 text-cyan-300 font-mono text-xs hover:bg-cyan-600 hover:text-white transition"
+                              title={`Analyze ${v} in Single-Stock Analyzer`}
+                            >
+                              ${v}
+                            </Link>
+                          ))}
+                        </div>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -362,14 +565,14 @@ export default function CommoditiesAlternativesPage() {
           </div>
         </section>
 
-        {/* STRUCTURE #2: SHADOW MONETARY PLUMBING (4 SUB-MODULES WITH OPTION A & B) */}
+        {/* 4. STRUCTURE #2: SHADOW MONETARY PLUMBING (MICHAEL HOWELL / CROSSBORDER CAPITAL) */}
         <section className="rounded-xl border border-slate-800 bg-[#111827] p-5 space-y-5">
           <div className="border-b border-slate-800 pb-3">
             <h2 className="text-base font-bold text-white">
               Structure #2 — CrossBorder Capital (Michael Howell) Shadow Monetary Plumbing, Stablecoins, Cayman Basis & Sovereign Gold
             </h2>
             <p className="text-xs text-slate-400 mt-0.5">
-              Live CoinGecko Spot • Dual Visual Representations (Option A & Option B)
+              Live CoinGecko Spot • On-Chain Cost-Basis • T-Bill Absorption • Treasury Repo Plumbing
             </p>
           </div>
 
@@ -487,7 +690,7 @@ export default function CommoditiesAlternativesPage() {
 
               {(viewMode === "ALL" || viewMode === "OPTION_B") && (
                 <div className="rounded border border-slate-800 bg-[#090D16] p-3 text-xs font-mono space-y-1.5">
-                  <div className="text-slate-400 font-semibold">Option B — 42 Macro Marketable Treasury Ownership Shares:</div>
+                  <div className="text-slate-400 font-semibold">Option B — Marketable Treasury Ownership Shares:</div>
                   {Object.entries(m2c?.treasury_ownership_shares_pct || {}).map(([k, v]: any) => (
                     <div key={k} className="flex justify-between">
                       <span>{k}:</span>
@@ -506,7 +709,7 @@ export default function CommoditiesAlternativesPage() {
                   2D. Covert Sovereign Gold Bid & Asian vs. NY Session Split
                 </h3>
                 <span className="text-xs font-mono px-2 py-0.5 rounded bg-amber-950/60 border border-amber-500/40 text-amber-300">
-                  Live Gold: ${m2d?.gold_spot_usd} | Residual: +{m2d?.ols_63d_sovereign_residual_sigma}σ
+                  Live Gold: ${m2d?.gold_spot_usd} | Residual: {m2d?.ols_63d_sovereign_residual_sigma > 0 ? "+" : ""}{m2d?.ols_63d_sovereign_residual_sigma}σ
                 </span>
               </div>
 
@@ -517,12 +720,16 @@ export default function CommoditiesAlternativesPage() {
                     <span>Asian Physical Session (90D Cum.) vs NY COMEX Paper:</span>
                     <span className="text-emerald-400">Asia +{m2d?.asian_physical_session_cum_90d_pct}% vs NY {m2d?.ny_comex_paper_session_cum_90d_pct}%</span>
                   </div>
+                  <div className="flex justify-between">
+                    <span>10Y Real TIPS Yield / DXY Index:</span>
+                    <span className="text-cyan-300">{m2d?.real_yield_10y_tips_pct}% TIPS / DXY {m2d?.dxy_index}</span>
+                  </div>
                 </div>
               )}
 
               {(viewMode === "ALL" || viewMode === "OPTION_B") && (
                 <div className="rounded border border-slate-800 bg-[#090D16] p-3 text-xs font-mono space-y-1.5">
-                  <div className="text-slate-400 font-semibold">Option B — 42 Macro World FX Reserves De-Dollarization Share:</div>
+                  <div className="text-slate-400 font-semibold">Option B — World FX Reserves De-Dollarization Share:</div>
                   {Object.entries(m2d?.world_reserves_share_pct || {}).map(([k, v]: any) => (
                     <div key={k} className="flex justify-between">
                       <span>{k}:</span>
@@ -536,24 +743,180 @@ export default function CommoditiesAlternativesPage() {
           </div>
         </section>
 
-        {/* STRUCTURE #3: TWO-WAY MACRO FEEDBACK MATRIX */}
-        <section className="rounded-xl border border-slate-800 bg-[#111827] p-5 space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-base font-bold text-white">
-              Structure #3 — Two-Way Macro Model Feedback Matrix (Live Gold/Oil Ratio: {s3.gold_to_oil_ratio}x)
-            </h2>
+        {/* 5. STRUCTURE #3: TWO-WAY MACRO FEEDBACK & INSTITUTIONAL BAROMETERS */}
+        <section className="rounded-xl border border-slate-800 bg-[#111827] p-5 space-y-5">
+          <div className="border-b border-slate-800 pb-3 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-base font-bold text-white">
+                Structure #3 — Institutional Macro Barometers & Two-Way Feedback Transmission
+              </h2>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Dr. Copper / Gold Yield Barometer • Gold-to-Oil Capex Supercycle Comps • CrossBorder Liquidity Betas
+              </p>
+            </div>
+            <span className="text-xs font-mono px-2.5 py-1 rounded bg-slate-900 border border-slate-800 text-slate-300">
+              Gold/Oil: <strong className="text-amber-300">{auOil.gold_oil_ratio}x</strong> • Copper/Gold: <strong className="text-cyan-300">{cuAu.copper_gold_ratio}</strong>
+            </span>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {(s3.feedback_channels || []).map((ch: any, idx: number) => (
-              <div key={idx} className="rounded-lg border border-slate-800 bg-slate-900/70 p-3.5 space-y-1">
-                <div className="text-xs font-mono font-bold text-cyan-300">{ch.channel}</div>
-                <div className="text-xs font-mono text-amber-300">{ch.status}</div>
-                <p className="text-xs text-slate-300">{ch.mechanism}</p>
-                <p className="text-xs font-semibold text-emerald-300 pt-1">Action: {ch.portfolio_action}</p>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            
+            {/* 3A: COPPER / GOLD MACRO BAROMETER */}
+            <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-4 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-mono font-bold text-cyan-300">3A. Copper / Gold Yield Barometer</span>
+                <span className="text-xs font-mono text-emerald-400 font-bold">{cuAu.copper_gold_ratio}</span>
               </div>
+              <div className="text-xs text-slate-300 space-y-1">
+                <div className="flex justify-between">
+                  <span className="text-slate-400">200-Day SMA:</span>
+                  <span className="font-mono text-white">{cuAu.ratio_200d_sma}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">63-Day Z-Score:</span>
+                  <span className="font-mono text-cyan-300">{cuAu.ratio_63d_z_score > 0 ? "+" : ""}{cuAu.ratio_63d_z_score}σ</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">10Y Yield Target:</span>
+                  <span className="font-mono text-amber-300 font-semibold">{cuAu.projected_10y_yield_direction}</span>
+                </div>
+              </div>
+              <p className="text-xs text-slate-300 border-t border-slate-800 pt-2">{cuAu.macro_signal}</p>
+              <p className="text-xs text-emerald-300 font-semibold pt-1">Expression: {cuAu.actionable_expression}</p>
+            </div>
+
+            {/* 3B: GOLD / OIL RATIO CAPEX COMPS */}
+            <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-4 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-mono font-bold text-amber-300">3B. Gold / Oil Ratio Secular Capex</span>
+                <span className="text-xs font-mono text-amber-300 font-bold">{auOil.gold_oil_ratio}x</span>
+              </div>
+              <div className="text-xs text-slate-300 space-y-1">
+                <div className="flex justify-between">
+                  <span className="text-slate-400">50Y Historical Median:</span>
+                  <span className="font-mono text-white">{auOil.historical_median}x</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Deviation vs. Median:</span>
+                  <span className="font-mono text-rose-400 font-bold">+{auOil.pct_above_median}%</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Capex Cycle Signal:</span>
+                  <span className="font-mono text-emerald-300 font-semibold">Energy Bottom / Capex Deficit</span>
+                </div>
+              </div>
+              <p className="text-xs text-slate-300 border-t border-slate-800 pt-2">{auOil.signal_status}</p>
+              <p className="text-xs text-emerald-300 font-semibold pt-1">Playbook: {auOil.actionable_trade}</p>
+            </div>
+
+            {/* 3C: GLOBAL LIQUIDITY BETAS */}
+            <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-4 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-mono font-bold text-cyan-300">3C. Howell Global Liquidity Betas</span>
+                <span className="text-xs font-mono text-slate-400">Net Liq 4W: {liqBetas.net_liquidity_4w_roc_bn > 0 ? "+" : ""}{liqBetas.net_liquidity_4w_roc_bn}B</span>
+              </div>
+              <div className="space-y-1.5 text-xs font-mono">
+                {(liqBetas.asset_beta_matrix || []).map((row: any) => (
+                  <div key={row.asset} className="flex items-center justify-between border-b border-slate-800/40 pb-1">
+                    <span className="text-slate-300">{row.asset}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-cyan-300 font-bold">β={row.beta}x</span>
+                      <span className={`text-xs ${row.projected_30d_impulse_pct >= 0 ? "text-emerald-400" : "text-rose-400 font-semibold"}`}>
+                        {row.projected_30d_impulse_pct > 0 ? "+" : ""}{row.projected_30d_impulse_pct}%
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-slate-400 border-t border-slate-800 pt-2">{liqBetas.howell_summary}</p>
+            </div>
+          </div>
+
+          {/* Historical Gold/Oil Comps Table */}
+          <div className="rounded-lg border border-slate-800 bg-slate-900/50 p-3 space-y-2">
+            <span className="text-xs font-mono font-bold text-slate-300">
+              Historical Precedents: What Happens When Gold/Oil &gt; 30x (Secular Energy Reversals)
+            </span>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs font-mono">
+                <thead className="bg-slate-900 text-slate-400 border-b border-slate-800">
+                  <tr>
+                    <th className="py-1.5 px-3">Historical Peak Year</th>
+                    <th className="py-1.5 px-3">Ratio Peak</th>
+                    <th className="py-1.5 px-3">Forward 3Y Oil Performance</th>
+                    <th className="py-1.5 px-3">Macro Context & Supercycle Outcome</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/60">
+                  {(auOil.historical_comps || []).map((c: any) => (
+                    <tr key={c.year} className="hover:bg-slate-800/40">
+                      <td className="py-1.5 px-3 font-bold text-white">{c.year}</td>
+                      <td className="py-1.5 px-3 text-amber-300 font-bold">{c.ratio_peak}x</td>
+                      <td className="py-1.5 px-3 text-emerald-400 font-bold">{c.forward_3y_oil_perf_pct}</td>
+                      <td className="py-1.5 px-3 text-slate-300">{c.outcome}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* 3D: FOUR MACRO FEEDBACK TRANSMISSION CHANNELS */}
+          <div className="space-y-2">
+            <span className="text-xs font-mono font-bold text-slate-300">
+              Macro Feedback Transmission Channels
+            </span>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {(s3.feedback_channels || []).map((ch: any, idx: number) => (
+                <div key={idx} className="rounded-lg border border-slate-800 bg-slate-900/70 p-3.5 space-y-1">
+                  <div className="text-xs font-mono font-bold text-cyan-300">{ch.channel}</div>
+                  <div className="text-xs font-mono text-amber-300">{ch.status}</div>
+                  <p className="text-xs text-slate-300">{ch.mechanism}</p>
+                  <p className="text-xs font-semibold text-emerald-300 pt-1">Action: {ch.portfolio_action}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* 6. PRODUCER EQUITIES QUICK-ACCESS STRIP */}
+        <section className="rounded-xl border border-slate-800 bg-[#111827] p-4 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-mono font-bold text-slate-300">
+              Tracked Physical Commodity & Alternative Equity Leaders (Click to Analyze):
+            </span>
+            <span className="text-xs font-mono text-cyan-400">Institutional Forensic Coverage</span>
+          </div>
+          <div className="flex flex-wrap gap-2 pt-1">
+            {[
+              { ticker: "TPL", name: "Texas Pacific Land", type: "Energy Royalties" },
+              { ticker: "XLE", name: "Energy SPDR", type: "Broad Energy" },
+              { ticker: "CNQ", name: "Canadian Natural", type: "Low-Decline Oil Sands" },
+              { ticker: "CCJ", name: "Cameco Corp", type: "Nuclear / Uranium" },
+              { ticker: "URA", name: "Global Uranium", type: "Nuclear ETF" },
+              { ticker: "CEG", name: "Constellation Energy", type: "Nuclear Baseload PPA" },
+              { ticker: "COPX", name: "Copper Miners ETF", type: "Base Metals" },
+              { ticker: "FCX", name: "Freeport-McMoRan", type: "Copper Major" },
+              { ticker: "WPM", name: "Wheaton Precious", type: "Gold/Silver Streaming" },
+              { ticker: "AEM", name: "Agnico Eagle", type: "Low-Cost Gold Major" },
+              { ticker: "EQT", name: "EQT Corp", type: "Natural Gas Low-Cost" },
+              { ticker: "WMB", name: "Williams Companies", type: "Gas Pipelines" },
+              { ticker: "IBIT", name: "iShares Bitcoin ETF", type: "Digital Hard Asset" },
+              { ticker: "CBOE", name: "Cboe Global Markets", type: "Derivatives Tollbooth" },
+            ].map((st) => (
+              <Link
+                key={st.ticker}
+                href={`/stock-analysis?ticker=${st.ticker}`}
+                className="px-2.5 py-1.5 rounded-lg border border-slate-800 bg-slate-900/80 text-xs font-mono hover:border-cyan-500/50 hover:bg-slate-800 transition group"
+              >
+                <span className="font-bold text-cyan-300 group-hover:text-cyan-200">${st.ticker}</span>
+                <span className="text-slate-400 ml-1.5 hidden sm:inline">{st.name}</span>
+                <span className="text-slate-500 ml-1 text-xs">({st.type})</span>
+              </Link>
             ))}
           </div>
         </section>
+
       </div>
     </div>
   );

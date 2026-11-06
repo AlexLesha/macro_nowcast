@@ -246,14 +246,14 @@ async def analyze_stock_get_endpoint(
 
 @app.get("/api/v1/commodities-alternatives/dashboard")
 @app.get("/api/commodities-alternatives/dashboard")
-async def get_commodities_alternatives_dashboard():
-    """Returns live-priced Structures #1, #2, and #3 for the /commodities-alternatives sub-page."""
+async def get_commodities_alternatives_dashboard(force: bool = False):
+    """Returns live-priced Structures #1, #2, and #3 for the /commodities-alternatives sub-page with <15ms DB caching."""
     try:
         from backend.app.quant_engine.commodities_engine import CommoditiesAndAlternativesEngine
     except ImportError:
         from app.quant_engine.commodities_engine import CommoditiesAndAlternativesEngine
 
-    return await CommoditiesAndAlternativesEngine.build_dashboard_payload()
+    return await CommoditiesAndAlternativesEngine.build_dashboard_payload(force=force)
 
 
 
