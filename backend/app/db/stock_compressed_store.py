@@ -135,6 +135,29 @@ class StockCompressedStore:
                         payload_json TEXT NOT NULL,
                         updated_at TIMESTAMP WITH TIME ZONE NOT NULL
                     );
+                    CREATE TABLE IF NOT EXISTS global_grid_historical_records (
+                        country VARCHAR(64) NOT NULL,
+                        ticker VARCHAR(16) NOT NULL,
+                        period VARCHAR(16) NOT NULL,
+                        frequency VARCHAR(16) NOT NULL,
+                        region VARCHAR(32) NOT NULL,
+                        gdp_yoy DOUBLE PRECISION,
+                        gdp_roc_bps INTEGER,
+                        inflation_yoy DOUBLE PRECISION,
+                        inf_roc_bps INTEGER,
+                        regime VARCHAR(32) NOT NULL,
+                        quad VARCHAR(16) NOT NULL,
+                        grid_zero BOOLEAN DEFAULT FALSE,
+                        equity_ret_pct DOUBLE PRECISION,
+                        bonds_ret_pct DOUBLE PRECISION,
+                        commodities_ret_pct DOUBLE PRECISION,
+                        fx_ret_pct DOUBLE PRECISION,
+                        is_anomaly BOOLEAN DEFAULT FALSE,
+                        anomaly_title VARCHAR(128),
+                        challenge_details TEXT,
+                        updated_at TIMESTAMP WITH TIME ZONE NOT NULL,
+                        PRIMARY KEY (country, period)
+                    );
                 """)
                 conn.commit()
                 cursor.close()
@@ -225,6 +248,29 @@ class StockCompressedStore:
                         cache_key TEXT PRIMARY KEY,
                         payload_json TEXT NOT NULL,
                         updated_at TEXT NOT NULL
+                    );
+                    CREATE TABLE IF NOT EXISTS global_grid_historical_records (
+                        country TEXT NOT NULL,
+                        ticker TEXT NOT NULL,
+                        period TEXT NOT NULL,
+                        frequency TEXT NOT NULL,
+                        region TEXT NOT NULL,
+                        gdp_yoy REAL,
+                        gdp_roc_bps INTEGER,
+                        inflation_yoy REAL,
+                        inf_roc_bps INTEGER,
+                        regime TEXT NOT NULL,
+                        quad TEXT NOT NULL,
+                        grid_zero INTEGER DEFAULT 0,
+                        equity_ret_pct REAL,
+                        bonds_ret_pct REAL,
+                        commodities_ret_pct REAL,
+                        fx_ret_pct REAL,
+                        is_anomaly INTEGER DEFAULT 0,
+                        anomaly_title TEXT,
+                        challenge_details TEXT,
+                        updated_at TEXT NOT NULL,
+                        PRIMARY KEY (country, period)
                     );
                 """)
                 conn.commit()
@@ -982,6 +1028,236 @@ class StockCompressedStore:
                     logger.info(f"[StockCompressedStore] Successfully saved macro liquidity snapshot ({cache_key}) into SQLite.")
             except Exception as e:
                 logger.warning(f"[StockCompressedStore] SQLite macro liquidity write error: {e}")
+
+    @classmethod
+    def save_global_grid_records_bulk(cls, records: List[Dict[str, Any]]) -> None:
+        """Persists historical global GRID records into Postgres or SQLite in batch."""
+        if not records:
+            return
+        db_url = cls.get_db_url()
+        now_dt = datetime.now(timezone.utc)
+        now_iso = now_dt.isoformat()
+
+        def _to_float(v):
+            if v is None:
+                return None
+            try:
+                f = float(v)
+                return None if (math.isnan(f) or math.isinf(f)) else round(f, 4)
+            except Exception:
+                return None
+
+        def _to_int(v):
+            if v is None:
+                return None
+            try:
+                return int(round(float(v)))
+            except Exception:
+                return None
+
+        prepared_pg = []
+        prepared_sqlite = []
+        for r in records:
+            c = str(r.get("country", "")).strip()
+            tk = str(r.get("ticker", "")).strip()
+            period = str(r.get("period", "")).strip()
+            freq = str(r.get("frequency", "QUARTERLY")).strip().upper()
+            region = str(r.get("region", "Global")).strip()
+            g_yoy = _to_float(r.get("gdp_yoy"))
+            g_roc = _to_int(r.get("gdp_roc_bps"))
+            i_yoy = _to_float(r.get("inflation_yoy"))
+            i_roc = _to_int(r.get("inf_roc_bps"))
+            regime = str(r.get("regime", "DEFLATION (D)")).strip()
+            quad = str(r.get("quad", "QUAD_4")).strip()
+            grid_zero = bool(r.get("grid_zero", False))
+            eq_ret = _to_float(r.get("equity_ret_pct"))
+            bd_ret = _to_float(r.get("bonds_ret_pct"))
+            cmd_ret = _to_float(r.get("commodities_ret_pct"))
+            fx_ret = _to_float(r.get("fx_ret_pct"))
+            is_anomaly = bool(r.get("is_anomaly", False))
+            anom_title = str(r.get("anomaly_title") or "").strip() or None
+            challenge = str(r.get("challenge_details") or "").strip() or None
+
+            prepared_pg.append((
+                c, tk, period, freq, region, g_yoy, g_roc, i_yoy, i_roc,
+                regime, quad, grid_zero, eq_ret, bd_ret, cmd_ret, fx_ret,
+                is_anomaly, anom_title, challenge, now_dt
+            ))
+            prepared_sqlite.append((
+                c, tk, period, freq, region, g_yoy, g_roc, i_yoy, i_roc,
+                regime, quad, 1 if grid_zero else 0, eq_ret, bd_ret, cmd_ret, fx_ret,
+                1 if is_anomaly else 0, anom_title, challenge, now_iso
+            ))
+
+        if "postgres" in db_url:
+            try:
+                import psycopg2
+                from psycopg2.extras import execute_values
+                dsn = _get_pg_dsn(db_url)
+                with psycopg2.connect(dsn) as conn:
+                    with conn.cursor() as cursor:
+                        insert_query = """
+                            INSERT INTO global_grid_historical_records (
+                                country, ticker, period, frequency, region,
+                                gdp_yoy, gdp_roc_bps, inflation_yoy, inf_roc_bps,
+                                regime, quad, grid_zero, equity_ret_pct, bonds_ret_pct,
+                                commodities_ret_pct, fx_ret_pct, is_anomaly, anomaly_title,
+                                challenge_details, updated_at
+                            ) VALUES %s
+                            ON CONFLICT (country, period) DO UPDATE SET
+                                ticker = EXCLUDED.ticker,
+                                frequency = EXCLUDED.frequency,
+                                region = EXCLUDED.region,
+                                gdp_yoy = EXCLUDED.gdp_yoy,
+                                gdp_roc_bps = EXCLUDED.gdp_roc_bps,
+                                inflation_yoy = EXCLUDED.inflation_yoy,
+                                inf_roc_bps = EXCLUDED.inf_roc_bps,
+                                regime = EXCLUDED.regime,
+                                quad = EXCLUDED.quad,
+                                grid_zero = EXCLUDED.grid_zero,
+                                equity_ret_pct = EXCLUDED.equity_ret_pct,
+                                bonds_ret_pct = EXCLUDED.bonds_ret_pct,
+                                commodities_ret_pct = EXCLUDED.commodities_ret_pct,
+                                fx_ret_pct = EXCLUDED.fx_ret_pct,
+                                is_anomaly = EXCLUDED.is_anomaly,
+                                anomaly_title = EXCLUDED.anomaly_title,
+                                challenge_details = EXCLUDED.challenge_details,
+                                updated_at = EXCLUDED.updated_at;
+                        """
+                        execute_values(cursor, insert_query, prepared_pg)
+                        conn.commit()
+                        logger.info(f"[StockCompressedStore] Persisted {len(prepared_pg)} global GRID historical records to Postgres.")
+            except Exception as e:
+                logger.warning(f"[StockCompressedStore] Postgres bulk global GRID write error: {e}")
+        else:
+            db_path = db_url.replace("sqlite:///", "")
+            try:
+                with sqlite3.connect(db_path) as conn:
+                    cursor = conn.cursor()
+                    cursor.executemany("""
+                        INSERT INTO global_grid_historical_records (
+                            country, ticker, period, frequency, region,
+                            gdp_yoy, gdp_roc_bps, inflation_yoy, inf_roc_bps,
+                            regime, quad, grid_zero, equity_ret_pct, bonds_ret_pct,
+                            commodities_ret_pct, fx_ret_pct, is_anomaly, anomaly_title,
+                            challenge_details, updated_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ON CONFLICT (country, period) DO UPDATE SET
+                            ticker = excluded.ticker,
+                            frequency = excluded.frequency,
+                            region = excluded.region,
+                            gdp_yoy = excluded.gdp_yoy,
+                            gdp_roc_bps = excluded.gdp_roc_bps,
+                            inflation_yoy = excluded.inflation_yoy,
+                            inf_roc_bps = excluded.inf_roc_bps,
+                            regime = excluded.regime,
+                            quad = excluded.quad,
+                            grid_zero = excluded.grid_zero,
+                            equity_ret_pct = excluded.equity_ret_pct,
+                            bonds_ret_pct = excluded.bonds_ret_pct,
+                            commodities_ret_pct = excluded.commodities_ret_pct,
+                            fx_ret_pct = excluded.fx_ret_pct,
+                            is_anomaly = excluded.is_anomaly,
+                            anomaly_title = excluded.anomaly_title,
+                            challenge_details = excluded.challenge_details,
+                            updated_at = excluded.updated_at;
+                    """, prepared_sqlite)
+                    conn.commit()
+                    logger.info(f"[StockCompressedStore] Persisted {len(prepared_sqlite)} global GRID historical records to SQLite.")
+            except Exception as e:
+                logger.warning(f"[StockCompressedStore] SQLite bulk global GRID write error: {e}")
+
+    @classmethod
+    def get_global_grid_records(
+        cls,
+        country: Optional[str] = None,
+        frequency: Optional[str] = None,
+        is_anomaly: Optional[bool] = None,
+        limit: int = 2000
+    ) -> List[Dict[str, Any]]:
+        """Retrieves historical GRID records with optional filtering."""
+        db_url = cls.get_db_url()
+        results = []
+
+        where_clauses = []
+        params = []
+        if country:
+            where_clauses.append("LOWER(country) = LOWER(%s)" if "postgres" in db_url else "LOWER(country) = LOWER(?)")
+            params.append(country)
+        if frequency:
+            where_clauses.append("UPPER(frequency) = UPPER(%s)" if "postgres" in db_url else "UPPER(frequency) = UPPER(?)")
+            params.append(frequency)
+        if is_anomaly is not None:
+            where_clauses.append("is_anomaly = %s" if "postgres" in db_url else "is_anomaly = ?")
+            params.append(bool(is_anomaly) if "postgres" in db_url else (1 if is_anomaly else 0))
+
+        where_str = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
+
+        if "postgres" in db_url:
+            try:
+                import psycopg2
+                dsn = _get_pg_dsn(db_url)
+                with psycopg2.connect(dsn) as conn:
+                    with conn.cursor() as cursor:
+                        query = f"""
+                            SELECT country, ticker, period, frequency, region,
+                                   gdp_yoy, gdp_roc_bps, inflation_yoy, inf_roc_bps,
+                                   regime, quad, grid_zero, equity_ret_pct, bonds_ret_pct,
+                                   commodities_ret_pct, fx_ret_pct, is_anomaly, anomaly_title,
+                                   challenge_details, updated_at
+                            FROM global_grid_historical_records
+                            {where_str}
+                            ORDER BY period DESC, country ASC
+                            LIMIT {limit};
+                        """
+                        cursor.execute(query, tuple(params))
+                        cols = [
+                            "country", "ticker", "period", "frequency", "region",
+                            "gdp_yoy", "gdp_roc_bps", "inflation_yoy", "inf_roc_bps",
+                            "regime", "quad", "grid_zero", "equity_ret_pct", "bonds_ret_pct",
+                            "commodities_ret_pct", "fx_ret_pct", "is_anomaly", "anomaly_title",
+                            "challenge_details", "updated_at"
+                        ]
+                        for row in cursor.fetchall():
+                            item = dict(zip(cols, row))
+                            if item["updated_at"]:
+                                item["updated_at"] = str(item["updated_at"])
+                            results.append(item)
+            except Exception as e:
+                logger.warning(f"[StockCompressedStore] Postgres get_global_grid_records error: {e}")
+        else:
+            db_path = db_url.replace("sqlite:///", "")
+            try:
+                with sqlite3.connect(db_path) as conn:
+                    cursor = conn.cursor()
+                    query = f"""
+                        SELECT country, ticker, period, frequency, region,
+                               gdp_yoy, gdp_roc_bps, inflation_yoy, inf_roc_bps,
+                               regime, quad, grid_zero, equity_ret_pct, bonds_ret_pct,
+                               commodities_ret_pct, fx_ret_pct, is_anomaly, anomaly_title,
+                               challenge_details, updated_at
+                        FROM global_grid_historical_records
+                        {where_str}
+                        ORDER BY period DESC, country ASC
+                        LIMIT {limit};
+                    """
+                    cursor.execute(query, tuple(params))
+                    cols = [
+                        "country", "ticker", "period", "frequency", "region",
+                        "gdp_yoy", "gdp_roc_bps", "inflation_yoy", "inf_roc_bps",
+                        "regime", "quad", "grid_zero", "equity_ret_pct", "bonds_ret_pct",
+                        "commodities_ret_pct", "fx_ret_pct", "is_anomaly", "anomaly_title",
+                        "challenge_details", "updated_at"
+                    ]
+                    for row in cursor.fetchall():
+                        item = dict(zip(cols, row))
+                        item["grid_zero"] = bool(item["grid_zero"])
+                        item["is_anomaly"] = bool(item["is_anomaly"])
+                        results.append(item)
+            except Exception as e:
+                logger.warning(f"[StockCompressedStore] SQLite get_global_grid_records error: {e}")
+
+        return results
 
 
 

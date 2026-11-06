@@ -19,6 +19,7 @@ const NAV_ITEMS_ROW_2 = [
   { label: "Speculation", href: "/speculation" },
   { label: "Policy Scenarios", href: "/scenarios" },
   { label: "42 Macro Deep-Dive", href: "/42-macro" },
+  { label: "Global GRID Matrix", href: "/global-grid" },
   { label: "Commodities & Alts", href: "/commodities-alternatives" },
   { label: "Options & Vol Lab", href: "/options-lab" },
 ];

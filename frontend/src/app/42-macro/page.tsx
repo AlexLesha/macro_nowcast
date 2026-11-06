@@ -551,9 +551,19 @@ export default function FortyTwoMacroSubPage() {
         <div className="rounded-xl border border-slate-800 bg-[#111827] p-5 overflow-x-auto">
           <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
             <div>
-              <h2 className="text-base font-bold text-white">
-                Bottom-Up: 15-Country Global GRID Model (Unified Engine)
-              </h2>
+              <div className="flex items-center gap-2">
+                <h2 className="text-base font-bold text-white">
+                  Bottom-Up: 15-Country Global GRID Model (Unified Engine)
+                </h2>
+                <Link
+                  href="/global-grid"
+                  className="px-2.5 py-0.5 rounded bg-cyan-950/80 border border-cyan-500/40 text-cyan-300 hover:bg-cyan-900/90 text-xs font-semibold flex items-center gap-1 transition"
+                  title="Open dedicated Global GRID Historical Matrix & Backtest Cockpit"
+                >
+                  <span>Historical GRID Matrix & Backtest</span>
+                  <span className="text-cyan-400">&rarr;</span>
+                </Link>
+              </div>
               <p className="text-xs text-slate-400">
                 Live Growth & Inflation Rate of Change (RoC) standardizing national economies into 42 Macro GRID quadrants.
               </p>

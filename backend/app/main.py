@@ -151,6 +151,36 @@ async def get_42_macro_dashboard(force: bool = False):
     return FortyTwoMacroLiveBuilder.build_live_42macro_dashboard(force=force)
 
 
+@app.get("/api/v1/grid/matrix")
+@app.get("/api/grid/matrix")
+async def get_global_grid_matrix_endpoint(force: bool = False):
+    """Returns the comprehensive 18-country historical Global GRID matrix, predictive metrics, and hindsight anomalies."""
+    try:
+        from app.quant_engine.global_grid_engine import GlobalGridEngine
+    except ImportError:
+        from backend.app.quant_engine.global_grid_engine import GlobalGridEngine
+    return GlobalGridEngine.build_global_grid_payload(force_refresh=force)
+
+
+@app.get("/api/v1/grid/history")
+@app.get("/api/grid/history")
+async def get_global_grid_history_endpoint(
+    country: Optional[str] = None,
+    frequency: Optional[str] = None,
+    is_anomaly: Optional[bool] = None,
+):
+    """Queries individual historical records from PostgreSQL/SQLite with optional filters."""
+    try:
+        from app.db.stock_compressed_store import StockCompressedStore
+    except ImportError:
+        from backend.app.db.stock_compressed_store import StockCompressedStore
+    return StockCompressedStore.get_global_grid_records(
+        country=country,
+        frequency=frequency,
+        is_anomaly=is_anomaly,
+    )
+
+
 
 class StockAnalyzeRequest(BaseModel):
     ticker: str

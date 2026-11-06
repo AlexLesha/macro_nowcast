@@ -349,6 +349,16 @@ async def run_refresh_pipeline_stream() -> AsyncGenerator[str, None]:
             except Exception as e:
                 logger.warning(f"BenchmarkETFCacheManager warmup note: {e}")
 
+            # Execute GlobalGridEngine live calculation (forces DB cache refresh & historical matrix)
+            try:
+                try:
+                    from app.quant_engine.global_grid_engine import GlobalGridEngine
+                except ImportError:
+                    from backend.app.quant_engine.global_grid_engine import GlobalGridEngine
+                GlobalGridEngine.build_global_grid_payload(force_refresh=True)
+            except Exception as e:
+                logger.warning(f"GlobalGridEngine refresh note: {e}")
+
             net_liq_val = liq_payload.get("us_net_liquidity", {}).get("net_liquidity_usd_bn", 5745.7)
             real_rate_share = liq_payload.get("bond_stress_and_accord", {}).get("real_rate_share_of_yield_change_pct", 79.3)
             active_grid_label = live_42.get("global_macro_risk_matrix", {}).get("primary_regime") or live_42.get("grid_regime", "DEFLATION")
