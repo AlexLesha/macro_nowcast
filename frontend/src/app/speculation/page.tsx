@@ -296,18 +296,27 @@ export default function SpeculationMatrixPage() {
   const [apiStatus, setApiStatus] = useState<"synced" | "cached" | "fallback">("fallback");
 
   useEffect(() => {
-    fetch(getApiUrl("/api/v1/speculation"))
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (data && typeof data === "object") {
-          setSpecData(data);
-          setApiStatus(data._cache_hit ? "cached" : "synced");
-        }
-      })
-      .catch((err) => {
-        console.error("Error loading speculation matrix:", err);
-        setApiStatus("fallback");
-      });
+    const loadSpeculation = () => {
+      fetch(getApiUrl("/api/v1/speculation"))
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data) => {
+          if (data && typeof data === "object") {
+            setSpecData(data);
+            setApiStatus(data._cache_hit ? "cached" : "synced");
+          }
+        })
+        .catch((err) => {
+          console.error("Error loading speculation matrix:", err);
+          setApiStatus("fallback");
+        });
+    };
+    loadSpeculation();
+
+    const handleGlobalRefresh = () => {
+      loadSpeculation();
+    };
+    window.addEventListener("macro-nowcast-global-refresh", handleGlobalRefresh);
+    return () => window.removeEventListener("macro-nowcast-global-refresh", handleGlobalRefresh);
   }, []);
 
   const themes = [

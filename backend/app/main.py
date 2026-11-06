@@ -647,6 +647,8 @@ async def get_live_framework_synthesis():
 
 @app.get("/api/v1/liquidity-allocation")
 @app.get("/api/liquidity-allocation")
+@app.get("/api/v1/liquidity/dashboard")
+@app.get("/api/liquidity/dashboard")
 async def get_live_liquidity_and_horizons(force: bool = False):
     """Resolves Audit Item #24: Returns live Liquidity series + dynamic 0-6M, 6-12M, and 12-36M allocation matrix."""
     if not force:

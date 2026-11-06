@@ -63,12 +63,21 @@ export const Navigation: React.FC = () => {
 
   useEffect(() => {
     setDisplayDate(new Date().toISOString().slice(0, 10));
-    fetch(getApiUrl("/api/v1/executive-summary"), { cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((json) => {
-        if (json?.header_badge) setLiveHeaderBadge(json.header_badge);
-      })
-      .catch(() => { });
+    const loadBadge = () => {
+      fetch(getApiUrl("/api/v1/executive-summary"), { cache: "no-store" })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((json) => {
+          if (json?.header_badge) setLiveHeaderBadge(json.header_badge);
+        })
+        .catch(() => { });
+    };
+    loadBadge();
+
+    const handleGlobalRefresh = () => {
+      loadBadge();
+    };
+    window.addEventListener("macro-nowcast-global-refresh", handleGlobalRefresh);
+    return () => window.removeEventListener("macro-nowcast-global-refresh", handleGlobalRefresh);
   }, []);
 
   const checkHealth = useCallback(async () => {

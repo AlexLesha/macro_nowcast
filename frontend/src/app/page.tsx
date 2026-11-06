@@ -90,6 +90,11 @@ export default function UnifiedNowcastDashboard() {
 
   useEffect(() => {
     fetchDashboardData();
+    const handleGlobalRefresh = () => {
+      fetchDashboardData();
+    };
+    window.addEventListener("macro-nowcast-global-refresh", handleGlobalRefresh);
+    return () => window.removeEventListener("macro-nowcast-global-refresh", handleGlobalRefresh);
   }, []);
 
   // Baseline values synchronized across Executive Summary, Regime Snapshot, and 42 Macro Live Engine

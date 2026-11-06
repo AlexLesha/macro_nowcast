@@ -40,6 +40,11 @@ export default function MultiHorizonOutliersPage() {
 
   useEffect(() => {
     fetchLiveOutliers(false);
+    const handleGlobalRefresh = () => {
+      fetchLiveOutliers(true);
+    };
+    window.addEventListener("macro-nowcast-global-refresh", handleGlobalRefresh);
+    return () => window.removeEventListener("macro-nowcast-global-refresh", handleGlobalRefresh);
   }, []);
 
   const active = data?.horizons?.[horizon] || {

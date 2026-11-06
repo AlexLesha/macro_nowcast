@@ -23,12 +23,21 @@ export default function ScenariosPlaybookPage() {
   const [scenariosData, setScenariosData] = useState<any>(null);
 
   useEffect(() => {
-    fetch(getApiUrl("/api/v1/scenarios"))
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (data) setScenariosData(data);
-      })
-      .catch((err) => console.error("Error loading live scenarios:", err));
+    const loadScenarios = () => {
+      fetch(getApiUrl("/api/v1/scenarios"))
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data) => {
+          if (data) setScenariosData(data);
+        })
+        .catch((err) => console.error("Error loading live scenarios:", err));
+    };
+    loadScenarios();
+
+    const handleGlobalRefresh = () => {
+      loadScenarios();
+    };
+    window.addEventListener("macro-nowcast-global-refresh", handleGlobalRefresh);
+    return () => window.removeEventListener("macro-nowcast-global-refresh", handleGlobalRefresh);
   }, []);
 
   const defaultQuarters = [
