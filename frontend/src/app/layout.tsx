@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { Navigation } from "@/components/Navigation";
+import { Footer } from "@/components/Footer";
 
 export const metadata: Metadata = {
   title: "MacroPulse Alpha | Quantitative Macro Nowcasting & Intelligence",
@@ -19,6 +20,7 @@ export default function RootLayout({
         <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8">
           {children}
         </main>
+        <Footer />
       </body>
     </html>
   );
