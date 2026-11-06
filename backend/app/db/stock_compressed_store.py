@@ -158,6 +158,23 @@ class StockCompressedStore:
                         updated_at TIMESTAMP WITH TIME ZONE NOT NULL,
                         PRIMARY KEY (country, period)
                     );
+                    CREATE TABLE IF NOT EXISTS global_grid_forward_forecasts (
+                        country VARCHAR(64) NOT NULL,
+                        ticker VARCHAR(16) NOT NULL,
+                        forward_period VARCHAR(16) NOT NULL,
+                        horizon_steps INTEGER NOT NULL,
+                        projected_gdp_yoy DOUBLE PRECISION,
+                        projected_gdp_roc_bps INTEGER,
+                        projected_inf_yoy DOUBLE PRECISION,
+                        projected_inf_roc_bps INTEGER,
+                        projected_regime VARCHAR(32) NOT NULL,
+                        projected_quad VARCHAR(16) NOT NULL,
+                        confidence_pct DOUBLE PRECISION,
+                        leading_drivers TEXT,
+                        asset_implication TEXT,
+                        updated_at TIMESTAMP WITH TIME ZONE NOT NULL,
+                        PRIMARY KEY (country, forward_period)
+                    );
                 """)
                 conn.commit()
                 cursor.close()
@@ -271,6 +288,23 @@ class StockCompressedStore:
                         challenge_details TEXT,
                         updated_at TEXT NOT NULL,
                         PRIMARY KEY (country, period)
+                    );
+                    CREATE TABLE IF NOT EXISTS global_grid_forward_forecasts (
+                        country TEXT NOT NULL,
+                        ticker TEXT NOT NULL,
+                        forward_period TEXT NOT NULL,
+                        horizon_steps INTEGER NOT NULL,
+                        projected_gdp_yoy REAL,
+                        projected_gdp_roc_bps INTEGER,
+                        projected_inf_yoy REAL,
+                        projected_inf_roc_bps INTEGER,
+                        projected_regime TEXT NOT NULL,
+                        projected_quad TEXT NOT NULL,
+                        confidence_pct REAL,
+                        leading_drivers TEXT,
+                        asset_implication TEXT,
+                        updated_at TEXT NOT NULL,
+                        PRIMARY KEY (country, forward_period)
                     );
                 """)
                 conn.commit()
@@ -1256,6 +1290,196 @@ class StockCompressedStore:
                         results.append(item)
             except Exception as e:
                 logger.warning(f"[StockCompressedStore] SQLite get_global_grid_records error: {e}")
+
+        return results
+
+    @classmethod
+    def save_global_grid_forecasts_bulk(cls, forecasts: List[Dict[str, Any]]) -> None:
+        """Persists 4-quarter forward regime forecasts into Postgres or SQLite in batch."""
+        if not forecasts:
+            return
+        db_url = cls.get_db_url()
+        now_dt = datetime.now(timezone.utc)
+        now_iso = now_dt.isoformat()
+
+        def _to_float(v):
+            if v is None:
+                return None
+            try:
+                f = float(v)
+                return None if (math.isnan(f) or math.isinf(f)) else round(f, 4)
+            except Exception:
+                return None
+
+        def _to_int(v):
+            if v is None:
+                return None
+            try:
+                return int(round(float(v)))
+            except Exception:
+                return None
+
+        prepared_pg = []
+        prepared_sqlite = []
+        for f in forecasts:
+            c = str(f.get("country", "")).strip()
+            tk = str(f.get("ticker", "")).strip()
+            f_period = str(f.get("forward_period", "")).strip()
+            h_steps = _to_int(f.get("horizon_steps")) or 1
+            g_yoy = _to_float(f.get("projected_gdp_yoy"))
+            g_roc = _to_int(f.get("projected_gdp_roc_bps"))
+            i_yoy = _to_float(f.get("projected_inf_yoy"))
+            i_roc = _to_int(f.get("projected_inf_roc_bps"))
+            regime = str(f.get("projected_regime", "DEFLATION (D)")).strip()
+            quad = str(f.get("projected_quad", "QUAD_4")).strip()
+            conf = _to_float(f.get("confidence_pct")) or 70.0
+            drivers = str(f.get("leading_drivers") or "").strip() or None
+            implication = str(f.get("asset_implication") or "").strip() or None
+
+            prepared_pg.append((
+                c, tk, f_period, h_steps, g_yoy, g_roc, i_yoy, i_roc,
+                regime, quad, conf, drivers, implication, now_dt
+            ))
+            prepared_sqlite.append((
+                c, tk, f_period, h_steps, g_yoy, g_roc, i_yoy, i_roc,
+                regime, quad, conf, drivers, implication, now_iso
+            ))
+
+        if "postgres" in db_url:
+            try:
+                import psycopg2
+                from psycopg2.extras import execute_values
+                dsn = _get_pg_dsn(db_url)
+                with psycopg2.connect(dsn) as conn:
+                    with conn.cursor() as cursor:
+                        insert_query = """
+                            INSERT INTO global_grid_forward_forecasts (
+                                country, ticker, forward_period, horizon_steps,
+                                projected_gdp_yoy, projected_gdp_roc_bps,
+                                projected_inf_yoy, projected_inf_roc_bps,
+                                projected_regime, projected_quad, confidence_pct,
+                                leading_drivers, asset_implication, updated_at
+                            ) VALUES %s
+                            ON CONFLICT (country, forward_period) DO UPDATE SET
+                                ticker = EXCLUDED.ticker,
+                                horizon_steps = EXCLUDED.horizon_steps,
+                                projected_gdp_yoy = EXCLUDED.projected_gdp_yoy,
+                                projected_gdp_roc_bps = EXCLUDED.projected_gdp_roc_bps,
+                                projected_inf_yoy = EXCLUDED.projected_inf_yoy,
+                                projected_inf_roc_bps = EXCLUDED.projected_inf_roc_bps,
+                                projected_regime = EXCLUDED.projected_regime,
+                                projected_quad = EXCLUDED.projected_quad,
+                                confidence_pct = EXCLUDED.confidence_pct,
+                                leading_drivers = EXCLUDED.leading_drivers,
+                                asset_implication = EXCLUDED.asset_implication,
+                                updated_at = EXCLUDED.updated_at;
+                        """
+                        execute_values(cursor, insert_query, prepared_pg)
+                        conn.commit()
+                        logger.info(f"[StockCompressedStore] Persisted {len(prepared_pg)} forward GRID forecasts to Postgres.")
+            except Exception as e:
+                logger.warning(f"[StockCompressedStore] Postgres forward GRID forecasts write error: {e}")
+        else:
+            db_path = db_url.replace("sqlite:///", "")
+            try:
+                with sqlite3.connect(db_path) as conn:
+                    cursor = conn.cursor()
+                    cursor.executemany("""
+                        INSERT INTO global_grid_forward_forecasts (
+                            country, ticker, forward_period, horizon_steps,
+                            projected_gdp_yoy, projected_gdp_roc_bps,
+                            projected_inf_yoy, projected_inf_roc_bps,
+                            projected_regime, projected_quad, confidence_pct,
+                            leading_drivers, asset_implication, updated_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ON CONFLICT (country, forward_period) DO UPDATE SET
+                            ticker = excluded.ticker,
+                            horizon_steps = excluded.horizon_steps,
+                            projected_gdp_yoy = excluded.projected_gdp_yoy,
+                            projected_gdp_roc_bps = excluded.projected_gdp_roc_bps,
+                            projected_inf_yoy = excluded.projected_inf_yoy,
+                            projected_inf_roc_bps = excluded.projected_inf_roc_bps,
+                            projected_regime = excluded.projected_regime,
+                            projected_quad = excluded.projected_quad,
+                            confidence_pct = excluded.confidence_pct,
+                            leading_drivers = excluded.leading_drivers,
+                            asset_implication = excluded.asset_implication,
+                            updated_at = excluded.updated_at;
+                    """, prepared_sqlite)
+                    conn.commit()
+                    logger.info(f"[StockCompressedStore] Persisted {len(prepared_sqlite)} forward GRID forecasts to SQLite.")
+            except Exception as e:
+                logger.warning(f"[StockCompressedStore] SQLite forward GRID forecasts write error: {e}")
+
+    @classmethod
+    def get_global_grid_forecasts(cls, country: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Retrieves 4-quarter forward forecasts from Postgres or SQLite."""
+        db_url = cls.get_db_url()
+        results = []
+        where_clause = "WHERE LOWER(country) = LOWER(%s)" if country and "postgres" in db_url else (
+            "WHERE LOWER(country) = LOWER(?)" if country else ""
+        )
+        params = (country,) if country else ()
+
+        if "postgres" in db_url:
+            try:
+                import psycopg2
+                dsn = _get_pg_dsn(db_url)
+                with psycopg2.connect(dsn) as conn:
+                    with conn.cursor() as cursor:
+                        query = f"""
+                            SELECT country, ticker, forward_period, horizon_steps,
+                                   projected_gdp_yoy, projected_gdp_roc_bps,
+                                   projected_inf_yoy, projected_inf_roc_bps,
+                                   projected_regime, projected_quad, confidence_pct,
+                                   leading_drivers, asset_implication, updated_at
+                            FROM global_grid_forward_forecasts
+                            {where_clause}
+                            ORDER BY horizon_steps ASC, country ASC;
+                        """
+                        cursor.execute(query, params)
+                        cols = [
+                            "country", "ticker", "forward_period", "horizon_steps",
+                            "projected_gdp_yoy", "projected_gdp_roc_bps",
+                            "projected_inf_yoy", "projected_inf_roc_bps",
+                            "projected_regime", "projected_quad", "confidence_pct",
+                            "leading_drivers", "asset_implication", "updated_at"
+                        ]
+                        for row in cursor.fetchall():
+                            item = dict(zip(cols, row))
+                            if item["updated_at"]:
+                                item["updated_at"] = str(item["updated_at"])
+                            results.append(item)
+            except Exception as e:
+                logger.warning(f"[StockCompressedStore] Postgres get_global_grid_forecasts error: {e}")
+        else:
+            db_path = db_url.replace("sqlite:///", "")
+            try:
+                with sqlite3.connect(db_path) as conn:
+                    cursor = conn.cursor()
+                    query = f"""
+                        SELECT country, ticker, forward_period, horizon_steps,
+                               projected_gdp_yoy, projected_gdp_roc_bps,
+                               projected_inf_yoy, projected_inf_roc_bps,
+                               projected_regime, projected_quad, confidence_pct,
+                               leading_drivers, asset_implication, updated_at
+                        FROM global_grid_forward_forecasts
+                        {where_clause}
+                        ORDER BY horizon_steps ASC, country ASC;
+                    """
+                    cursor.execute(query, params)
+                    cols = [
+                        "country", "ticker", "forward_period", "horizon_steps",
+                        "projected_gdp_yoy", "projected_gdp_roc_bps",
+                        "projected_inf_yoy", "projected_inf_roc_bps",
+                        "projected_regime", "projected_quad", "confidence_pct",
+                        "leading_drivers", "asset_implication", "updated_at"
+                    ]
+                    for row in cursor.fetchall():
+                        item = dict(zip(cols, row))
+                        results.append(item)
+            except Exception as e:
+                logger.warning(f"[StockCompressedStore] SQLite get_global_grid_forecasts error: {e}")
 
         return results
 

@@ -181,6 +181,17 @@ async def get_global_grid_history_endpoint(
     )
 
 
+@app.get("/api/v1/grid/forecast")
+@app.get("/api/grid/forecast")
+async def get_global_grid_forecast_endpoint(country: Optional[str] = None):
+    """Queries 4-quarter forward regime forecasts from PostgreSQL/SQLite."""
+    try:
+        from app.db.stock_compressed_store import StockCompressedStore
+    except ImportError:
+        from backend.app.db.stock_compressed_store import StockCompressedStore
+    return StockCompressedStore.get_global_grid_forecasts(country=country)
+
+
 
 class StockAnalyzeRequest(BaseModel):
     ticker: str

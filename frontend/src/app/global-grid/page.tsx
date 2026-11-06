@@ -22,8 +22,28 @@ interface AnomalyData {
   commodities_ret_pct: number;
   fx_ret_pct: number;
   is_anomaly: boolean;
+  is_forecast?: boolean;
+  confidence_pct?: number;
+  leading_drivers?: string;
+  asset_implication?: string;
   anomaly_title?: string;
   challenge_details?: string;
+}
+
+interface CountryTrajectory {
+  country: string;
+  ticker: string;
+  flag: string;
+  region: string;
+  path: string;
+  growth_trough_period: string;
+  f1_regime: string;
+  f2_regime: string;
+  f3_regime: string;
+  f4_regime: string;
+  leading_drivers: string;
+  asset_implication: string;
+  avg_confidence_pct: number;
 }
 
 interface GridPayload {
@@ -32,6 +52,16 @@ interface GridPayload {
   as_of_date: string;
   latest_period: string;
   economies_count: number;
+  weekly_telemetry: {
+    cadence: string;
+    cache_ttl_days: number;
+    last_recalculated_at: string;
+    next_scheduled_recalculation_at: string;
+    historical_data_status: string;
+    historical_quarterly_records_count: number;
+    historical_monthly_records_count: number;
+    forward_forecast_records_count: number;
+  };
   metadata_countries: Array<{
     country: string;
     ticker: string;
@@ -47,6 +77,7 @@ interface GridPayload {
     grid_zero_count: number;
     total_historical_quarters: number;
     total_historical_months: number;
+    forward_forecast_quarters: number;
     overall_framework_hit_rate_pct: number;
     total_flagged_anomalies: number;
   };
@@ -60,6 +91,9 @@ interface GridPayload {
     regime_distribution: Record<string, number>;
   };
   current_snapshot: AnomalyData[];
+  forward_periods: string[];
+  forward_forecasts: AnomalyData[];
+  country_forecast_trajectories: Record<string, CountryTrajectory>;
   quarterly_periods: string[];
   monthly_periods: string[];
   quarterly_records: AnomalyData[];
@@ -70,9 +104,10 @@ interface GridPayload {
 export default function GlobalGridHistoricalPage() {
   const [data, setData] = useState<GridPayload | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
-  const [activeTab, setActiveTab] = useState<"matrix" | "country" | "anomalies" | "backtest">("matrix");
+  const [activeTab, setActiveTab] = useState<"matrix" | "forecast" | "country" | "anomalies" | "backtest">("matrix");
   const [frequency, setFrequency] = useState<"QUARTERLY" | "MONTHLY">("QUARTERLY");
   const [regionFilter, setRegionFilter] = useState<"ALL" | "G7" | "EM" | "AMERICAS">("ALL");
+  const [includeForecastInMatrix, setIncludeForecastInMatrix] = useState<boolean>(true);
   const [selectedCountry, setSelectedCountry] = useState<string>("United States");
   const [hoveredRecord, setHoveredRecord] = useState<AnomalyData | null>(null);
   const [activeModalRecord, setActiveModalRecord] = useState<AnomalyData | null>(null);
@@ -96,7 +131,7 @@ export default function GlobalGridHistoricalPage() {
     return () => window.removeEventListener("macro-nowcast-global-refresh", handleGlobalRefresh);
   }, []);
 
-  // Filter countries by region
+  // Filter countries by region and search
   const filteredCountries = useMemo(() => {
     if (!data?.metadata_countries) return [];
     return data.metadata_countries.filter((c) => {
@@ -114,14 +149,24 @@ export default function GlobalGridHistoricalPage() {
   // Selected records based on frequency
   const activeRecords = useMemo(() => {
     if (!data) return [];
-    return frequency === "QUARTERLY" ? data.quarterly_records : data.monthly_records;
-  }, [data, frequency]);
+    const base = frequency === "QUARTERLY" ? data.quarterly_records : data.monthly_records;
+    if (frequency === "QUARTERLY" && includeForecastInMatrix && data.forward_forecasts) {
+      return [...data.forward_forecasts, ...base];
+    }
+    return base;
+  }, [data, frequency, includeForecastInMatrix]);
 
-  // Periods list based on frequency
+  // Periods list based on frequency + optional 4Q forward forecast
   const activePeriods = useMemo(() => {
     if (!data) return [];
-    return frequency === "QUARTERLY" ? data.quarterly_periods : data.monthly_periods;
-  }, [data, frequency]);
+    const basePeriods = frequency === "QUARTERLY" ? data.quarterly_periods : data.monthly_periods;
+    if (frequency === "QUARTERLY" && includeForecastInMatrix && data.forward_periods) {
+      // 4 Forward Quarters at the front: Q4-27, Q3-27, Q2-27, Q1-27, followed by historical
+      const sortedForward = [...data.forward_periods].sort().reverse();
+      return [...sortedForward, ...basePeriods];
+    }
+    return basePeriods;
+  }, [data, frequency, includeForecastInMatrix]);
 
   // Fast cell lookup map: `key = country::period`
   const recordMap = useMemo(() => {
@@ -137,17 +182,25 @@ export default function GlobalGridHistoricalPage() {
     return activeRecords.filter((r) => r.country.toLowerCase() === selectedCountry.toLowerCase());
   }, [activeRecords, selectedCountry]);
 
-  const getRegimeColor = (regime: string) => {
+  const getRegimeColor = (regime: string, isForecast = false) => {
     if (regime.includes("GOLDILOCKS")) {
-      return "bg-emerald-950/70 text-emerald-300 border-emerald-600/40 hover:bg-emerald-900/80";
+      return isForecast
+        ? "bg-emerald-950/40 text-emerald-300 border-dashed border-emerald-400 hover:bg-emerald-900/60"
+        : "bg-emerald-950/70 text-emerald-300 border-emerald-600/40 hover:bg-emerald-900/80";
     }
     if (regime.includes("REFLATION")) {
-      return "bg-amber-950/70 text-amber-300 border-amber-600/40 hover:bg-amber-900/80";
+      return isForecast
+        ? "bg-amber-950/40 text-amber-300 border-dashed border-amber-400 hover:bg-amber-900/60"
+        : "bg-amber-950/70 text-amber-300 border-amber-600/40 hover:bg-amber-900/80";
     }
     if (regime.includes("INFLATION")) {
-      return "bg-purple-950/70 text-purple-300 border-purple-600/40 hover:bg-purple-900/80";
+      return isForecast
+        ? "bg-purple-950/40 text-purple-300 border-dashed border-purple-400 hover:bg-purple-900/60"
+        : "bg-purple-950/70 text-purple-300 border-purple-600/40 hover:bg-purple-900/80";
     }
-    return "bg-sky-950/70 text-sky-300 border-sky-600/40 hover:bg-sky-900/80";
+    return isForecast
+      ? "bg-sky-950/40 text-sky-300 border-dashed border-sky-400 hover:bg-sky-900/60"
+      : "bg-sky-950/70 text-sky-300 border-sky-600/40 hover:bg-sky-900/80";
   };
 
   const getRegimeShortCode = (regime: string) => {
@@ -162,20 +215,23 @@ export default function GlobalGridHistoricalPage() {
       {/* 1. Header Banner & Cockpit KPIs */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800 pb-4">
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="px-2 py-0.5 rounded bg-cyan-950/80 border border-cyan-500/40 text-cyan-300 text-xs font-mono font-bold">
               42 MACRO UNIFIED GRID
             </span>
-            <span className="text-xs text-slate-400">
-              Database Seeded & Synced • {data?.economies_count || 18} Sovereign Economies
+            <span className="px-2 py-0.5 rounded bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 text-xs font-mono">
+              WEEKLY CADENCE (168H TTL)
+            </span>
+            <span className="px-2 py-0.5 rounded bg-blue-950/60 border border-blue-500/40 text-blue-300 text-xs font-mono">
+              HISTORICAL IMMUTABLE IN NEON DB
             </span>
           </div>
           <h1 className="text-base font-bold text-white tracking-wide mt-1">
-            Global GRID Regime Historical Matrix & Backtest Cockpit
+            Global GRID Regime Historical Matrix &amp; 4Q Forward Forecast Cockpit
           </h1>
           <p className="text-xs text-slate-400 max-w-4xl mt-0.5">
             Systematic multi-decade growth and inflation rate-of-change (RoC) timeline across 18 countries.
-            Tracks empirical regime transitions, predictive asset hit rates, and flags historical hindsight anomalies (marked with &ldquo;!&rdquo;) where fiscal shocks, emergency liquidity, or currency carry trades broke standard theory.
+            Historical records (2018-2026) are preserved immutably in PostgreSQL, with weekly recalculations of the live current state and 4-quarter forward base-effects projections (2027). Canonical hindsight anomalies are marked with &ldquo;!&rdquo;.
           </p>
         </div>
 
@@ -190,6 +246,7 @@ export default function GlobalGridHistoricalPage() {
           <button
             onClick={() => loadMatrix(true)}
             className="px-2.5 py-1 rounded bg-cyan-950/80 border border-cyan-500/40 text-cyan-300 hover:bg-cyan-900 text-xs font-semibold transition"
+            title="Forces a weekly recalculation of current state and forward forecasts"
           >
             Force Recalibrate
           </button>
@@ -216,20 +273,25 @@ export default function GlobalGridHistoricalPage() {
           <div className="text-xs text-slate-400 mt-0.5">Growth &darr; / Inflation &uarr;</div>
         </div>
 
-        <div className="rounded-lg border border-slate-800 bg-[#111827] p-3">
-          <div className="text-xs text-slate-400 font-mono">GRID Zero Axes Watch</div>
-          <div className="text-base font-bold text-amber-300 mt-1">
-            {data?.summary_kpis.grid_zero_count ?? 1} / {data?.economies_count ?? 18}
+        <div className="rounded-lg border border-cyan-900/60 bg-cyan-950/20 p-3">
+          <div className="text-xs text-cyan-300 font-mono flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse"></span>
+            4Q Forward Forecast
           </div>
-          <div className="text-xs text-slate-400 mt-0.5">&plusmn;15 bps Inflection State</div>
+          <div className="text-base font-bold text-cyan-400 mt-1">
+            4 Quarters (2027)
+          </div>
+          <div className="text-xs text-cyan-300/70 mt-0.5">72 Sovereign Projections</div>
         </div>
 
         <div className="rounded-lg border border-slate-800 bg-[#111827] p-3">
-          <div className="text-xs text-slate-400 font-mono">Framework Hit Rate</div>
+          <div className="text-xs text-slate-400 font-mono">Recalculation Cadence</div>
           <div className="text-base font-bold text-emerald-400 mt-1">
-            {data?.summary_kpis.overall_framework_hit_rate_pct ?? 80.1}%
+            Weekly (7-Day TTL)
           </div>
-          <div className="text-xs text-slate-400 mt-0.5">Empirical Asset Direction</div>
+          <div className="text-xs text-slate-400 mt-0.5 truncate" title={`Next: ${data?.weekly_telemetry?.next_scheduled_recalculation_at?.slice(0, 10)}`}>
+            Next: {data?.weekly_telemetry?.next_scheduled_recalculation_at?.slice(0, 10) || "In 7 Days"}
+          </div>
         </div>
 
         <div className="rounded-lg border border-slate-800 bg-[#111827] p-3">
@@ -241,22 +303,22 @@ export default function GlobalGridHistoricalPage() {
         </div>
 
         <div className="rounded-lg border border-slate-800 bg-[#111827] p-3">
-          <div className="text-xs text-slate-400 font-mono">High-Res Months</div>
-          <div className="text-base font-bold text-white mt-1">
-            {data?.summary_kpis.total_historical_months ?? 35} Months
+          <div className="text-xs text-slate-400 font-mono">Framework Hit Rate</div>
+          <div className="text-base font-bold text-emerald-400 mt-1">
+            {data?.summary_kpis.overall_framework_hit_rate_pct ?? 80.1}%
           </div>
-          <div className="text-xs text-slate-400 mt-0.5">2024 to 2026 Nowcast</div>
+          <div className="text-xs text-slate-400 mt-0.5">Empirical Asset Direction</div>
         </div>
 
         <div className="rounded-lg border border-rose-900/50 bg-rose-950/20 p-3">
           <div className="text-xs text-rose-300 font-mono flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>
+            <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span>
             Hindsight Challenges
           </div>
           <div className="text-base font-bold text-rose-400 mt-1">
             {data?.summary_kpis.total_flagged_anomalies ?? 8} Flagged (!)
           </div>
-          <div className="text-xs text-rose-300/70 mt-0.5">Hover &ldquo;!&rdquo; for Autopsy</div>
+          <div className="text-xs text-rose-300/70 mt-0.5">Click for Autopsy</div>
         </div>
       </div>
 
@@ -275,6 +337,19 @@ export default function GlobalGridHistoricalPage() {
             1. Cross-Sectional Matrix Heatmap
           </button>
           <button
+            onClick={() => setActiveTab("forecast")}
+            className={`px-3 py-1.5 rounded transition flex items-center gap-1.5 ${
+              activeTab === "forecast"
+                ? "bg-cyan-500 text-slate-950 font-bold"
+                : "bg-cyan-950/80 text-cyan-300 border border-cyan-500/40 hover:bg-cyan-900"
+            }`}
+          >
+            <span>🔮 2. 4Q Forward Regime Forecast (2027)</span>
+            <span className="px-1.5 py-0.2 rounded bg-cyan-900 text-white text-xs font-bold">
+              18 Nations
+            </span>
+          </button>
+          <button
             onClick={() => setActiveTab("country")}
             className={`px-3 py-1.5 rounded transition ${
               activeTab === "country"
@@ -282,7 +357,7 @@ export default function GlobalGridHistoricalPage() {
                 : "bg-slate-800 text-slate-300 hover:bg-slate-700"
             }`}
           >
-            2. Sovereign History Walk
+            3. Sovereign History Walk
           </button>
           <button
             onClick={() => setActiveTab("anomalies")}
@@ -292,7 +367,7 @@ export default function GlobalGridHistoricalPage() {
                 : "bg-slate-800 text-rose-300 hover:bg-slate-700"
             }`}
           >
-            <span>3. Hindsight Challenges (!)</span>
+            <span>4. Hindsight Challenges (!)</span>
             <span className="px-1.5 py-0.2 rounded bg-rose-900 text-white text-xs">
               {data?.summary_kpis.total_flagged_anomalies ?? 8}
             </span>
@@ -305,12 +380,27 @@ export default function GlobalGridHistoricalPage() {
                 : "bg-slate-800 text-slate-300 hover:bg-slate-700"
             }`}
           >
-            4. Empirical Predictive Backtest
+            5. Empirical Predictive Backtest
           </button>
         </div>
 
-        {/* Right Controls: Granularity & Region Filters */}
+        {/* Right Controls: Granularity, Forecast Toggle & Region Filters */}
         <div className="flex flex-wrap items-center gap-2">
+          {/* Toggle 4Q Forecast in Heatmap */}
+          {activeTab === "matrix" && frequency === "QUARTERLY" && (
+            <button
+              onClick={() => setIncludeForecastInMatrix(!includeForecastInMatrix)}
+              className={`px-2 py-1 rounded text-xs font-mono transition border ${
+                includeForecastInMatrix
+                  ? "bg-cyan-950 border-cyan-400 text-cyan-300 font-bold"
+                  : "bg-slate-900 border-slate-700 text-slate-400 hover:text-white"
+              }`}
+              title="Show or hide 4-quarter forward projected regimes at the front of the timeline"
+            >
+              {includeForecastInMatrix ? "✓ 4Q Forecast Visible" : "+ Show 4Q Forecast"}
+            </button>
+          )}
+
           {/* Granularity Switcher */}
           <div className="flex items-center rounded border border-slate-700 bg-slate-900 p-0.5 text-xs font-mono">
             <button
@@ -321,7 +411,7 @@ export default function GlobalGridHistoricalPage() {
                   : "text-slate-400 hover:text-white"
               }`}
             >
-              Quarterly (2018-2026)
+              Quarterly (2018-2027)
             </button>
             <button
               onClick={() => setFrequency("MONTHLY")}
@@ -358,30 +448,35 @@ export default function GlobalGridHistoricalPage() {
             placeholder="Search economy..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="px-2 py-1 bg-slate-900 border border-slate-700 rounded text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 font-mono w-32 md:w-40"
+            className="px-2 py-1 bg-slate-900 border border-slate-700 rounded text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 font-mono w-32 md:w-36"
           />
         </div>
       </div>
 
-      {/* 4. Tab 1: Cross-Sectional Historical Matrix Heatmap */}
+      {/* 4. Tab 1: Cross-Sectional Historical Matrix Heatmap with 4Q Forward Forecast */}
       {activeTab === "matrix" && (
         <div className="rounded-xl border border-slate-800 bg-[#111827] p-4 space-y-4">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 border-b border-slate-800/80 pb-3">
             <div>
               <h2 className="text-base font-bold text-white flex items-center gap-2">
-                <span>Multi-Country Historical GRID Heatmap</span>
+                <span>Multi-Country Historical GRID Heatmap &amp; Forward Horizon</span>
                 <span className="text-xs px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-mono">
                   {filteredCountries.length} Economies &times; {activePeriods.length} Periods
                 </span>
+                {includeForecastInMatrix && frequency === "QUARTERLY" && (
+                  <span className="text-xs px-2 py-0.5 rounded bg-cyan-950 border border-cyan-400 text-cyan-300 font-mono">
+                    Includes 4Q 2027 Projections (Dashed)
+                  </span>
+                )}
               </h2>
               <p className="text-xs text-slate-400">
-                Hover over any cell to inspect Growth & Inflation RoC deltas and asset class performance.
-                Cells with red border &amp; &ldquo;!&rdquo; badge highlight canonical historical anomalies where the 42 Macro framework was challenged by reality.
+                Hover over any cell to inspect Growth &amp; Inflation RoC deltas and asset class performance.
+                Cells with dashed cyan border indicate <strong>4-quarter forward forecasts</strong>. Cells with red border &amp; &ldquo;!&rdquo; mark canonical historical anomalies.
               </p>
             </div>
 
             {/* Heatmap Legend */}
-            <div className="flex items-center gap-2 text-xs font-mono">
+            <div className="flex items-center gap-2 text-xs font-mono flex-wrap">
               <span className="flex items-center gap-1">
                 <span className="w-3 h-3 rounded bg-emerald-950 border border-emerald-500"></span> G (Goldilocks)
               </span>
@@ -394,6 +489,9 @@ export default function GlobalGridHistoricalPage() {
               <span className="flex items-center gap-1">
                 <span className="w-3 h-3 rounded bg-sky-950 border border-sky-500"></span> D (Deflation)
               </span>
+              <span className="flex items-center gap-1 text-cyan-300">
+                <span className="w-3 h-3 rounded bg-cyan-950/40 border-dashed border border-cyan-400"></span> [F] Forecast
+              </span>
               <span className="flex items-center gap-1 text-rose-400">
                 <span className="px-1 rounded bg-rose-950 border border-rose-500 font-bold">!</span> Anomaly
               </span>
@@ -402,22 +500,35 @@ export default function GlobalGridHistoricalPage() {
 
           {/* Matrix Scrollable Container */}
           <div className="overflow-x-auto border border-slate-800 rounded-lg">
-            <table className="w-full text-left text-xs font-mono border-collapse min-w-[900px]">
+            <table className="w-full text-left text-xs font-mono border-collapse min-w-[950px]">
               <thead>
                 <tr className="bg-slate-900/90 text-slate-400 border-b border-slate-800 sticky top-0 z-10">
                   <th className="py-2.5 px-3 sticky left-0 bg-slate-900 z-20 min-w-[180px]">Sovereign Economy</th>
-                  <th className="py-2.5 px-2 text-center min-w-[70px]">Ticker</th>
-                  <th className="py-2.5 px-2 text-center min-w-[90px] border-r border-slate-800">Current</th>
-                  {activePeriods.map((period) => (
-                    <th key={period} className="py-2.5 px-2 text-center font-normal min-w-[65px] border-l border-slate-800/40">
-                      {period}
-                    </th>
-                  ))}
+                  <th className="py-2.5 px-2 text-center min-w-[65px]">Ticker</th>
+                  <th className="py-2.5 px-2 text-center min-w-[85px] border-r border-slate-800">Current</th>
+
+                  {/* Render period headers */}
+                  {activePeriods.map((period) => {
+                    const isFwd = period.startsWith("2027");
+                    return (
+                      <th
+                        key={period}
+                        className={`py-2 px-1.5 text-center font-normal min-w-[65px] border-l ${
+                          isFwd
+                            ? "bg-cyan-950/40 text-cyan-300 border-cyan-800/60 font-bold"
+                            : "border-slate-800/40"
+                        }`}
+                      >
+                        {period}
+                        {isFwd && <div className="text-[10px] text-cyan-400/80 font-normal">[F]</div>}
+                      </th>
+                    );
+                  })}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60">
                 {filteredCountries.map((econ) => {
-                  const currentCell = recordMap.get(`${econ.country}::${activePeriods[0]}`);
+                  const currentCell = recordMap.get(`${econ.country}::2026-Q4`) || recordMap.get(`${econ.country}::${activePeriods[0]}`);
                   return (
                     <tr key={econ.country} className="hover:bg-slate-800/30 transition">
                       {/* Country Column (sticky on horizontal scroll) */}
@@ -445,14 +556,14 @@ export default function GlobalGridHistoricalPage() {
                         {currentCell ? (
                           <span className={`px-2 py-0.5 rounded text-xs border ${getRegimeColor(currentCell.regime)}`}>
                             {getRegimeShortCode(currentCell.regime)}
-                            {currentCell.grid_zero && <span className="ml-1 text-amber-300">0</span>}
+                            {currentCell.grid_zero && <span className="ml-0.5 text-amber-300">0</span>}
                           </span>
                         ) : (
                           <span className="text-slate-600">-</span>
                         )}
                       </td>
 
-                      {/* Historical Walk Columns */}
+                      {/* Timeline Columns (Forecast + Historical) */}
                       {activePeriods.map((period) => {
                         const cell = recordMap.get(`${econ.country}::${period}`);
                         if (!cell) {
@@ -464,29 +575,38 @@ export default function GlobalGridHistoricalPage() {
                         }
 
                         const isAnomaly = cell.is_anomaly;
+                        const isForecast = cell.is_forecast || period.startsWith("2027");
+
                         return (
                           <td
                             key={period}
-                            className="py-1.5 px-1 text-center border-l border-slate-800/40 relative"
+                            className={`py-1.5 px-1 text-center border-l ${
+                              isForecast ? "border-cyan-800/40 bg-cyan-950/10" : "border-slate-800/40"
+                            } relative`}
                             onMouseEnter={() => setHoveredRecord(cell)}
                             onMouseLeave={() => setHoveredRecord(null)}
                           >
                             <button
                               onClick={() => {
-                                if (isAnomaly) setActiveModalRecord(cell);
+                                if (isAnomaly || isForecast) setActiveModalRecord(cell);
                               }}
                               className={`w-full py-1 px-1 rounded text-xs font-mono font-bold transition flex items-center justify-center gap-0.5 border ${
                                 isAnomaly
                                   ? "bg-rose-950/80 text-rose-200 border-rose-500 shadow-sm shadow-rose-950 cursor-pointer animate-pulse"
-                                  : getRegimeColor(cell.regime)
+                                  : getRegimeColor(cell.regime, isForecast)
                               }`}
                               title={
                                 isAnomaly
                                   ? `CRITICAL ANOMALY: ${cell.anomaly_title || "Click to inspect autopsy"}`
+                                  : isForecast
+                                  ? `FORECAST ${period}: ${cell.regime} (Confidence: ${cell.confidence_pct || 70}%) - Click for drivers`
                                   : `${cell.country} (${period}): ${cell.regime} | GDP YoY: ${cell.gdp_yoy}% | Inf: ${cell.inflation_yoy}%`
                               }
                             >
                               <span>{getRegimeShortCode(cell.regime)}</span>
+                              {isForecast && (
+                                <span className="text-[10px] text-cyan-300 font-normal">F</span>
+                              )}
                               {isAnomaly && (
                                 <span className="text-xs px-1 rounded bg-rose-600 text-white font-extrabold animate-bounce">
                                   !
@@ -509,16 +629,21 @@ export default function GlobalGridHistoricalPage() {
           {/* Mouse-over Live Telemetry Card */}
           {hoveredRecord && (
             <div className="rounded-lg border border-slate-700 bg-slate-900/95 p-3 font-mono text-xs text-slate-300 shadow-xl flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2.5 flex-wrap">
                 <span className="text-sm font-bold text-white">
                   {hoveredRecord.country} (${hoveredRecord.ticker})
                 </span>
                 <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-200">
-                  {hoveredRecord.period} ({hoveredRecord.frequency})
+                  {hoveredRecord.period}
                 </span>
-                <span className={`px-2 py-0.5 rounded border ${getRegimeColor(hoveredRecord.regime)}`}>
+                <span className={`px-2 py-0.5 rounded border ${getRegimeColor(hoveredRecord.regime, hoveredRecord.is_forecast)}`}>
                   {hoveredRecord.regime}
                 </span>
+                {hoveredRecord.is_forecast && (
+                  <span className="px-2 py-0.5 rounded bg-cyan-950 border border-cyan-400 text-cyan-300 font-bold">
+                    🔮 4Q FORWARD PROJECTION (Confidence: {hoveredRecord.confidence_pct || 70}%)
+                  </span>
+                )}
                 {hoveredRecord.is_anomaly && (
                   <span className="px-2 py-0.5 rounded bg-rose-950 border border-rose-500 text-rose-300 font-bold flex items-center gap-1">
                     <span>! CANONICAL ANOMALY</span>
@@ -527,7 +652,7 @@ export default function GlobalGridHistoricalPage() {
                 )}
               </div>
 
-              <div className="flex items-center gap-4 text-xs">
+              <div className="flex items-center gap-4 text-xs flex-wrap">
                 <span>
                   Real GDP: <strong className="text-white">{hoveredRecord.gdp_yoy}%</strong> (RoC: {hoveredRecord.gdp_roc_bps > 0 ? `+${hoveredRecord.gdp_roc_bps}` : hoveredRecord.gdp_roc_bps} bps)
                 </span>
@@ -549,7 +674,96 @@ export default function GlobalGridHistoricalPage() {
         </div>
       )}
 
-      {/* 5. Tab 2: Sovereign Country Walk Deep-Dive */}
+      {/* 5. Tab 2: Dedicated 4Q Forward Regime Forecast View (2027) */}
+      {activeTab === "forecast" && (
+        <div className="space-y-4">
+          <div className="rounded-xl border border-cyan-800/80 bg-gradient-to-r from-cyan-950/40 via-slate-900 to-blue-950/30 p-4 space-y-2">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <h2 className="text-base font-bold text-cyan-300 flex items-center gap-2">
+                <span>🔮 4-Quarter Forward Sovereign Regime Radar (2027 Projections)</span>
+                <span className="text-xs px-2 py-0.5 rounded bg-cyan-900/80 text-white font-mono">
+                  Recalculated Weekly
+                </span>
+              </h2>
+              <span className="text-xs text-slate-400 font-mono">
+                Methodology: 42 Macro 4-Quarter Base Effects Model ($t-4$) + 10Y-2Y Curve &amp; LEI Signals
+              </span>
+            </div>
+            <p className="text-xs text-slate-300 max-w-5xl leading-relaxed">
+              Markets trade on expected rate-of-change inflections. Below is the projected 4-quarter path for all 18 sovereign economies through 2027.
+              Growth troughs are projected primarily in <strong>Q1-Q2 2027</strong> as tough comps fade and lagged central bank easing transmits into real economies, setting up a transition from <strong>Deflation (Quad 4)</strong> into <strong>Goldilocks (Quad 1)</strong> by mid-2027.
+            </p>
+          </div>
+
+          {/* Grid of Country Trajectory Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredCountries.map((econ) => {
+              const traj = data?.country_forecast_trajectories?.[econ.country];
+              const cForecasts = data?.forward_forecasts?.filter((f) => f.country === econ.country) || [];
+              const sortedF = [...cForecasts].sort((a, b) => (a.period > b.period ? 1 : -1));
+
+              return (
+                <div
+                  key={econ.country}
+                  className="rounded-xl border border-slate-800 bg-[#111827] p-4 space-y-3 hover:border-cyan-500/40 transition"
+                >
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-base">{econ.flag}</span>
+                      <span className="font-bold text-white text-sm">{econ.country}</span>
+                      <span className="text-xs px-1.5 py-0.2 rounded bg-slate-800 text-slate-400 font-mono">
+                        ${econ.ticker}
+                      </span>
+                    </div>
+                    <span className="text-xs text-slate-400 font-mono">
+                      Conf: <strong className="text-cyan-300">{traj?.avg_confidence_pct ?? 70}%</strong>
+                    </span>
+                  </div>
+
+                  {/* 4Q Transition Sequence */}
+                  <div>
+                    <div className="text-[11px] text-slate-400 font-mono mb-1">
+                      4Q Trajectory (Q1-27 &rarr; Q4-27):
+                    </div>
+                    <div className="grid grid-cols-4 gap-1.5 font-mono text-xs">
+                      {sortedF.map((f, i) => (
+                        <button
+                          key={f.period}
+                          onClick={() => setActiveModalRecord(f)}
+                          className={`p-1.5 rounded border text-center transition ${getRegimeColor(f.regime, true)}`}
+                          title={`Click to inspect ${f.period} drivers`}
+                        >
+                          <div className="text-[10px] text-slate-400 font-normal">Q{i + 1}-27</div>
+                          <div className="font-bold">{getRegimeShortCode(f.regime)}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Key Projected Inflection */}
+                  <div className="bg-slate-900 p-2.5 rounded-lg border border-slate-800 space-y-1 font-mono text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400">Growth Trough:</span>
+                      <span className="text-amber-300 font-bold">{traj?.growth_trough_period ?? "2027-Q2"}</span>
+                    </div>
+                    <div className="text-slate-300 text-[11px] leading-tight">
+                      {traj?.leading_drivers || "Base-effects inflection + monetary easing transmission."}
+                    </div>
+                  </div>
+
+                  {/* Asset Allocation Playbook */}
+                  <div className="text-[11px] text-slate-400 font-mono">
+                    <strong className="text-emerald-400">Tactical Tilt: </strong>
+                    {traj?.asset_implication || "Overweight Duration into growth slowdown; accumulate growth tech into rate cuts."}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* 6. Tab 3: Sovereign Country Walk Deep-Dive */}
       {activeTab === "country" && (
         <div className="rounded-xl border border-slate-800 bg-[#111827] p-4 space-y-4">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-800/80 pb-3">
@@ -601,9 +815,16 @@ export default function GlobalGridHistoricalPage() {
               <tbody className="divide-y divide-slate-800/60">
                 {countryHistory.map((row) => (
                   <tr key={row.period} className="hover:bg-slate-800/40 transition">
-                    <td className="py-2 px-3 font-bold text-white">{row.period}</td>
+                    <td className="py-2 px-3 font-bold text-white flex items-center gap-1.5">
+                      <span>{row.period}</span>
+                      {row.is_forecast && (
+                        <span className="text-[10px] px-1 rounded bg-cyan-950 border border-cyan-400 text-cyan-300">
+                          Forecast
+                        </span>
+                      )}
+                    </td>
                     <td className="py-2 px-3">
-                      <span className={`px-2 py-0.5 rounded text-xs border ${getRegimeColor(row.regime)}`}>
+                      <span className={`px-2 py-0.5 rounded text-xs border ${getRegimeColor(row.regime, row.is_forecast)}`}>
                         {row.regime}
                         {row.grid_zero && <span className="ml-1 text-amber-300">(Zero)</span>}
                       </span>
@@ -648,6 +869,13 @@ export default function GlobalGridHistoricalPage() {
                         >
                           <span>! Challenge</span>
                         </button>
+                      ) : row.is_forecast ? (
+                        <button
+                          onClick={() => setActiveModalRecord(row)}
+                          className="px-2 py-0.5 rounded bg-cyan-950 border border-cyan-400 text-cyan-300 font-mono hover:bg-cyan-900 transition flex items-center gap-1 mx-auto"
+                        >
+                          <span>Drivers</span>
+                        </button>
                       ) : (
                         <span className="text-slate-500">&mdash;</span>
                       )}
@@ -660,7 +888,7 @@ export default function GlobalGridHistoricalPage() {
         </div>
       )}
 
-      {/* 6. Tab 3: Hindsight Challenges & Model Post-Mortems */}
+      {/* 7. Tab 4: Hindsight Challenges & Model Post-Mortems */}
       {activeTab === "anomalies" && (
         <div className="space-y-4">
           <div className="rounded-xl border border-rose-900/60 bg-rose-950/20 p-4">
@@ -714,7 +942,7 @@ export default function GlobalGridHistoricalPage() {
         </div>
       )}
 
-      {/* 7. Tab 4: Empirical Predictive Backtest & Hit-Rate Analytics */}
+      {/* 8. Tab 5: Empirical Predictive Backtest & Hit-Rate Analytics */}
       {activeTab === "backtest" && (
         <div className="rounded-xl border border-slate-800 bg-[#111827] p-5 space-y-6">
           <div className="border-b border-slate-800 pb-3">
@@ -822,7 +1050,7 @@ export default function GlobalGridHistoricalPage() {
         </div>
       )}
 
-      {/* 8. Bottom Section: Detailed Legend & Simple English Explanation */}
+      {/* 9. Bottom Section: Detailed Legend & Simple English Explanation */}
       <div className="rounded-xl border border-slate-800 bg-[#111827] p-5 space-y-6">
         <div className="border-b border-slate-800 pb-3">
           <h2 className="text-base font-bold text-white flex items-center gap-2">
@@ -938,20 +1166,30 @@ export default function GlobalGridHistoricalPage() {
         </div>
       </div>
 
-      {/* 9. Interactive Anomaly Modal Window */}
+      {/* 10. Interactive Popover / Modal Window */}
       {activeModalRecord && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-[#111827] border border-rose-500/60 rounded-xl max-w-2xl w-full p-5 space-y-4 shadow-2xl">
+          <div className="bg-[#111827] border border-cyan-500/60 rounded-xl max-w-2xl w-full p-5 space-y-4 shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <div className="flex items-center gap-2">
                 <span className="text-base">{data?.metadata_countries.find((c) => c.country === activeModalRecord.country)?.flag}</span>
                 <span className="font-bold text-white text-sm">{activeModalRecord.country}</span>
                 <span className="text-xs px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-mono">
-                  {activeModalRecord.period} ({activeModalRecord.frequency})
+                  {activeModalRecord.period}
                 </span>
-                <span className="text-xs px-2 py-0.5 rounded bg-rose-950 border border-rose-500 text-rose-300 font-bold font-mono">
-                  ! FRAMEWORK CHALLENGE
-                </span>
+                {activeModalRecord.is_forecast ? (
+                  <span className="text-xs px-2 py-0.5 rounded bg-cyan-950 border border-cyan-400 text-cyan-300 font-bold font-mono">
+                    🔮 4Q FORWARD PROJECTION
+                  </span>
+                ) : activeModalRecord.is_anomaly ? (
+                  <span className="text-xs px-2 py-0.5 rounded bg-rose-950 border border-rose-500 text-rose-300 font-bold font-mono">
+                    ! FRAMEWORK CHALLENGE
+                  </span>
+                ) : (
+                  <span className="text-xs px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-mono">
+                    HISTORICAL OBS
+                  </span>
+                )}
               </div>
               <button
                 onClick={() => setActiveModalRecord(null)}
@@ -962,16 +1200,29 @@ export default function GlobalGridHistoricalPage() {
             </div>
 
             <div>
-              <h3 className="text-sm font-bold text-cyan-300">{activeModalRecord.anomaly_title}</h3>
-              <div className="flex items-center gap-3 mt-1 text-xs font-mono text-slate-400">
-                <span>Signaled: <strong className="text-white">{activeModalRecord.regime}</strong></span>
+              <h3 className="text-sm font-bold text-cyan-300">
+                {activeModalRecord.anomaly_title || `${activeModalRecord.country} ${activeModalRecord.period} Regime Telemetry`}
+              </h3>
+              <div className="flex items-center gap-3 mt-1 text-xs font-mono text-slate-400 flex-wrap">
+                <span>Regime: <strong className="text-white">{activeModalRecord.regime}</strong></span>
                 <span>Real GDP RoC: <strong className="text-white">{activeModalRecord.gdp_roc_bps} bps</strong></span>
                 <span>Inflation RoC: <strong className="text-white">{activeModalRecord.inf_roc_bps} bps</strong></span>
+                {activeModalRecord.confidence_pct && (
+                  <span>Confidence: <strong className="text-emerald-400">{activeModalRecord.confidence_pct}%</strong></span>
+                )}
               </div>
             </div>
 
             <div className="bg-slate-900 p-4 rounded-lg border border-slate-800 font-mono text-xs text-slate-300 space-y-3 whitespace-pre-line leading-relaxed">
-              {activeModalRecord.challenge_details}
+              {activeModalRecord.is_forecast ? (
+                <>
+                  <p><strong>LEADING DRIVERS:</strong> {activeModalRecord.leading_drivers}</p>
+                  <p><strong>TACTICAL ASSET PLAYBOOK:</strong> {activeModalRecord.asset_implication}</p>
+                  <p className="text-slate-400">Methodology: 42 Macro 4-Quarter Rolling Base Effects Model compared against $t-4$ comps, adjusted for 10Y-2Y yield curve inversion lag and commodity pass-through.</p>
+                </>
+              ) : (
+                activeModalRecord.challenge_details || "Standard historical observation consistent with theoretical 42 Macro quad expectations."
+              )}
             </div>
 
             <div className="flex items-center justify-between border-t border-slate-800 pt-3 text-xs font-mono text-slate-400">
@@ -989,4 +1240,3 @@ export default function GlobalGridHistoricalPage() {
     </div>
   );
 }
-
