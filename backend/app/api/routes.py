@@ -7,7 +7,7 @@ import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
 from fastapi.responses import StreamingResponse, HTMLResponse
 from sqlalchemy.orm import Session
-from sqlalchemy import desc, func
+from sqlalchemy import desc, func, text
 
 from app.db import get_db
 from app.config import settings
@@ -39,12 +39,18 @@ api_router = APIRouter(prefix="/api")
 # ----------------------------------------------------
 # Health Check
 # ----------------------------------------------------
+@api_router.get("/ping")
+def api_ping():
+    """Zero-overhead ping endpoint (<2ms) for keep-alive monitoring."""
+    return {"status": "ok", "pong": True, "timestamp_utc": datetime.now(timezone.utc).isoformat()}
+
+
 @api_router.get("/health")
 def get_health(db: Session = Depends(get_db)):
     """System health check and DB connectivity verification."""
     try:
-        # Verify db query
-        db.query(MacroSeries).limit(1).all()
+        # Fast connection ping without full table scan
+        db.execute(text("SELECT 1"))
         db_status = "healthy"
     except Exception as e:
         db_status = f"unreachable: {str(e)}"
@@ -1503,160 +1509,23 @@ def get_synthesis_dashboard(db: Session = Depends(get_db)):
 
 @api_router.get("/v1/speculation")
 @api_router.get("/speculation")
-def get_speculation_ideas(db: Session = Depends(get_db)):
-    """Returns dynamic 1st, 2nd, and 3rd order institutional speculation ideas and ranked outliers."""
-    outlier_scan = scan_1_to_3_month_outliers()
-    
-    speculation_stocks = [
-        {
-            "order": "1st Order",
-            "stock": "NVIDIA Corp",
-            "ticker": "NVDA",
-            "industry": "Semiconductors / GPU Compute",
-            "theme": "AI Datacenter Expansion",
-            "asymmetry": "3.8 : 1",
-            "horizon": "1-3 Months",
-            "reasons": "Direct primary beneficiary of hyperscaler accelerated computing capex. Blackwell architecture ramp + Top-decile Pod 1/2 revenue acceleration (+12.5% YoY) and 3Fourteen +239 bps active weight tilt.",
-        },
-        {
-            "order": "1st Order",
-            "stock": "Broadcom Inc",
-            "ticker": "AVGO",
-            "industry": "Custom AI Accelerators & ASIC",
-            "theme": "AI Datacenter Expansion",
-            "asymmetry": "3.4 : 1",
-            "horizon": "1-3 Months",
-            "reasons": "High-margin enterprise networking switches + custom ASIC co-design for Google & Meta. FCF margin exceeds 38% of sales with consistent share repurchase yield.",
-        },
-        {
-            "order": "1st Order",
-            "stock": "Taiwan Semiconductor",
-            "ticker": "TSM",
-            "industry": "Foundry / Advanced Packaging",
-            "theme": "AI Datacenter Expansion",
-            "asymmetry": "3.2 : 1",
-            "horizon": "1-3 Months",
-            "reasons": "Exclusive foundry monopoly on leading-edge AI compute nodes and CoWoS advanced packaging capacity.",
-        },
-        {
-            "order": "2nd Order",
-            "stock": "Vistra Corp",
-            "ticker": "VST",
-            "industry": "Independent Power & Nuclear",
-            "theme": "AI Datacenter Expansion",
-            "asymmetry": "4.2 : 1",
-            "horizon": "3-6 Months",
-            "reasons": "Hyperscalers require 24/7 baseload electricity. PJM capacity auction pricing surge + long-term power purchase contracts at premium pricing. VAMS Bullish Trend with 2.1x RVOL thrust.",
-        },
-        {
-            "order": "2nd Order",
-            "stock": "Constellation Energy",
-            "ticker": "CEG",
-            "industry": "Clean Energy / Nuclear Baseload",
-            "theme": "AI Datacenter Expansion",
-            "asymmetry": "3.9 : 1",
-            "horizon": "3-6 Months",
-            "reasons": "Crane Clean Energy Center (Three Mile Island Unit 1) 20-year Microsoft PPA agreement at high margins. Nuclear tax credits floor downside cash flows.",
-        },
-        {
-            "order": "2nd Order",
-            "stock": "Vertiv Holdings",
-            "ticker": "VRT",
-            "industry": "Datacenter Liquid Cooling",
-            "theme": "AI Datacenter Expansion",
-            "asymmetry": "3.6 : 1",
-            "horizon": "2-4 Months",
-            "reasons": "Liquid cooling thermal management infrastructure required for high TDP racks; backlog up >60% YoY.",
-        },
-        {
-            "order": "2nd Order",
-            "stock": "GE Vernova",
-            "ticker": "GEV",
-            "industry": "Power Grid & Turbines",
-            "theme": "AI Datacenter Expansion",
-            "asymmetry": "3.5 : 1",
-            "horizon": "3-6 Months",
-            "reasons": "Heavy gas turbine equipment and electrical grid transmission switchgear backlogs booked into 2028.",
-        },
-        {
-            "order": "3rd Order",
-            "stock": "Palantir Technologies",
-            "ticker": "PLTR",
-            "industry": "Enterprise AI Software",
-            "theme": "AI Application Scaling",
-            "asymmetry": "3.1 : 1",
-            "horizon": "3-6 Months",
-            "reasons": "AIP platform monetizing operational enterprise workflow automation; US commercial revenue acceleration.",
-        },
-        {
-            "order": "3rd Order",
-            "stock": "CrowdStrike Holdings",
-            "ticker": "CRWD",
-            "industry": "Cybersecurity & Cloud Protection",
-            "theme": "AI Application Scaling",
-            "asymmetry": "3.0 : 1",
-            "horizon": "3-6 Months",
-            "reasons": "AI agent sprawl and autonomous code generation multiply endpoint threat vectors and enterprise incident response needs.",
-        },
-        {
-            "order": "1st Order",
-            "stock": "SPDR Gold Shares",
-            "ticker": "GLD",
-            "industry": "Monetary Hard Asset",
-            "theme": "Sovereign Fiscal Dominance",
-            "asymmetry": "4.5 : 1",
-            "horizon": "3-12 Months",
-            "reasons": "Central bank foreign reserve de-dollarization and US public debt expansion. 42 Macro Accord 2.0 hedge.",
-        },
-        {
-            "order": "2nd Order",
-            "stock": "Newmont Corp",
-            "ticker": "NEM",
-            "industry": "Gold Mining Major",
-            "theme": "Sovereign Fiscal Dominance",
-            "asymmetry": "4.0 : 1",
-            "horizon": "3-6 Months",
-            "reasons": "Operational leverage to bullion surge; AISC costs fixed while top-line realization expands FCF yield.",
-        },
-        {
-            "order": "2nd Order",
-            "stock": "iShares Bitcoin Trust",
-            "ticker": "IBIT",
-            "industry": "Digital Store of Value",
-            "theme": "Sovereign Fiscal Dominance",
-            "asymmetry": "3.7 : 1",
-            "horizon": "2-6 Months",
-            "reasons": "Institutional ETF liquidity inflows tracking global fiat M2 expansion. 42 Macro Dr. Mo Max Bullish asset in Quad 2.",
-        },
-        {
-            "order": "1st Order",
-            "stock": "Texas Pacific Land",
-            "ticker": "TPL",
-            "industry": "Permian Basin Mineral Rights & Water",
-            "theme": "Permian Royalties & Water Infrastructure",
-            "asymmetry": "4.1 : 1",
-            "horizon": "2-6 Months",
-            "reasons": "Zero-capex mineral royalty owner in Delaware basin. Warren Pies 3Fourteen Research top secular overweight.",
-        },
-        {
-            "order": "2nd Order",
-            "stock": "SPDR S&P Regional Banking",
-            "ticker": "KRE",
-            "industry": "Regional Financials",
-            "theme": "Yield Curve Steepening",
-            "asymmetry": "2.9 : 1",
-            "horizon": "1-3 Months",
-            "reasons": "Fed rate cuts drop wholesale deposit funding costs while asset yields stay elevated; NIM expansion tailwind.",
-        },
-    ]
-
-    return _sanitize_floats({
-        "ranked_outliers": outlier_scan.get("ranked_outliers", []),
-        "speculation_ripple_effects": outlier_scan.get("speculation_ripple_effects", []),
-        "speculation_stocks": speculation_stocks,
-        "total_ideas_count": len(speculation_stocks),
-        "timestamp_utc": datetime.now(timezone.utc).isoformat(),
-    })
+async def get_speculation_ideas(force: bool = False, db: Session = Depends(get_db)):
+    """Returns unified dynamic 1st, 2nd, and 3rd order institutional speculation ideas, ranked outliers, and cascade mechanics."""
+    try:
+        try:
+            from backend.app.main import get_live_speculation_matrix
+        except ImportError:
+            from app.main import get_live_speculation_matrix
+        return await get_live_speculation_matrix(force=force)
+    except Exception as e:
+        logger.warning(f"Error resolving speculation matrix: {e}")
+        outlier_scan = scan_1_to_3_month_outliers()
+        return _sanitize_floats({
+            "ranked_outliers": outlier_scan.get("ranked_outliers", []),
+            "speculation_ripple_effects": outlier_scan.get("speculation_ripple_effects", []),
+            "speculation_rows": [],
+            "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+        })
 
 
 @api_router.get("/v1/scenarios")

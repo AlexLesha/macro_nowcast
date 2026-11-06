@@ -44,10 +44,11 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"StockCompressedStore table initialization warning: {e}")
 
-    # 2. Pre-warm the 26 Benchmark ETFs in memory to eliminate ~4.5s delay on stock searches
+    # 2. Pre-warm the 26 Benchmark ETFs in background task to eliminate startup delay on Uvicorn bind
     try:
-        await BenchmarkETFCacheManager.warm_cache()
-        logger.info("BenchmarkETFCacheManager warmed successfully on startup.")
+        import asyncio
+        asyncio.create_task(BenchmarkETFCacheManager.warm_cache())
+        logger.info("BenchmarkETFCacheManager warmup scheduled in background.")
     except Exception as e:
         logger.warning(f"BenchmarkETFCacheManager warmup warning: {e}")
 
@@ -105,9 +106,12 @@ def root():
 @app.get("/api/v1/health")
 @app.get("/api/health")
 @app.get("/health")
-async def health_check():
-    """Health check endpoint for Render spin-up monitor and load balancers."""
-    health_data = await health_tracker.probe_statuses()
+async def health_check(probe: bool = False):
+    """Fast health check endpoint (<1ms) for Render spin-up monitor and external cron pingers."""
+    if probe:
+        health_data = await health_tracker.probe_statuses()
+    else:
+        health_data = health_tracker.state
     return {
         "status": "ok",
         "service": "MacroPulse Alpha Quant Engine",
@@ -116,9 +120,10 @@ async def health_check():
     }
 
 @app.get("/api/v1/ping")
+@app.get("/api/ping")
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "pong": True}
+    return {"status": "ok", "pong": True, "timestamp_utc": datetime.now(timezone.utc).isoformat()}
 
 @app.get("/api/v1/etf/fcte-holdings")
 @app.get("/v1/etf/fcte-holdings")
@@ -872,25 +877,66 @@ async def get_live_liquidity_and_horizons(force: bool = False):
 
 @app.get("/api/v1/speculation")
 @app.get("/api/speculation")
-async def get_live_speculation_matrix():
-    """Resolves Audit Item #25: Enriches all 1st/2nd/3rd Order stocks with live prices, 14D RSI, 52W Range %, VAMS, and live asymmetry."""
+async def get_live_speculation_matrix(force: bool = False):
+    """Resolves Audit Item #25: Enriches all 1st/2nd/3rd Order stocks with live prices, 14D RSI, 52W Range %, VAMS, OutlierScores, and DB cache."""
+    # Fast-Path: Database Cache Lookup (<15ms)
+    if not force:
+        try:
+            try:
+                from backend.app.db.stock_compressed_store import StockCompressedStore
+            except ImportError:
+                from app.db.stock_compressed_store import StockCompressedStore
+            cached = StockCompressedStore.get_macro_liquidity_payload("live_speculation_matrix", max_age_seconds=900)
+            if cached:
+                return cached
+        except Exception:
+            pass
+
     base_ideas = [
-        {"order": "1st Order (Direct)", "stock": "NVIDIA Corporation", "ticker": "NVDA", "industry": "Semiconductors & AI Compute", "theme": "AI Datacenter Expansion", "reason": "Direct beneficiary of AI compute ratification & frontier model GPU demand (3Fourteen RAA + Hedgeye Mag 7 Tracker)."},
-        {"order": "1st Order (Direct)", "stock": "Texas Pacific Land Corp", "ticker": "TPL", "industry": "Permian Oil & Gas Royalties", "theme": "Reflation & Energy Supply", "reason": "Top 3Fourteen FCTE compounder; 90%+ FCF margin royalty exposure to energy & water without capex inflation drag."},
-        {"order": "1st Order (Direct)", "stock": "Cboe Global Markets", "ticker": "CBOE", "industry": "Derivatives & Options Exchanges", "theme": "Yield Curve Steepening", "reason": "Structural toll-collector on 0DTE options volume, VIX hedging, and dispersion trading (FCTE + 42 Macro)."},
-        {"order": "1st Order (Direct)", "stock": "Lockheed Martin Corp", "ticker": "LMT", "industry": "Aerospace & Defense", "theme": "Sovereign Debt Dominance", "reason": "Direct beneficiary of Fourth Turning geopolitical escalation & Paradigm C defense outlays."},
-        {"order": "1st Order (Direct)", "stock": "Wheaton Precious Metals", "ticker": "WPM", "industry": "Precious Metals Streaming", "theme": "Sovereign Debt Dominance", "reason": "Fixed-cost streaming leverage to sovereign gold accumulation (+1.85σ residual) without mine capex inflation."},
-        {"order": "2nd Order (Downstream Infrastructure)", "stock": "Arista Networks", "ticker": "ANET", "industry": "High-Speed AI Data Center Networking", "theme": "AI Datacenter Expansion", "reason": "Solves the GPU cluster interconnect bottleneck via ultra-low-latency Ethernet switching (3Fourteen FCTE)."},
-        {"order": "2nd Order (Downstream Infrastructure)", "stock": "Monolithic Power Systems", "ticker": "MPWR", "industry": "AI Server Power Management", "theme": "AI Datacenter Expansion", "reason": "High-efficiency monolithic power chips required for high-density AI server racks (FCTE & RAA)."},
-        {"order": "2nd Order (Downstream Infrastructure)", "stock": "Lam Research Corp", "ticker": "LRCX", "industry": "Wafer Fab Equipment (WFE)", "theme": "AI Datacenter Expansion", "reason": "2nd-order beneficiary of HBM memory packaging & domestic semiconductor reshoring."},
-        {"order": "2nd Order (Downstream Infrastructure)", "stock": "The Williams Companies", "ticker": "WMB", "industry": "Natural Gas Midstream Pipelines", "theme": "Reflation & Energy Supply", "reason": "24/7 natural gas pipeline toll-collector for AI hyperscale data centers & LNG export terminals."},
-        {"order": "2nd Order (Downstream Infrastructure)", "stock": "W.W. Grainger", "ticker": "GWW", "industry": "Industrial Distribution", "theme": "Yield Curve Steepening", "reason": "2nd-order beneficiary of Paradigm C domestic reshoring & nominal GDP pass-through (3Fourteen FCTE)."},
-        {"order": "3rd Order (Knock-On / Policy & Wealth)", "stock": "JPMorgan Chase & Co.", "ticker": "JPM", "industry": "Money-Center Banking & Wealth", "theme": "Yield Curve Steepening", "reason": "3rd-order beneficiary of Paradigm C bank SLR deregulation & K-shaped wealth management flows."},
-        {"order": "3rd Order (Knock-On / Policy & Wealth)", "stock": "Constellation Energy", "ticker": "CEG", "industry": "Nuclear Baseload Power Generation", "theme": "AI Datacenter Expansion", "reason": "3rd-order AI power monetization via 20-year hyperscaler nuclear power purchase agreements (PPAs)."},
-        {"order": "3rd Order (Knock-On / Policy & Wealth)", "stock": "Booking Holdings", "ticker": "BKNG", "industry": "Premium Experiential Travel", "theme": "Sovereign Debt Dominance", "reason": "Captures Prometheus Kalecki-Levy top-decile household wealth & dissaving impulse."},
-        {"order": "3rd Order (Knock-On / Policy & Wealth)", "stock": "Palantir Technologies", "ticker": "PLTR", "industry": "Enterprise AI & Defense Software", "theme": "AI Datacenter Expansion", "reason": "3rd-order corporate margin defense (Pod 2) automating white-collar workflows & defense logistics."},
+        {"order": "1st Order (Direct)", "stock": "NVIDIA Corporation", "ticker": "NVDA", "industry": "Semiconductors & AI Compute", "theme": "AI Datacenter Expansion", "horizon": "1–3 Months", "reason": "Direct beneficiary of AI compute ratification & frontier model GPU demand (3Fourteen RAA + Hedgeye Mag 7 Tracker)."},
+        {"order": "1st Order (Direct)", "stock": "Texas Pacific Land Corp", "ticker": "TPL", "industry": "Permian Oil & Gas Royalties", "theme": "Reflation & Energy Supply", "horizon": "3–6 Months", "reason": "Top 3Fourteen FCTE compounder; 90%+ FCF margin royalty exposure to energy & water without capex inflation drag."},
+        {"order": "1st Order (Direct)", "stock": "Cboe Global Markets", "ticker": "CBOE", "industry": "Derivatives & Options Exchanges", "theme": "Yield Curve Steepening", "horizon": "1–6 Months", "reason": "Structural toll-collector on 0DTE options volume, VIX hedging, and dispersion trading (FCTE + 42 Macro)."},
+        {"order": "1st Order (Direct)", "stock": "Lockheed Martin Corp", "ticker": "LMT", "industry": "Aerospace & Defense", "theme": "Sovereign Debt Dominance", "horizon": "3–12 Months", "reason": "Direct beneficiary of Fourth Turning geopolitical escalation & Paradigm C defense outlays."},
+        {"order": "1st Order (Direct)", "stock": "Wheaton Precious Metals", "ticker": "WPM", "industry": "Precious Metals Streaming", "theme": "Sovereign Debt Dominance", "horizon": "3–12 Months", "reason": "Fixed-cost streaming leverage to sovereign gold accumulation (+1.85σ residual) without mine capex inflation."},
+        {"order": "2nd Order (Downstream Infrastructure)", "stock": "Arista Networks", "ticker": "ANET", "industry": "High-Speed AI Data Center Networking", "theme": "AI Datacenter Expansion", "horizon": "2–4 Months", "reason": "Solves the GPU cluster interconnect bottleneck via ultra-low-latency Ethernet switching (3Fourteen FCTE)."},
+        {"order": "2nd Order (Downstream Infrastructure)", "stock": "Monolithic Power Systems", "ticker": "MPWR", "industry": "AI Server Power Management", "theme": "AI Datacenter Expansion", "horizon": "2–4 Months", "reason": "High-efficiency monolithic power chips required for high-density AI server racks (FCTE & RAA)."},
+        {"order": "2nd Order (Downstream Infrastructure)", "stock": "Lam Research Corp", "ticker": "LRCX", "industry": "Wafer Fab Equipment (WFE)", "theme": "AI Datacenter Expansion", "horizon": "3–6 Months", "reason": "2nd-order beneficiary of HBM memory packaging & domestic semiconductor reshoring."},
+        {"order": "2nd Order (Downstream Infrastructure)", "stock": "The Williams Companies", "ticker": "WMB", "industry": "Natural Gas Midstream Pipelines", "theme": "Reflation & Energy Supply", "horizon": "3–6 Months", "reason": "24/7 natural gas pipeline toll-collector for AI hyperscale data centers & LNG export terminals."},
+        {"order": "2nd Order (Downstream Infrastructure)", "stock": "W.W. Grainger", "ticker": "GWW", "industry": "Industrial Distribution", "theme": "Yield Curve Steepening", "horizon": "6–12 Months", "reason": "2nd-order beneficiary of Paradigm C domestic reshoring & nominal GDP pass-through (3Fourteen FCTE)."},
+        {"order": "3rd Order (Knock-On / Policy & Wealth)", "stock": "JPMorgan Chase & Co.", "ticker": "JPM", "industry": "Money-Center Banking & Wealth", "theme": "Yield Curve Steepening", "horizon": "3–9 Months", "reason": "3rd-order beneficiary of Paradigm C bank SLR deregulation & K-shaped wealth management flows."},
+        {"order": "3rd Order (Knock-On / Policy & Wealth)", "stock": "Constellation Energy", "ticker": "CEG", "industry": "Nuclear Baseload Power Generation", "theme": "AI Datacenter Expansion", "horizon": "3–6 Months", "reason": "3rd-order AI power monetization via 20-year hyperscaler nuclear power purchase agreements (PPAs)."},
+        {"order": "3rd Order (Knock-On / Policy & Wealth)", "stock": "Booking Holdings", "ticker": "BKNG", "industry": "Premium Experiential Travel", "theme": "Sovereign Debt Dominance", "horizon": "3–6 Months", "reason": "Captures Prometheus Kalecki-Levy top-decile household wealth & dissaving impulse."},
+        {"order": "3rd Order (Knock-On / Policy & Wealth)", "stock": "Palantir Technologies", "ticker": "PLTR", "industry": "Enterprise AI & Defense Software", "theme": "AI Datacenter Expansion", "horizon": "1–6 Months", "reason": "3rd-order corporate margin defense (Pod 2) automating white-collar workflows & defense logistics."},
     ]
 
+    # 1. Fetch Project-Global Macro Context
+    active_regime = "DEFLATION"
+    risk_on_pct = 70.0
+    try:
+        try:
+            from backend.app.quant_engine.forty_two_macro_engine import FortyTwoMacroLiveBuilder
+        except ImportError:
+            from app.quant_engine.forty_two_macro_engine import FortyTwoMacroLiveBuilder
+        ftm = FortyTwoMacroLiveBuilder.build_live_42macro_dashboard()
+        active_regime = ftm.get("global_macro_risk_matrix", {}).get("active_regime_label", "DEFLATION")
+        risk_on_pct = float(ftm.get("global_macro_risk_matrix", {}).get("probability_risk_on_pct", 70.0))
+    except Exception:
+        pass
+
+    net_liq_val = 5745.7
+    net_liq_4w = -120.0
+    try:
+        try:
+            from backend.app.quant_engine.liquidity_engine import LiquidityEngine
+        except ImportError:
+            from app.quant_engine.liquidity_engine import LiquidityEngine
+        liq = LiquidityEngine.build_complete_liquidity_payload()
+        net_liq_val = float(liq.get("us_net_liquidity", {}).get("net_liquidity_usd_bn") or 5745.7)
+        net_liq_4w = float(liq.get("us_net_liquidity", {}).get("roc_4w_usd_bn") or -120.0)
+    except Exception:
+        pass
+
+    # 2. Batch-download 1Y closes for all 14 candidates
     tks = [x["ticker"] for x in base_ideas]
     close_df, _ = fetch_ohlcv_Slot_with_failover(tks, period="1y")
 
@@ -898,16 +944,19 @@ async def get_live_speculation_matrix():
     for item in base_ideas:
         tk = item["ticker"]
         price = 0.0
+        high_52 = 0.0
+        low_52 = 0.0
         rsi_14d = 50.0
         range_52w_pct = 50.0
         vams_label = "NEUTRAL (0)"
         asymmetry_str = "3.5 : 1"
+        asym_ratio = 3.5
 
         if tk in close_df.columns and len(close_df[tk].dropna()) >= 20:
             s = close_df[tk].dropna()
             price = round(float(s.iloc[-1]), 2)
-            high_52 = float(s.max())
-            low_52 = float(s.min())
+            high_52 = round(float(s.max()), 2)
+            low_52 = round(float(s.min()), 2)
             range_52w_pct = round(((price - low_52) / max(1e-6, high_52 - low_52)) * 100.0, 1)
             rsi_14d = FortyTwoMacroLiveBuilder._calc_rsi_14(s)
             pr = FortyTwoMacroEngine.compute_vams_and_probable_range(s)
@@ -928,22 +977,128 @@ async def get_live_speculation_matrix():
             )
         )
 
+        # 0-100 OutlierScore & Conviction Tier
+        quad_factor = 88.0 if active_regime in ("REFLATION", "GOLDILOCKS") else 75.0
+        vams_factor = 92.0 if "BULLISH" in vams_label else (62.0 if "NEUTRAL" in vams_label else 45.0)
+        asym_factor = min(96.0, asym_ratio * 20.0)
+        timing_factor = 92.0 if "LOW-BASE" in entry_timing else (72.0 if "MID-RUNWAY" in entry_timing else 48.0)
+        outlier_score = round(0.25 * quad_factor + 0.25 * vams_factor + 0.25 * asym_factor + 0.25 * timing_factor, 1)
+
+        if outlier_score >= 85.0:
+            conviction_tier = "HIGH_CONVICTION_LONG"
+        elif outlier_score >= 75.0:
+            conviction_tier = "CYCLICAL_MOMENTUM_LONG"
+        elif outlier_score >= 65.0:
+            conviction_tier = "ACCUMULATE_PULLBACK"
+        else:
+            conviction_tier = "TACTICAL_HOLD"
+
         enriched.append({
             **item,
             "live_price": price,
+            "high_52w": high_52,
+            "low_52w": low_52,
             "rsi_14d": rsi_14d,
             "range_52w_pct": range_52w_pct,
             "vams_status": vams_label,
             "live_entry_timing": entry_timing,
             "asymmetry": asymmetry_str,
+            "asymmetry_num": asym_ratio,
+            "outlier_score": outlier_score,
+            "conviction_tier": conviction_tier,
         })
+
+    # Sort descending by OutlierScore
+    enriched.sort(key=lambda x: x["outlier_score"], reverse=True)
+
+    # 3. Dynamic Multi-Order Cascade Summary
+    order_groups = {
+        "1st Order": [x for x in enriched if "1st" in x["order"]],
+        "2nd Order": [x for x in enriched if "2nd" in x["order"]],
+        "3rd Order": [x for x in enriched if "3rd" in x["order"]],
+    }
+
+    cascade_summary = [
+        {
+            "order": "1st Order",
+            "title": "Direct Headline Beneficiaries",
+            "tag": "OBVIOUS CROWD",
+            "count": len(order_groups["1st Order"]),
+            "avg_asymmetry": f"{round(sum(x['asymmetry_num'] for x in order_groups['1st Order']) / max(1, len(order_groups['1st Order'])), 1)} : 1",
+            "avg_outlier_score": round(sum(x['outlier_score'] for x in order_groups['1st Order']) / max(1, len(order_groups['1st Order'])), 1),
+            "typical_horizon": "1–3 Months",
+            "valuation_status": "Expanded / Hyperscaler Capex Peak",
+            "description": "Primary assets directly impacted by headline macro policy (e.g. NVDA GPU compute, TPL energy royalties, CBOE vol tollbooth).",
+            "key_tickers": [x["ticker"] for x in order_groups["1st Order"]],
+        },
+        {
+            "order": "2nd Order",
+            "title": "Downstream Infrastructure & Enablers",
+            "tag": "ALPHA ZONE",
+            "count": len(order_groups["2nd Order"]),
+            "avg_asymmetry": f"{round(sum(x['asymmetry_num'] for x in order_groups['2nd Order']) / max(1, len(order_groups['2nd Order'])), 1)} : 1",
+            "avg_outlier_score": round(sum(x['outlier_score'] for x in order_groups['2nd Order']) / max(1, len(order_groups['2nd Order'])), 1),
+            "typical_horizon": "2–6 Months",
+            "valuation_status": "Lagging Multiples / High Margin Expansion",
+            "description": "Critical supply chain inputs and infrastructure required for 1st order themes to scale (e.g. ANET networking, MPWR power, WMB gas pipelines).",
+            "key_tickers": [x["ticker"] for x in order_groups["2nd Order"]],
+        },
+        {
+            "order": "3rd Order",
+            "title": "Knock-On / Policy & Bottlenecks",
+            "tag": "ASYMMETRIC DERIVATIVES",
+            "count": len(order_groups["3rd Order"]),
+            "avg_asymmetry": f"{round(sum(x['asymmetry_num'] for x in order_groups['3rd Order']) / max(1, len(order_groups['3rd Order'])), 1)} : 1",
+            "avg_outlier_score": round(sum(x['outlier_score'] for x in order_groups['3rd Order']) / max(1, len(order_groups['3rd Order'])), 1),
+            "typical_horizon": "3–12 Months",
+            "valuation_status": "Deep Cyclical Discount / Asymmetric Runway",
+            "description": "Second-derivative capital flows and bottleneck physical resources (e.g. CEG nuclear PPAs, JPM SLR relief, PLTR enterprise software).",
+            "key_tickers": [x["ticker"] for x in order_groups["3rd Order"]],
+        },
+    ]
+
+    # 4. Theme Summaries
+    theme_names = ["AI Datacenter Expansion", "Sovereign Debt Dominance", "Yield Curve Steepening", "Reflation & Energy Supply"]
+    theme_summaries = []
+    for th in theme_names:
+        th_stocks = [x for x in enriched if x["theme"] == th]
+        if th_stocks:
+            theme_summaries.append({
+                "theme": th,
+                "count": len(th_stocks),
+                "avg_asymmetry": f"{round(sum(x['asymmetry_num'] for x in th_stocks) / len(th_stocks), 1)} : 1",
+                "top_conviction_ticker": th_stocks[0]["ticker"],
+                "tickers": [x["ticker"] for x in th_stocks],
+            })
 
     res = {
         "status": "ok",
         "as_of_utc": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
+        "macro_regime": {
+            "active_regime_label": active_regime,
+            "hedgeye_quad": "QUAD_3",
+            "net_liquidity_usd_bn": net_liq_val,
+            "net_liquidity_4w_roc_bn": net_liq_4w,
+            "probability_risk_on_pct": risk_on_pct,
+            "accord_2_0_prob": 72.0,
+            "synthesis_consensus": "3 of 4 Authors Cautious / Reflationary Overhang",
+        },
+        "cascade_summary": cascade_summary,
+        "theme_summaries": theme_summaries,
         "speculation_rows": enriched,
     }
-    return _sanitize_floats(res)
+
+    sanitized = _sanitize_floats(res)
+    try:
+        try:
+            from backend.app.db.stock_compressed_store import StockCompressedStore
+        except ImportError:
+            from app.db.stock_compressed_store import StockCompressedStore
+        StockCompressedStore.save_macro_liquidity_payload("live_speculation_matrix", sanitized)
+    except Exception:
+        pass
+
+    return sanitized
 
 
 @app.get("/api/v1/scenarios")
