@@ -944,12 +944,78 @@ class OptionsAndVolatilitySurfaceEngine:
 
         elapsed = round(time.perf_counter() - t0, 2)
 
+        # 5. Economist & Macro-Trader Institutional Framework Barometers
+        economist_barometers = {
+            "barometer_1_dealer_gamma": {
+                "name": "Dealer Gamma Modulator (GEX)",
+                "net_gex_bn": mod1["net_gex_bn"],
+                "flip_level": mod1["gamma_flip_price"],
+                "regime": mod1["gamma_regime_classification"],
+                "status_tag": "VOLATILITY CUSHION (+GEX)" if mod1["net_gex_bn"] >= 0 else "VOLATILITY ACCELERATOR (-GEX)",
+                "summary": (
+                    f"Dealers are long gamma (+{mod1['net_gex_bn']}B/1%) and mechanically buy dips/sell rallies, dampening macro drawdowns."
+                    if mod1["net_gex_bn"] >= 0 else
+                    f"Dealers are short gamma ({mod1['net_gex_bn']}B/1%) below flip ${mod1['gamma_flip_price']}, accelerating selloffs via reflexive delta hedging."
+                ),
+            },
+            "barometer_2_pod_shop_dispersion": {
+                "name": "Pod-Shop De-Grossing Gauge",
+                "implied_corr_pct": mod2["implied_sector_corr_pct"],
+                "corr_percentile": mod2["corr_1y_percentile"],
+                "sharpe_dispersion": mod2["sector_sharpe_dispersion"],
+                "status_tag": (
+                    "ACUTE DE-GROSSING RISK" if mod2["corr_1y_percentile"] <= 18.0 else
+                    ("WASHOUT RALLY SIGNAL" if mod2["corr_1y_percentile"] >= 82.0 else "BALANCED DISPERSION")
+                ),
+                "summary": (
+                    f"Sector correlation is at {mod2['implied_sector_corr_pct']}% ({mod2['corr_1y_percentile']}th pct) with Sharpe dispersion {mod2['sector_sharpe_dispersion']}."
+                ),
+            },
+            "barometer_3_volatility_cosigner": {
+                "name": "3Fourteen Volatility Co-Signer",
+                "move_index": mod3["move_index"],
+                "move_percentile": mod3["move_1y_pct"],
+                "vix_index": mod3["vix_index"],
+                "vix_percentile": mod3["vix_1y_pct"],
+                "z_spread": mod3["move_minus_vix_z_spread"],
+                "status_tag": mod3["signal_status"],
+                "summary": mod3["cosigner_state"],
+            },
+            "barometer_4_skew_vix_tail_risk": {
+                "name": "CBOE SKEW / VIX Tail Crash Ratio",
+                "ratio": mod4["skew_to_vix_ratio"],
+                "percentile": mod4["skew_to_vix_percentile"],
+                "cboe_skew": mod4["cboe_skew_index"],
+                "vix_spot": mod4["vix_spot"],
+                "status_tag": (
+                    "TAIL CRASH ASYMMETRY HIGH" if mod4["skew_to_vix_ratio"] >= 8.5 else
+                    ("COMPLACENT UNHEDGED SURFACE" if mod4["cboe_skew_index"] <= 125.0 else "NORMAL TAIL SKEW")
+                ),
+                "summary": (
+                    f"SKEW/VIX is {mod4['skew_to_vix_ratio']}x ({mod4['skew_to_vix_percentile']}th pct) with CBOE SKEW at {mod4['cboe_skew_index']} vs VIX {mod4['vix_spot']}."
+                ),
+            },
+            "barometer_5_inverse_etf_capitulation": {
+                "name": "3Fourteen Inverse ETF Scanner",
+                "inverse_share_pct": mod5["inverse_etf_vol_share_pct"],
+                "bull_share_pct": mod5["bull_leveraged_etf_vol_share_pct"],
+                "status_tag": (
+                    "CAPITULATION BOTTOM WASHOUT" if mod5["inverse_etf_vol_share_pct"] >= 48.0 else
+                    ("LEVERAGED LONG EUPHORIA" if mod5["inverse_etf_vol_share_pct"] <= 19.0 else "NEUTRAL SPECULATIVE BAND")
+                ),
+                "summary": (
+                    f"Speculative Inverse ETF share is {mod5['inverse_etf_vol_share_pct']}% (Washout >48%, Euphoria <19%)."
+                ),
+            },
+        }
+
         payload = {
             "status": "ok",
             "as_of_utc": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
             "elapsed_seconds": elapsed,
             "selected_ticker": clean_tk,
             "supported_tickers": ["SPY", "QQQ", "IWM", "NVDA", "IBIT", "GLD", "TLT", "USO", "XLK", "XLF", "XLE"],
+            "economist_framework_barometers": economist_barometers,
             "macro_regime": {
                 "active_regime_label": active_regime,
                 "hedgeye_quad": "QUAD_3",

@@ -8,6 +8,7 @@ Supports PostgreSQL (Neon) and SQLite with automatic DSN normalization.
 """
 
 import os
+import math
 import json
 import time
 import sqlite3
@@ -753,14 +754,23 @@ class StockCompressedStore:
             return
         db_url = cls.get_db_url()
 
-        total_gex = data.get("total_gex") or data.get("net_gamma_usd_m")
-        call_wall = data.get("call_wall")
-        put_wall = data.get("put_wall")
-        flip_level = data.get("gamma_flip_level") or data.get("vol_trigger")
-        skew = data.get("skew_25d")
-        pc_ratio = data.get("put_call_vol_ratio") or data.get("p_c_ratio")
-        zero_dte = data.get("zero_dte_heat_ratio")
-        crowding = data.get("crowding_z")
+        def _to_py_float(val):
+            if val is None:
+                return None
+            try:
+                f = float(val)
+                return None if (math.isnan(f) or math.isinf(f)) else f
+            except Exception:
+                return None
+
+        total_gex = _to_py_float(data.get("total_gex") or data.get("net_gamma_usd_m"))
+        call_wall = _to_py_float(data.get("call_wall"))
+        put_wall = _to_py_float(data.get("put_wall"))
+        flip_level = _to_py_float(data.get("gamma_flip_level") or data.get("vol_trigger"))
+        skew = _to_py_float(data.get("skew_25d"))
+        pc_ratio = _to_py_float(data.get("put_call_vol_ratio") or data.get("p_c_ratio"))
+        zero_dte = _to_py_float(data.get("zero_dte_heat_ratio"))
+        crowding = _to_py_float(data.get("crowding_z"))
 
         if "postgres" in db_url:
             try:

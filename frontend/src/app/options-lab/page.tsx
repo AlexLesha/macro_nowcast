@@ -328,6 +328,133 @@ export default function OptionsAndVolatilityLabPage() {
         </section>
 
         {/* =====================================================================
+            INSTITUTIONAL MACRO-TRADER VOLATILITY COCKPIT (THE 5 CORE BAROMETERS)
+           ===================================================================== */}
+        <section className="rounded-xl border border-slate-800 bg-[#111827] p-4 md:p-5 space-y-4 shadow-lg">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-mono uppercase tracking-wider text-amber-400">
+                  Institutional Macro-Trader Synthesis
+                </span>
+                <span className="px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-mono">
+                  5 Core Volatility &amp; Microstructure Barometers
+                </span>
+              </div>
+              <h2 className="text-base font-bold text-white mt-1">
+                Institutional Macro-Trader Framework Matrix (Regime Transmission &amp; Tail Risk)
+              </h2>
+            </div>
+            <div className="text-xs font-mono text-slate-400">
+              Cross-Asset Signal Arbitrage • Multi-Manager Positioning
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3 font-mono text-xs">
+            {/* Barometer 1: Dealer Gamma Modulator */}
+            <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-3 space-y-2 flex flex-col justify-between">
+              <div>
+                <div className="text-slate-400 text-xs">1. Dealer Gamma (GEX)</div>
+                <div className="text-sm font-bold text-white mt-0.5">
+                  {m1?.net_gex_bn >= 0 ? "+" : ""}{m1?.net_gex_bn}B <span className="text-xs font-normal text-slate-400">/ 1%</span>
+                </div>
+                <div className={`mt-1.5 px-2 py-0.5 rounded border text-xs font-semibold inline-block ${
+                  m1?.net_gex_bn >= 0 ? "bg-emerald-950/60 border-emerald-500/40 text-emerald-300" : "bg-rose-950/60 border-rose-500/40 text-rose-300"
+                }`}>
+                  {m1?.net_gex_bn >= 0 ? "VOL CUSHION" : "VOL ACCELERATOR"}
+                </div>
+              </div>
+              <p className="text-slate-300 font-sans text-xs leading-relaxed pt-1 border-t border-slate-800/80">
+                {m1?.net_gex_bn >= 0
+                  ? "Dealers mechanically buy dips and sell rallies, dampening macro quad volatility."
+                  : "Dealers are short gamma and must sell futures as market drops, accelerating air pockets."}
+              </p>
+            </div>
+
+            {/* Barometer 2: Pod-Shop Dispersion */}
+            <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-3 space-y-2 flex flex-col justify-between">
+              <div>
+                <div className="text-slate-400 text-xs">2. Pod-Shop Dispersion</div>
+                <div className="text-sm font-bold text-cyan-300 mt-0.5">
+                  {m2?.implied_sector_corr_pct}% <span className="text-xs font-normal text-slate-400">({m2?.corr_1y_percentile}th pct)</span>
+                </div>
+                <div className={`mt-1.5 px-2 py-0.5 rounded border text-xs font-semibold inline-block ${
+                  (m2?.corr_1y_percentile || 50) <= 18 ? "bg-rose-950/60 border-rose-500/40 text-rose-300" :
+                  (m2?.corr_1y_percentile || 50) >= 82 ? "bg-emerald-950/60 border-emerald-500/40 text-emerald-300" :
+                  "bg-slate-800 border-slate-700 text-slate-300"
+                }`}>
+                  {(m2?.corr_1y_percentile || 50) <= 18 ? "DE-GROSSING RISK" : (m2?.corr_1y_percentile || 50) >= 82 ? "WASHOUT RALLY" : "BALANCED DISPERSION"}
+                </div>
+              </div>
+              <p className="text-slate-300 font-sans text-xs leading-relaxed pt-1 border-t border-slate-800/80">
+                11-Sector Sharpe dispersion is {m2?.sector_sharpe_dispersion}. Multi-manager funds are levered long/short.
+              </p>
+            </div>
+
+            {/* Barometer 3: 3Fourteen Co-Signer */}
+            <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-3 space-y-2 flex flex-col justify-between">
+              <div>
+                <div className="text-slate-400 text-xs">3. Volatility Co-Signer</div>
+                <div className="text-sm font-bold text-amber-300 mt-0.5">
+                  MOVE {m3?.move_index} <span className="text-xs font-normal text-slate-400">vs VIX {m3?.vix_index}</span>
+                </div>
+                <div className={`mt-1.5 px-2 py-0.5 rounded border text-xs font-semibold inline-block ${
+                  statusBadgeStyle(m3?.signal_status)
+                }`}>
+                  {m3?.signal_status === "ACTIONABLE_BULLISH" ? "BULLISH CO-SIGNER" :
+                   m3?.signal_status === "ACTIONABLE_BEARISH" ? "RATE AIR-POCKET" : "CO-MOVING REGIME"}
+                </div>
+              </div>
+              <p className="text-slate-300 font-sans text-xs leading-relaxed pt-1 border-t border-slate-800/80">
+                Z-spread: {m3?.move_minus_vix_z_spread >= 0 ? "+" : ""}{m3?.move_minus_vix_z_spread}σ. Subdued bond vol confirms equity dip buying.
+              </p>
+            </div>
+
+            {/* Barometer 4: SKEW / VIX Tail Risk */}
+            <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-3 space-y-2 flex flex-col justify-between">
+              <div>
+                <div className="text-slate-400 text-xs">4. SKEW / VIX Tail Crash</div>
+                <div className="text-sm font-bold text-rose-300 mt-0.5">
+                  {m4?.skew_to_vix_ratio || 7.8}x <span className="text-xs font-normal text-slate-400">({m4?.skew_to_vix_percentile || 65}th pct)</span>
+                </div>
+                <div className={`mt-1.5 px-2 py-0.5 rounded border text-xs font-semibold inline-block ${
+                  (m4?.skew_to_vix_ratio || 0) >= 8.5 ? "bg-rose-950/60 border-rose-500/40 text-rose-300" :
+                  (m4?.cboe_skew_index || 140) <= 125 ? "bg-amber-950/60 border-amber-500/40 text-amber-300" :
+                  "bg-slate-800 border-slate-700 text-slate-300"
+                }`}>
+                  {(m4?.skew_to_vix_ratio || 0) >= 8.5 ? "TAIL CRASH ASYMMETRY" : (m4?.cboe_skew_index || 140) <= 125 ? "COMPLACENT UNHEDGED" : "NORMAL TAIL SKEW"}
+                </div>
+              </div>
+              <p className="text-slate-300 font-sans text-xs leading-relaxed pt-1 border-t border-slate-800/80">
+                CBOE SKEW: {m4?.cboe_skew_index}. Measures extreme OTM crash puts relative to ATM headline vol.
+              </p>
+            </div>
+
+            {/* Barometer 5: Leveraged Inverse ETF Share */}
+            <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-3 space-y-2 flex flex-col justify-between">
+              <div>
+                <div className="text-slate-400 text-xs">5. Inverse ETF Capitulation</div>
+                <div className="text-sm font-bold text-emerald-300 mt-0.5">
+                  {m5?.inverse_etf_vol_share_pct}% <span className="text-xs font-normal text-slate-400">Inverse Vol</span>
+                </div>
+                <div className={`mt-1.5 px-2 py-0.5 rounded border text-xs font-semibold inline-block ${
+                  (m5?.inverse_etf_vol_share_pct || 0) >= 48 ? "bg-emerald-950/60 border-emerald-500/40 text-emerald-300" :
+                  (m5?.inverse_etf_vol_share_pct || 0) <= 19 ? "bg-rose-950/60 border-rose-500/40 text-rose-300" :
+                  "bg-slate-800 border-slate-700 text-slate-300"
+                }`}>
+                  {(m5?.inverse_etf_vol_share_pct || 0) >= 48 ? "CAPITULATION WASHOUT" :
+                   (m5?.inverse_etf_vol_share_pct || 0) <= 19 ? "LEVERAGED LONG EUPHORIA" : "NEUTRAL BAND"}
+                </div>
+              </div>
+              <p className="text-slate-300 font-sans text-xs leading-relaxed pt-1 border-t border-slate-800/80">
+                Retail short ETF share (SQQQ+SOXS+SPXS). &gt;48% signals a washout; &lt;19% warns of retail euphoria.
+              </p>
+            </div>
+          </div>
+        </section>
+
+
+        {/* =====================================================================
             MODULE 1: DEALER GAMMA EXPOSURE (GEX), VANNA/CHARM & KSPY COLLAR ROUTER
            ===================================================================== */}
         <section className="rounded-xl border border-slate-800 bg-[#111827] p-4 md:p-5 space-y-4">
