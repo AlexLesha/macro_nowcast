@@ -77,17 +77,6 @@ export default function LiquidityAllocationPage() {
     return "COMMODITIES"; // Macro Exposures, Commodities, FX, Crypto
   };
 
-  const sortAlongXAxis = (items: any[]) => {
-    return [...items].sort((a, b) => {
-      const vScoreA = a.vams_score !== undefined && a.vams_score !== null ? Number(a.vams_score) : Number(a.vams_state || 0);
-      const vScoreB = b.vams_score !== undefined && b.vams_score !== null ? Number(b.vams_score) : Number(b.vams_state || 0);
-      if (Math.abs(vScoreA - vScoreB) > 0.001) return vScoreA - vScoreB;
-      const expA = a.target_exposure_pct !== undefined && a.target_exposure_pct !== null ? Number(a.target_exposure_pct) : 0;
-      const expB = b.target_exposure_pct !== undefined && b.target_exposure_pct !== null ? Number(b.target_exposure_pct) : 0;
-      return expA - expB;
-    });
-  };
-
   const DR_MO_GROUPS = [
     {
       id: "SECTORS",
@@ -125,6 +114,43 @@ export default function LiquidityAllocationPage() {
     return true;
   };
 
+  const getRsiActionDetails = (rsi: number | undefined | null, vScore: number) => {
+    const isPositive = vScore > 0.1;
+    const isNegative = vScore < -0.1;
+    const isNeutral = !isPositive && !isNegative;
+
+    if (rsi === undefined || rsi === null || isNaN(rsi)) {
+      if (isPositive) return { text: "Bullish", color: "text-emerald-400" };
+      if (isNegative) return { text: "Bearish", color: "text-rose-400" };
+      return { text: "Neutral", color: "text-slate-400" };
+    }
+
+    const r = Math.round(rsi);
+
+    // 1. Extreme actionable states
+    if (isPositive && r <= 38) {
+      return { text: `RSI: ${r} · BUY PULLBACK`, color: "text-emerald-400 font-bold" };
+    }
+    if (isPositive && r >= 68) {
+      return { text: `RSI: ${r} · EXTENDED`, color: "text-amber-400 font-bold" };
+    }
+    if (isNegative && r >= 62) {
+      return { text: `RSI: ${r} · SELL RIP`, color: "text-rose-400 font-bold" };
+    }
+    if (isNegative && r <= 30) {
+      return { text: `RSI: ${r} · SQUEEZE RISK`, color: "text-amber-400 font-bold" };
+    }
+
+    // 2. Normal non-extreme states: Bullish, Bearish, Neutral
+    if (isPositive) {
+      return { text: `RSI: ${r} · Bullish`, color: "text-cyan-300" };
+    }
+    if (isNegative) {
+      return { text: `RSI: ${r} · Bearish`, color: "text-rose-300" };
+    }
+    return { text: `RSI: ${r} · Neutral`, color: "text-slate-400" };
+  };
+
   const renderDrMoCard = (f: any, idx: number) => {
     const vScore = f.vams_score !== undefined && f.vams_score !== null ? Number(f.vams_score) : Number(f.vams_state || 0);
     const targetExp =
@@ -137,91 +163,61 @@ export default function LiquidityAllocationPage() {
         : 0;
     const isPositive = vScore > 0.1;
     const isNegative = vScore < -0.1;
-    const signalStr =
-      f.proper_trade || (isPositive ? `LONG (+${Math.round(targetExp)}%)` : isNegative ? `SHORT (${Math.round(targetExp)}%)` : "NEUTRAL (0%)");
-
-    // Position on [-1.0, +1.0] spectrum: 0% to 100%
-    const spectrumPct = Math.min(100, Math.max(0, ((vScore + 1.0) / 2.0) * 100));
+    const rsiInfo = getRsiActionDetails(f.rsi_14d, vScore);
 
     return (
       <div
         key={idx}
-        className={`p-2.5 rounded-lg border transition shadow-sm flex flex-col justify-between ${
+        className={`p-2 rounded-lg border transition shadow-sm w-[135px] sm:w-[145px] shrink-0 text-xs font-mono space-y-1 ${
           isPositive
-            ? "bg-emerald-950/20 border-emerald-800/40 hover:border-emerald-500/60"
+            ? "bg-[#0b1622] border-emerald-900/60 hover:border-emerald-500/60"
             : isNegative
-            ? "bg-rose-950/20 border-rose-800/40 hover:border-rose-500/60"
-            : "bg-slate-900/50 border-slate-800 hover:border-slate-700"
+            ? "bg-[#180d15] border-rose-900/60 hover:border-rose-500/60"
+            : "bg-[#101726] border-slate-800 hover:border-slate-700"
         }`}
       >
-        <div>
-          <div className="flex items-center justify-between text-xs font-mono">
-            <span className="font-bold text-slate-100">${f.ticker}</span>
-            <span
-              className={`text-xs px-1.5 py-0.5 rounded font-mono font-bold border ${
-                isPositive
-                  ? "bg-emerald-950 border-emerald-800 text-emerald-300"
-                  : isNegative
-                  ? "bg-rose-950 border-rose-800 text-rose-300"
-                  : "bg-slate-800 border-slate-700 text-slate-300"
-              }`}
-            >
-              VAMS: {vScore > 0 ? "+" : ""}{vScore.toFixed(2)}
-            </span>
-          </div>
-          <div className="text-xs text-slate-400 font-mono truncate mt-0.5" title={f.name}>
-            {f.name || f.ticker}
-          </div>
+        <div className="flex items-center justify-between">
+          <span className="font-bold text-slate-100">${f.ticker}</span>
+          <span
+            className={`px-1 py-0.2 rounded text-xs font-bold ${
+              isPositive
+                ? "bg-emerald-950 text-emerald-300"
+                : isNegative
+                ? "bg-rose-950 text-rose-300"
+                : "bg-slate-800 text-slate-300"
+            }`}
+          >
+            {vScore > 0 ? "+" : ""}{vScore.toFixed(2)}
+          </span>
         </div>
 
-        <div className="mt-2 space-y-1.5">
-          {/* Horizontal X-Axis Mini Spectrum Bar */}
-          <div className="space-y-0.5">
-            <div className="flex justify-between text-xs font-mono text-slate-500">
-              <span>-1.0</span>
-              <span className="text-slate-400">0.0</span>
-              <span>+1.0</span>
-            </div>
-            <div className="h-1.5 w-full bg-slate-950 rounded-full overflow-hidden border border-slate-800 relative">
-              {/* Center line marker at 50% */}
-              <div className="absolute top-0 bottom-0 left-1/2 w-px bg-slate-700 z-10" />
-              {/* Value fill bar */}
-              {vScore >= 0 ? (
-                <div
-                  style={{ left: "50%", width: `${(vScore / 2) * 100}%` }}
-                  className="absolute top-0 bottom-0 bg-emerald-500 rounded-r-full"
-                />
-              ) : (
-                <div
-                  style={{ left: `${spectrumPct}%`, width: `${(Math.abs(vScore) / 2) * 100}%` }}
-                  className="absolute top-0 bottom-0 bg-rose-500 rounded-l-full"
-                />
-              )}
-            </div>
-          </div>
+        <div className="text-slate-400 truncate text-xs" title={f.name}>
+          {f.name || f.ticker}
+        </div>
 
-          <div className="flex items-center justify-between text-xs font-mono pt-0.5 border-t border-slate-800/60">
-            <span
-              className={`font-bold truncate text-xs ${
-                isPositive ? "text-emerald-400" : isNegative ? "text-rose-400" : "text-slate-400"
-              }`}
-              title={signalStr}
+        <div className="flex items-center justify-between pt-0.5 border-t border-slate-800/60 text-xs">
+          <span
+            className={`font-bold ${
+              isPositive ? "text-emerald-400" : isNegative ? "text-rose-400" : "text-slate-400"
+            }`}
+          >
+            {isPositive ? "LONG" : isNegative ? "SHORT" : "NEUTRAL"}
+          </span>
+          <span className="text-slate-300">
+            Exp:{" "}
+            <strong
+              className={
+                targetExp > 0 ? "text-emerald-300" : targetExp < 0 ? "text-rose-300" : "text-slate-300"
+              }
             >
-              {signalStr}
-            </span>
-            <span className="text-slate-400 font-semibold shrink-0 ml-1 text-xs">
-              Exp:{" "}
-              <strong className={targetExp > 0 ? "text-emerald-300" : targetExp < 0 ? "text-rose-300" : "text-slate-300"}>
-                {targetExp > 0 ? "+" : ""}{typeof targetExp === "number" ? targetExp.toFixed(1) : targetExp}%
-              </strong>
-            </span>
-          </div>
-          {f.rsi_14d != null && (
-            <div className="flex justify-between text-xs font-mono text-slate-500">
-              <span>RSI: {Math.round(f.rsi_14d)}</span>
-              <span className="uppercase text-slate-400">{f.expected_regime_dir || "NEUTRAL"}</span>
-            </div>
-          )}
+              {targetExp > 0 ? "+" : ""}
+              {typeof targetExp === "number" ? Math.round(targetExp) : targetExp}%
+            </strong>
+          </span>
+        </div>
+
+        <div className={`text-xs truncate font-medium pt-0.5 ${rsiInfo.color}`}>
+          {rsiInfo.text}
         </div>
       </div>
     );
@@ -596,7 +592,7 @@ export default function LiquidityAllocationPage() {
               DR. MO 70-FACTOR INSTITUTIONAL HEATMAP
             </h2>
             <p className="text-xs text-slate-400 font-mono">
-              Live quantitative momentum, continuous VAMS decimal signals &amp; granular exposure across asset classes (arranged X-axis: most negative to most positive)
+              50/50 Spectrum Layout: Negative VAMS on left (scaled by distance to center), Neutral clustered in center, Positive VAMS on right
             </p>
           </div>
 
@@ -626,7 +622,7 @@ export default function LiquidityAllocationPage() {
         <div className="flex flex-wrap items-center gap-1.5 text-xs font-mono">
           <span className="text-slate-400 mr-1">Category View:</span>
           {[
-            { id: "ALL", label: "All Universes (Categorized)" },
+            { id: "ALL", label: "All Universes" },
             { id: "SECTORS", label: "US Sectors" },
             { id: "FACTORS", label: "Equity Factors" },
             { id: "GLOBAL", label: "Global Equities" },
@@ -650,14 +646,13 @@ export default function LiquidityAllocationPage() {
           </span>
         </div>
 
-        {/* Grouped Asset Classes / Sectors with X-Axis Ordering */}
-        <div className="space-y-5 pt-1">
+        {/* 50/50 Staggered Spectrum Layout Across Groups */}
+        <div className="space-y-4 pt-1">
           {DR_MO_GROUPS.filter((grp) => categoryFilter === "ALL" || categoryFilter === grp.id).map((grp) => {
             const rawGroupItems = rawDrMoList.filter((item: any) => getAssetGroup(item.category) === grp.id);
             const filteredGroupItems = rawGroupItems.filter(filterFactorItem);
-            const sortedGroupItems = sortAlongXAxis(filteredGroupItems);
 
-            if (categoryFilter !== "ALL" && sortedGroupItems.length === 0) {
+            if (categoryFilter !== "ALL" && filteredGroupItems.length === 0) {
               return (
                 <div key={grp.id} className="p-4 rounded-xl bg-slate-900/40 border border-slate-800 text-center text-slate-400 text-xs font-mono">
                   No assets in {grp.title} matching stance &quot;{factorFilter}&quot;.
@@ -665,36 +660,158 @@ export default function LiquidityAllocationPage() {
               );
             }
 
-            if (sortedGroupItems.length === 0) return null;
+            if (filteredGroupItems.length === 0) return null;
+
+            // Partition into Negative, Neutral, and Positive arrays
+            // Negative: sorted ascending (most negative first -> sitting furthest left)
+            const negativeCards = filteredGroupItems
+              .filter((item: any) => {
+                const v = item.vams_score !== undefined && item.vams_score !== null ? Number(item.vams_score) : Number(item.vams_state || 0);
+                return v < -0.10;
+              })
+              .sort((a: any, b: any) => {
+                const vA = a.vams_score !== undefined && a.vams_score !== null ? Number(a.vams_score) : Number(a.vams_state || 0);
+                const vB = b.vams_score !== undefined && b.vams_score !== null ? Number(b.vams_score) : Number(b.vams_state || 0);
+                return vA - vB;
+              });
+
+            // Neutral: centered between -0.10 and +0.10
+            const neutralCards = filteredGroupItems.filter((item: any) => {
+              const v = item.vams_score !== undefined && item.vams_score !== null ? Number(item.vams_score) : Number(item.vams_state || 0);
+              return Math.abs(v) <= 0.10;
+            });
+
+            // Positive: sorted ascending (lowest positive first -> sitting nearest to center, most positive furthest right)
+            const positiveCards = filteredGroupItems
+              .filter((item: any) => {
+                const v = item.vams_score !== undefined && item.vams_score !== null ? Number(item.vams_score) : Number(item.vams_state || 0);
+                return v > 0.10;
+              })
+              .sort((a: any, b: any) => {
+                const vA = a.vams_score !== undefined && a.vams_score !== null ? Number(a.vams_score) : Number(a.vams_state || 0);
+                const vB = b.vams_score !== undefined && b.vams_score !== null ? Number(b.vams_score) : Number(b.vams_state || 0);
+                return vA - vB;
+              });
 
             return (
               <div key={grp.id} className="p-3.5 rounded-xl bg-[#090f1a] border border-slate-800/80 space-y-2.5">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 border-b border-slate-800/60 pb-2">
+                {/* Header (Clean, no axis legends) */}
+                <div className="flex items-center justify-between border-b border-slate-800/60 pb-1.5">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-mono font-bold text-slate-100 uppercase tracking-wide">
                       {grp.title}
                     </span>
                     <span className="text-xs font-mono px-2 py-0.2 rounded bg-slate-900 border border-slate-800 text-slate-400">
-                      {sortedGroupItems.length} assets
+                      {filteredGroupItems.length} assets
                     </span>
-                  </div>
-                  {/* X-Axis Spectrum Guide */}
-                  <div className="flex items-center gap-1.5 text-xs font-mono text-slate-500">
-                    <span className="text-rose-400">← Most Negative (-1.00)</span>
-                    <span className="text-slate-600">|</span>
-                    <span className="text-slate-400">Neutral (0.00)</span>
-                    <span className="text-slate-600">|</span>
-                    <span className="text-emerald-400">Most Positive (+1.00) →</span>
                   </div>
                 </div>
 
-                {/* Compact Grid of Factor Cards */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
-                  {sortedGroupItems.map((f: any, idx: number) => renderDrMoCard(f, idx))}
+                {/* 50/50 Canvas with Center Space for Neutral Cards */}
+                <div className="flex flex-col md:flex-row items-start justify-between gap-2.5 min-h-[90px] w-full">
+                  {/* Left Half: Negative VAMS (more negative further left, closer to 0 closer to center) */}
+                  <div className="flex-1 w-full md:w-1/2 flex flex-wrap items-center justify-end content-start gap-2">
+                    {negativeCards.map((f: any, idx: number) => renderDrMoCard(f, idx))}
+                  </div>
+
+                  {/* Center Space: Neutral Cards (no line, clean space) */}
+                  {neutralCards.length > 0 && (
+                    <div className="shrink-0 flex flex-wrap items-center justify-center content-start gap-2 self-center px-1">
+                      {neutralCards.map((f: any, idx: number) => renderDrMoCard(f, idx))}
+                    </div>
+                  )}
+
+                  {/* Right Half: Positive VAMS (closer to 0 closer to center, more positive further right) */}
+                  <div className="flex-1 w-full md:w-1/2 flex flex-wrap items-center justify-start content-start gap-2">
+                    {positiveCards.map((f: any, idx: number) => renderDrMoCard(f, idx))}
+                  </div>
                 </div>
               </div>
             );
           })}
+        </div>
+
+        {/* PRACTICAL GUIDANCE: WHAT ROLE RSI PLAYS IN GLOBAL MACRO & 42MACRO FRAMEWORKS */}
+        <div className="p-4 rounded-xl bg-[#080d16] border border-slate-800 text-xs font-mono space-y-3 mt-4">
+          <div className="flex items-center gap-2 border-b border-slate-800/80 pb-2">
+            <Zap className="h-4 w-4 text-cyan-400" />
+            <h3 className="font-mono text-sm font-bold uppercase tracking-wider text-slate-100">
+              What Role RSI Plays in Global Macro &amp; 42Macro Frameworks
+            </h3>
+          </div>
+
+          <p className="text-slate-300 leading-relaxed font-sans text-xs">
+            In systematic macro trading (42Macro, Hedgeye, and Dr. Mo frameworks), <strong>VAMS</strong> and <strong>14-Day RSI</strong> resolve two fundamentally different portfolio decisions:
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+            <div className="p-3 rounded-lg bg-[#0e1626] border border-slate-800 space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-cyan-400 font-bold text-xs uppercase">1. VAMS (Volatility-Adjusted Momentum)</span>
+                <span className="text-slate-500 text-xs">Horizon: 30–90 Days</span>
+              </div>
+              <p className="text-slate-300 text-xs font-sans leading-relaxed">
+                <strong>Answers: What is the structural regime trend?</strong> Determines institutional <strong>Stance &amp; Position Sizing</strong> (Long, Short, Neutral, % exposure). Grounded in multi-month volatility-adjusted trend momentum.
+              </p>
+            </div>
+
+            <div className="p-3 rounded-lg bg-[#0e1626] border border-slate-800 space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-amber-400 font-bold text-xs uppercase">2. 14D RSI (Relative Strength Index)</span>
+                <span className="text-slate-500 text-xs">Horizon: 1–15 Days</span>
+              </div>
+              <p className="text-slate-300 text-xs font-sans leading-relaxed">
+                <strong>Answers: Is the asset tactically extended or oversold today?</strong> Determines <strong>Execution Timing</strong> (Do I deploy capital right now, or wait for mean-reversion?).
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-2 pt-2 border-t border-slate-800/80">
+            <span className="text-slate-200 font-bold text-xs uppercase block">
+              The 4 Core Systematic Execution Rules:
+            </span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+              <div className="p-2.5 rounded bg-emerald-950/20 border border-emerald-900/50 space-y-0.5">
+                <div className="flex items-center justify-between font-bold text-emerald-400">
+                  <span>BUY PULLBACK (VAMS &gt; 0, RSI &le; 38)</span>
+                  <span className="text-xs px-1.5 py-0.5 rounded bg-emerald-950 border border-emerald-800">Prime Entry</span>
+                </div>
+                <p className="text-slate-300 font-sans text-xs">
+                  Asset is in a structural bull regime but experiencing short-term liquidation. High-conviction entry point (&quot;Buy the Dip&quot;).
+                </p>
+              </div>
+
+              <div className="p-2.5 rounded bg-amber-950/20 border border-amber-900/50 space-y-0.5">
+                <div className="flex items-center justify-between font-bold text-amber-400">
+                  <span>EXTENDED / HOLD (VAMS &gt; 0, RSI &ge; 68)</span>
+                  <span className="text-xs px-1.5 py-0.5 rounded bg-amber-950 border border-amber-800">Crowded Long</span>
+                </div>
+                <p className="text-slate-300 font-sans text-xs">
+                  Asset is bullish, but priced to perfection short-term. Hold existing size; do not chase with fresh capital until a pullback occurs.
+                </p>
+              </div>
+
+              <div className="p-2.5 rounded bg-rose-950/20 border border-rose-900/50 space-y-0.5">
+                <div className="flex items-center justify-between font-bold text-rose-400">
+                  <span>SELL RIP (VAMS &lt; 0, RSI &ge; 62)</span>
+                  <span className="text-xs px-1.5 py-0.5 rounded bg-rose-950 border border-rose-800">Asymmetric Short</span>
+                </div>
+                <p className="text-slate-300 font-sans text-xs">
+                  Asset is in a structural bear regime experiencing an unbacked counter-trend squeeze. Prime entry to initiate or reload shorts.
+                </p>
+              </div>
+
+              <div className="p-2.5 rounded bg-amber-950/20 border border-amber-900/50 space-y-0.5">
+                <div className="flex items-center justify-between font-bold text-amber-400">
+                  <span>SQUEEZE RISK (VAMS &lt; 0, RSI &le; 30)</span>
+                  <span className="text-xs px-1.5 py-0.5 rounded bg-amber-950 border border-amber-800">Tighten Stops</span>
+                </div>
+                <p className="text-slate-300 font-sans text-xs">
+                  Asset is fundamentally bearish, but exhausted to the downside. High risk of violent short covering. Do not add fresh shorts; harvest profits.
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
