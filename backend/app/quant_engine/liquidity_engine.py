@@ -298,13 +298,15 @@ class LiquidityEngine:
                 "Eurozone": 61.4,
                 "Japan": 61.2,
                 "China": 31.5,
+                "Australia": 31.8,
             },
             "debt_to_domestic_liquidity_ratios": {
                 "united_states_pct": us_debt_to_liq_pct,
                 "eurozone_pct": 61.4,
                 "japan_pct": 61.2,
                 "china_pct": 31.5,
-                "benchmark_interpretation": f"42 Macro Benchmark: US {us_debt_to_liq_pct}% is structurally fragile compared to Eurozone (61.4%), Japan (61.2%), and China (31.5%).",
+                "australia_pct": 31.8,
+                "benchmark_interpretation": f"42 Macro Benchmark: US {us_debt_to_liq_pct}% is structurally fragile compared to Eurozone (61.4%), Japan (61.2%), China (31.5%), and Australia (31.8%).",
             },
             "us_niip_deficit_usd_tn": us_niip_tn,
             "us_net_international_investment_position": {
@@ -312,6 +314,13 @@ class LiquidityEngine:
                 "series_id": "IIPUSNETIQ",
                 "stress_state": "CRITICAL_EXTERNAL_DEFICIT" if us_niip_tn < -20.0 else "BALANCED",
                 "macro_implication": f"US Net International Investment Position deficit sits at ${us_niip_tn}T. Heavy reliance on foreign capital absorption.",
+            },
+            "australia_net_international_investment_position": {
+                "net_iip_usd_tn": -0.42,
+                "net_iip_aud_bn": -638.9,
+                "series_id": "ABS Cat 5302.0",
+                "stress_state": "BALANCED_RESILIENT",
+                "macro_implication": "Australia Net IIP sits at -$0.42T (-A$638.9B, ~24% of GDP). Resilient global buffer backed by A$4.5T in superannuation assets invested overseas.",
             },
         }
         return _sanitize_floats(res)

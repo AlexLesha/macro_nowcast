@@ -19,7 +19,6 @@ import {
   Compass,
 } from "lucide-react";
 import { LiquidityEngineCard } from "@/components/LiquidityEngineCard";
-import { FcteHoldingsTable } from "@/components/FcteHoldingsTable";
 import { getApiUrl } from "@/lib/api";
 
 export default function LiquidityAllocationPage() {
@@ -58,8 +57,8 @@ export default function LiquidityAllocationPage() {
     horizonTab === "now"
       ? dynHorizons?.now_0_6m
       : horizonTab === "intermediate"
-      ? dynHorizons?.intermediate_6_12m
-      : dynHorizons?.long_view_12_36m;
+        ? dynHorizons?.intermediate_6_12m
+        : dynHorizons?.long_view_12_36m;
 
   const rawDrMoList = liveAllocationData?.dr_mo_matrix || [];
 
@@ -157,10 +156,10 @@ export default function LiquidityAllocationPage() {
       f.target_exposure_pct !== undefined && f.target_exposure_pct !== null
         ? Number(f.target_exposure_pct)
         : f.vams_state > 0
-        ? 100
-        : f.vams_state < 0
-        ? -100
-        : 0;
+          ? 100
+          : f.vams_state < 0
+            ? -100
+            : 0;
     const isPositive = vScore > 0.15;
     const isNegative = vScore < -0.15;
     const rsiInfo = getRsiActionDetails(f.rsi_14d, vScore);
@@ -168,24 +167,22 @@ export default function LiquidityAllocationPage() {
     return (
       <div
         key={`${f.ticker}-${idx}`}
-        className={`p-2 rounded-lg border transition shadow-sm w-[130px] sm:w-[134px] shrink-0 font-mono space-y-1 ${
-          isPositive
+        className={`p-2 rounded-lg border transition shadow-sm w-[130px] sm:w-[134px] shrink-0 font-mono space-y-1 ${isPositive
             ? "bg-[#0b1622] border-emerald-900/60 hover:border-emerald-500/60"
             : isNegative
-            ? "bg-[#180d15] border-rose-900/60 hover:border-rose-500/60"
-            : "bg-[#101726] border-slate-800 hover:border-slate-700"
-        }`}
+              ? "bg-[#180d15] border-rose-900/60 hover:border-rose-500/60"
+              : "bg-[#101726] border-slate-800 hover:border-slate-700"
+          }`}
       >
         <div className="flex items-center justify-between">
           <span className="font-bold text-slate-100 text-xs">${f.ticker}</span>
           <span
-            className={`px-1 py-0.2 rounded text-xs font-bold ${
-              isPositive
+            className={`px-1 py-0.2 rounded text-xs font-bold ${isPositive
                 ? "bg-emerald-950 text-emerald-300"
                 : isNegative
-                ? "bg-rose-950 text-rose-300"
-                : "bg-slate-800 text-slate-300"
-            }`}
+                  ? "bg-rose-950 text-rose-300"
+                  : "bg-slate-800 text-slate-300"
+              }`}
           >
             {vScore > 0 ? "+" : ""}{vScore.toFixed(2)}
           </span>
@@ -197,9 +194,8 @@ export default function LiquidityAllocationPage() {
 
         <div className="flex items-center justify-between pt-0.5 border-t border-slate-800/60 text-[10px] leading-tight">
           <span
-            className={`font-bold uppercase tracking-tight ${
-              isPositive ? "text-emerald-400" : isNegative ? "text-rose-400" : "text-slate-400"
-            }`}
+            className={`font-bold uppercase tracking-tight ${isPositive ? "text-emerald-400" : isNegative ? "text-rose-400" : "text-slate-400"
+              }`}
           >
             {isPositive ? "LONG" : isNegative ? "SHORT" : "NEUTRAL"}
           </span>
@@ -258,11 +254,10 @@ export default function LiquidityAllocationPage() {
                 GLOBAL REGIME: {macroRegime.regime_name || macroRegime.primary_regime || "STAGFLATION"} ({macroRegime.active_quad || "QUAD 3"})
               </span>
               <span
-                className={`px-2.5 py-1 rounded border font-semibold ${
-                  macroRegime.probability_risk_off_pct >= 60
+                className={`px-2.5 py-1 rounded border font-semibold ${macroRegime.probability_risk_off_pct >= 60
                     ? "bg-rose-950/80 border-rose-800 text-rose-300"
                     : "bg-emerald-950/80 border-emerald-800 text-emerald-300"
-                }`}
+                  }`}
               >
                 CARCI: {macroRegime.probability_risk_off_pct}% Risk-Off (D: {fmtRoC(macroRegime.carci_d_pct)}, W: {fmtRoC(macroRegime.carci_w_pct)})
               </span>
@@ -296,13 +291,12 @@ export default function LiquidityAllocationPage() {
             <div className="p-2 rounded bg-slate-900/60 border border-slate-800/70">
               <span className="text-slate-400 text-xs block">Liquidity Impulse</span>
               <span
-                className={`text-sm font-bold ${
-                  String(macroRegime.liquidity_impulse_state).includes("EXPANDING")
+                className={`text-sm font-bold ${String(macroRegime.liquidity_impulse_state).includes("EXPANDING")
                     ? "text-emerald-400"
                     : String(macroRegime.liquidity_impulse_state).includes("INFLECTING")
-                    ? "text-amber-400"
-                    : "text-rose-400"
-                }`}
+                      ? "text-amber-400"
+                      : "text-rose-400"
+                  }`}
               >
                 {String(macroRegime.liquidity_impulse_state).split(" ")[0]}
               </span>
@@ -352,31 +346,28 @@ export default function LiquidityAllocationPage() {
           <div className="flex items-center gap-1.5 p-1 rounded-lg bg-slate-900 border border-slate-800 text-xs font-mono">
             <button
               onClick={() => setHorizonTab("now")}
-              className={`px-3 py-1 rounded-md font-semibold transition text-xs ${
-                horizonTab === "now"
+              className={`px-3 py-1 rounded-md font-semibold transition text-xs ${horizonTab === "now"
                   ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40"
                   : "text-slate-400 hover:text-slate-200"
-              }`}
+                }`}
             >
               Now (0–6M)
             </button>
             <button
               onClick={() => setHorizonTab("intermediate")}
-              className={`px-3 py-1 rounded-md font-semibold transition text-xs ${
-                horizonTab === "intermediate"
+              className={`px-3 py-1 rounded-md font-semibold transition text-xs ${horizonTab === "intermediate"
                   ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/40"
                   : "text-slate-400 hover:text-slate-200"
-              }`}
+                }`}
             >
               Intermediate (6–12M)
             </button>
             <button
               onClick={() => setHorizonTab("long")}
-              className={`px-3 py-1 rounded-md font-semibold transition text-xs ${
-                horizonTab === "long"
+              className={`px-3 py-1 rounded-md font-semibold transition text-xs ${horizonTab === "long"
                   ? "bg-amber-500/20 text-amber-300 border border-amber-500/40"
                   : "text-slate-400 hover:text-slate-200"
-              }`}
+                }`}
             >
               Long-View (12–36M)
             </button>
@@ -472,13 +463,12 @@ export default function LiquidityAllocationPage() {
                         </td>
                         <td className="py-2.5 px-3">
                           <span
-                            className={`px-2 py-0.5 rounded font-semibold text-xs ${
-                              row.stance.includes("OVERWEIGHT") || row.stance.includes("LONG") || row.stance.includes("BULL")
+                            className={`px-2 py-0.5 rounded font-semibold text-xs ${row.stance.includes("OVERWEIGHT") || row.stance.includes("LONG") || row.stance.includes("BULL")
                                 ? "bg-emerald-950/80 text-emerald-400 border border-emerald-800"
                                 : row.stance.includes("UNDERWEIGHT")
-                                ? "bg-rose-950/80 text-rose-400 border border-rose-800"
-                                : "bg-slate-800 text-slate-300 border border-slate-700"
-                            }`}
+                                  ? "bg-rose-950/80 text-rose-400 border border-rose-800"
+                                  : "bg-slate-800 text-slate-300 border border-slate-700"
+                              }`}
                           >
                             {row.stance}
                           </span>
@@ -535,13 +525,12 @@ export default function LiquidityAllocationPage() {
                       <span className="text-slate-400 text-xs ml-1.5">(${pos.ticker})</span>
                     </div>
                     <span
-                      className={`px-1.5 py-0.5 rounded font-bold text-xs ${
-                        isCrowdedLong
+                      className={`px-1.5 py-0.5 rounded font-bold text-xs ${isCrowdedLong
                           ? "bg-amber-950/80 border border-amber-800 text-amber-300"
                           : isCrowdedShort
-                          ? "bg-rose-950/80 border border-rose-800 text-rose-300"
-                          : "bg-slate-800 text-slate-400 border border-slate-700"
-                      }`}
+                            ? "bg-rose-950/80 border border-rose-800 text-rose-300"
+                            : "bg-slate-800 text-slate-400 border border-slate-700"
+                        }`}
                     >
                       {isCrowdedLong ? "CROWDED LONG" : isCrowdedShort ? "CROWDED SHORT" : "BALANCED"}
                     </span>
@@ -570,9 +559,8 @@ export default function LiquidityAllocationPage() {
                     <div className="h-1.5 w-full bg-slate-950 rounded-full overflow-hidden border border-slate-800">
                       <div
                         style={{ width: `${Math.min(100, Math.max(0, pctl))}%` }}
-                        className={`h-full ${
-                          pctl >= 80 ? "bg-amber-500" : pctl <= 20 ? "bg-rose-500" : "bg-cyan-500"
-                        }`}
+                        className={`h-full ${pctl >= 80 ? "bg-amber-500" : pctl <= 20 ? "bg-rose-500" : "bg-cyan-500"
+                          }`}
                       />
                     </div>
                   </div>
@@ -606,11 +594,10 @@ export default function LiquidityAllocationPage() {
               <button
                 key={flt}
                 onClick={() => setFactorFilter(flt)}
-                className={`px-2 py-0.5 rounded transition font-semibold text-xs ${
-                  factorFilter === flt
+                className={`px-2 py-0.5 rounded transition font-semibold text-xs ${factorFilter === flt
                     ? "bg-slate-800 text-cyan-400 border border-slate-700"
                     : "text-slate-400 hover:text-slate-200"
-                }`}
+                  }`}
               >
                 {flt}
               </button>
@@ -632,11 +619,10 @@ export default function LiquidityAllocationPage() {
             <button
               key={cat.id}
               onClick={() => setCategoryFilter(cat.id)}
-              className={`px-2.5 py-1 rounded-md transition font-semibold text-xs border ${
-                categoryFilter === cat.id
+              className={`px-2.5 py-1 rounded-md transition font-semibold text-xs border ${categoryFilter === cat.id
                   ? "bg-indigo-950/80 border-indigo-600 text-indigo-300"
                   : "bg-slate-900 border-slate-800 text-slate-400 hover:text-white"
-              }`}
+                }`}
             >
               {cat.label}
             </button>
@@ -807,11 +793,6 @@ export default function LiquidityAllocationPage() {
             </div>
           </div>
         </div>
-      </div>
-
-      {/* 5. 3FOURTEEN FCTE CORE 20 HOLDINGS TABLE */}
-      <div className="pt-1">
-        <FcteHoldingsTable />
       </div>
     </div>
   );

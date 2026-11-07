@@ -95,6 +95,11 @@ export const LiquidityEngineCard: React.FC<LiquidityEngineCardProps> = ({ initia
   const fvModel = bondAccord?.fair_value_model || {};
   const moveVix = bondAccord?.move_vix_co_signer || {};
   const iip = globalDebt?.us_net_international_investment_position || {};
+  const ausIip = globalDebt?.australia_net_international_investment_position || {
+    net_iip_usd_tn: -0.42,
+    net_iip_aud_bn: -638.9,
+    macro_implication: "Australia Net IIP sits at -$0.42T (-A$638.9B, ~24% of GDP). Resilient global buffer backed by A$4.5T in superannuation assets invested overseas.",
+  };
   const bondRocs = bondAccord?.bond_market_rocs || {};
 
   return (
@@ -215,105 +220,107 @@ export const LiquidityEngineCard: React.FC<LiquidityEngineCardProps> = ({ initia
         </div>
       </div>
 
-      {/* SECTION B: GLOBAL LIQUIDITY & 42 MACRO SOVEREIGN DEBT RATIOS */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      {/* SECTION B: GLOBAL LIQUIDITY & SOVEREIGN DEBT RATIOS */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Global Liquidity Aggregation */}
-        <div className="lg:col-span-5 bg-[#0e1626] border border-slate-800 rounded-xl p-5 shadow-xl">
-          <div className="flex items-center gap-2 border-b border-slate-800 pb-3 mb-4">
-            <Globe className="h-4 w-4 text-cyan-400" />
-            <h3 className="font-mono text-base font-bold uppercase tracking-wider text-slate-100">
-              GLOBAL LIQUIDITY: ${globalDebt.global_liquidity_usd_tn}T
-            </h3>
-          </div>
-
-          <div className="space-y-3 font-mono text-sm">
-            <div className="bg-[#121c2e] p-3 rounded border border-slate-800 space-y-2">
-              <span className="text-xs text-slate-500 uppercase block font-semibold">
-                CENTRAL BANK BALANCE SHEETS (SPOT USD)
-              </span>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-sm">
-                <div className="p-2 rounded bg-[#0b1220] border border-slate-800/80">
-                  <div className="flex justify-between items-baseline">
-                    <span className="text-slate-400 text-xs">FED (US):</span>
-                    <span className="font-bold text-slate-200 text-sm">${globalDebt.central_bank_breakdown_tn?.fed_united_states}T</span>
-                  </div>
-                  {renderRocLine(globalDebt.central_bank_rocs?.fed_united_states)}
-                </div>
-
-                <div className="p-2 rounded bg-[#0b1220] border border-slate-800/80">
-                  <div className="flex justify-between items-baseline">
-                    <span className="text-slate-400 text-xs">ECB (Eurozone):</span>
-                    <span className="font-bold text-slate-200 text-sm">${globalDebt.central_bank_breakdown_tn?.ecb_eurozone}T</span>
-                  </div>
-                  {renderRocLine(globalDebt.central_bank_rocs?.ecb_eurozone)}
-                </div>
-
-                <div className="p-2 rounded bg-[#0b1220] border border-slate-800/80">
-                  <div className="flex justify-between items-baseline">
-                    <span className="text-slate-400 text-xs">BOJ (Japan):</span>
-                    <span className="font-bold text-slate-200 text-sm">${globalDebt.central_bank_breakdown_tn?.boj_japan}T</span>
-                  </div>
-                  {renderRocLine(globalDebt.central_bank_rocs?.boj_japan)}
-                </div>
-
-                <div className="p-2 rounded bg-[#0b1220] border border-slate-800/80">
-                  <div className="flex justify-between items-baseline">
-                    <span className="text-slate-400 text-xs">PBOC (China):</span>
-                    <span className="font-bold text-slate-200 text-sm">${globalDebt.central_bank_breakdown_tn?.pboc_china}T</span>
-                  </div>
-                  {renderRocLine(globalDebt.central_bank_rocs?.pboc_china)}
-                </div>
-              </div>
+        <div className="bg-[#0e1626] border border-slate-800 rounded-xl p-5 shadow-xl flex flex-col justify-between">
+          <div>
+            <div className="flex items-center gap-2 border-b border-slate-800 pb-3 mb-4">
+              <Globe className="h-4 w-4 text-cyan-400" />
+              <h3 className="font-mono text-base font-bold uppercase tracking-wider text-slate-100">
+                GLOBAL LIQUIDITY: ${globalDebt.global_liquidity_usd_tn}T
+              </h3>
             </div>
 
-            <div className="bg-[#121c2e] p-3 rounded border border-slate-800 space-y-2">
-              <span className="text-xs text-slate-500 uppercase block font-semibold">
-                BROAD M2 MONEY SUPPLY: ${globalDebt.global_m2_usd_tn}T
-              </span>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-sm">
-                <div className="p-2 rounded bg-[#0b1220] border border-slate-800/80">
-                  <div className="flex justify-between items-baseline">
-                    <span className="text-slate-400 text-xs">US M2:</span>
-                    <span className="font-bold text-slate-200 text-sm">${globalDebt.m2_breakdown_tn?.united_states}T</span>
+            <div className="space-y-3 font-mono text-sm">
+              <div className="bg-[#121c2e] p-3 rounded border border-slate-800 space-y-2">
+                <span className="text-xs text-slate-500 uppercase block font-semibold">
+                  CENTRAL BANK BALANCE SHEETS (SPOT USD)
+                </span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-sm">
+                  <div className="p-2 rounded bg-[#0b1220] border border-slate-800/80">
+                    <div className="flex justify-between items-baseline">
+                      <span className="text-slate-400 text-xs">FED (US):</span>
+                      <span className="font-bold text-slate-200 text-sm">${globalDebt.central_bank_breakdown_tn?.fed_united_states}T</span>
+                    </div>
+                    {renderRocLine(globalDebt.central_bank_rocs?.fed_united_states)}
                   </div>
-                  {renderRocLine(globalDebt.m2_rocs?.united_states)}
-                </div>
 
-                <div className="p-2 rounded bg-[#0b1220] border border-slate-800/80">
-                  <div className="flex justify-between items-baseline">
-                    <span className="text-slate-400 text-xs">China M2:</span>
-                    <span className="font-bold text-slate-200 text-sm">${globalDebt.m2_breakdown_tn?.china}T</span>
+                  <div className="p-2 rounded bg-[#0b1220] border border-slate-800/80">
+                    <div className="flex justify-between items-baseline">
+                      <span className="text-slate-400 text-xs">ECB (Eurozone):</span>
+                      <span className="font-bold text-slate-200 text-sm">${globalDebt.central_bank_breakdown_tn?.ecb_eurozone}T</span>
+                    </div>
+                    {renderRocLine(globalDebt.central_bank_rocs?.ecb_eurozone)}
                   </div>
-                  {renderRocLine(globalDebt.m2_rocs?.china)}
-                </div>
 
-                <div className="p-2 rounded bg-[#0b1220] border border-slate-800/80">
-                  <div className="flex justify-between items-baseline">
-                    <span className="text-slate-400 text-xs">Eurozone M2:</span>
-                    <span className="font-bold text-slate-200 text-sm">${globalDebt.m2_breakdown_tn?.eurozone}T</span>
+                  <div className="p-2 rounded bg-[#0b1220] border border-slate-800/80">
+                    <div className="flex justify-between items-baseline">
+                      <span className="text-slate-400 text-xs">BOJ (Japan):</span>
+                      <span className="font-bold text-slate-200 text-sm">${globalDebt.central_bank_breakdown_tn?.boj_japan}T</span>
+                    </div>
+                    {renderRocLine(globalDebt.central_bank_rocs?.boj_japan)}
                   </div>
-                  {renderRocLine(globalDebt.m2_rocs?.eurozone)}
-                </div>
 
-                <div className="p-2 rounded bg-[#0b1220] border border-slate-800/80">
-                  <div className="flex justify-between items-baseline">
-                    <span className="text-slate-400 text-xs">Japan M2:</span>
-                    <span className="font-bold text-slate-200 text-sm">${globalDebt.m2_breakdown_tn?.japan}T</span>
+                  <div className="p-2 rounded bg-[#0b1220] border border-slate-800/80">
+                    <div className="flex justify-between items-baseline">
+                      <span className="text-slate-400 text-xs">PBOC (China):</span>
+                      <span className="font-bold text-slate-200 text-sm">${globalDebt.central_bank_breakdown_tn?.pboc_china}T</span>
+                    </div>
+                    {renderRocLine(globalDebt.central_bank_rocs?.pboc_china)}
                   </div>
-                  {renderRocLine(globalDebt.m2_rocs?.japan)}
+                </div>
+              </div>
+
+              <div className="bg-[#121c2e] p-3 rounded border border-slate-800 space-y-2">
+                <span className="text-xs text-slate-500 uppercase block font-semibold">
+                  BROAD M2 MONEY SUPPLY: ${globalDebt.global_m2_usd_tn}T
+                </span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-sm">
+                  <div className="p-2 rounded bg-[#0b1220] border border-slate-800/80">
+                    <div className="flex justify-between items-baseline">
+                      <span className="text-slate-400 text-xs">US M2:</span>
+                      <span className="font-bold text-slate-200 text-sm">${globalDebt.m2_breakdown_tn?.united_states}T</span>
+                    </div>
+                    {renderRocLine(globalDebt.m2_rocs?.united_states)}
+                  </div>
+
+                  <div className="p-2 rounded bg-[#0b1220] border border-slate-800/80">
+                    <div className="flex justify-between items-baseline">
+                      <span className="text-slate-400 text-xs">China M2:</span>
+                      <span className="font-bold text-slate-200 text-sm">${globalDebt.m2_breakdown_tn?.china}T</span>
+                    </div>
+                    {renderRocLine(globalDebt.m2_rocs?.china)}
+                  </div>
+
+                  <div className="p-2 rounded bg-[#0b1220] border border-slate-800/80">
+                    <div className="flex justify-between items-baseline">
+                      <span className="text-slate-400 text-xs">Eurozone M2:</span>
+                      <span className="font-bold text-slate-200 text-sm">${globalDebt.m2_breakdown_tn?.eurozone}T</span>
+                    </div>
+                    {renderRocLine(globalDebt.m2_rocs?.eurozone)}
+                  </div>
+
+                  <div className="p-2 rounded bg-[#0b1220] border border-slate-800/80">
+                    <div className="flex justify-between items-baseline">
+                      <span className="text-slate-400 text-xs">Japan M2:</span>
+                      <span className="font-bold text-slate-200 text-sm">${globalDebt.m2_breakdown_tn?.japan}T</span>
+                    </div>
+                    {renderRocLine(globalDebt.m2_rocs?.japan)}
+                  </div>
                 </div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* 42 Macro Debt-to-Liquidity & IIPUSNETIQ */}
-        <div className="lg:col-span-7 bg-[#0e1626] border border-slate-800 rounded-xl p-5 shadow-xl">
+        {/* Public Debt-to-Liquidity & NIIP */}
+        <div className="bg-[#0e1626] border border-slate-800 rounded-xl p-5 shadow-xl flex flex-col justify-between">
           <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
             <div className="flex items-center gap-2">
               <Scale className="h-4 w-4 text-cyan-400" />
               <h3 className="font-mono text-base font-bold uppercase tracking-wider text-slate-100">
-                42 MACRO PUBLIC DEBT-TO-DOMESTIC LIQUIDITY &amp; -$24T IIP
+                PUBLIC DEBT-TO-DOMESTIC LIQUIDITY
               </h3>
             </div>
             <span className="text-xs font-mono text-rose-400 font-bold border border-rose-900 bg-rose-950/60 px-2 py-0.5 rounded">
@@ -327,11 +334,11 @@ export const LiquidityEngineCard: React.FC<LiquidityEngineCardProps> = ({ initia
               <span className="text-xs text-slate-400 uppercase font-semibold block mb-2">
                 SOVEREIGN PUBLIC DEBT-TO-DOMESTIC LIQUIDITY RATIOS (%)
               </span>
-              <div className="space-y-2">
+              <div className="space-y-2.5">
                 <div>
                   <div className="flex justify-between text-sm mb-1">
-                    <span className="font-bold text-rose-400">United States: {globalDebt.debt_to_domestic_liquidity_ratios?.united_states_pct}%</span>
-                    <span className="text-slate-400">Extremely Overleveraged vs Domestic Base</span>
+                    <span className="font-bold text-rose-400">United States: {globalDebt.debt_to_domestic_liquidity_ratios?.united_states_pct || 114}%</span>
+                    <span className="text-slate-400 text-xs">Extremely Overleveraged vs Domestic Base</span>
                   </div>
                   <div className="h-2 w-full bg-slate-900 rounded-full overflow-hidden flex border border-slate-800">
                     <div
@@ -343,8 +350,8 @@ export const LiquidityEngineCard: React.FC<LiquidityEngineCardProps> = ({ initia
 
                 <div>
                   <div className="flex justify-between text-sm mb-1">
-                    <span className="font-bold text-emerald-400">Eurozone: {globalDebt.debt_to_domestic_liquidity_ratios?.eurozone_pct}%</span>
-                    <span className="font-bold text-emerald-400">Japan: {globalDebt.debt_to_domestic_liquidity_ratios?.japan_pct}%</span>
+                    <span className="font-bold text-emerald-400">Eurozone: {globalDebt.debt_to_domestic_liquidity_ratios?.eurozone_pct || 61.4}%</span>
+                    <span className="font-bold text-emerald-400">Japan: {globalDebt.debt_to_domestic_liquidity_ratios?.japan_pct || 61.2}%</span>
                   </div>
                   <div className="h-2 w-full bg-slate-900 rounded-full overflow-hidden flex border border-slate-800">
                     <div
@@ -356,33 +363,61 @@ export const LiquidityEngineCard: React.FC<LiquidityEngineCardProps> = ({ initia
 
                 <div>
                   <div className="flex justify-between text-sm mb-1">
-                    <span className="font-bold text-cyan-400">China: {globalDebt.debt_to_domestic_liquidity_ratios?.china_pct}%</span>
-                    <span className="text-slate-400">High Domestic Liquid Cushion</span>
+                    <span className="font-bold text-cyan-400">China: {globalDebt.debt_to_domestic_liquidity_ratios?.china_pct || 31.5}%</span>
+                    <span className="font-bold text-cyan-400">Australia: {globalDebt.debt_to_domestic_liquidity_ratios?.australia_pct || 31.8}%</span>
                   </div>
                   <div className="h-2 w-full bg-slate-900 rounded-full overflow-hidden flex border border-slate-800">
                     <div
-                      style={{ width: `${Math.min(100, Math.round(((globalDebt.debt_to_domestic_liquidity_ratios?.china_pct || 31) / 150) * 100))}%` }}
+                      style={{ width: `${Math.min(100, Math.round(((globalDebt.debt_to_domestic_liquidity_ratios?.australia_pct || 31.8) / 150) * 100))}%` }}
                       className="bg-cyan-500"
                     />
+                  </div>
+                  <div className="flex justify-between text-[11px] text-slate-400 mt-1">
+                    <span>High Domestic Liquid Cushion</span>
+                    <span>Pristine AAA / Super Cushion</span>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* US Net International Investment Position */}
-            <div className="bg-[#0b1220] p-3 rounded border border-rose-900/60 bg-gradient-to-r from-rose-950/20 to-transparent">
-              <div className="flex items-center justify-between mb-1.5">
-                <span className="text-sm font-bold text-white flex items-center gap-1.5">
-                  <ShieldAlert className="h-3.5 w-3.5 text-rose-400" />
-                  US NET INTERNATIONAL INVESTMENT POSITION (IIPUSNETIQ)
-                </span>
-                <span className="text-base font-black text-rose-400">
-                  ${iip.net_iip_usd_tn} Trillion
-                </span>
+            {/* Net International Investment Position (US & Australia) */}
+            <div className="space-y-2 pt-2 border-t border-slate-800/80">
+              <span className="text-xs text-slate-400 uppercase font-semibold block">
+                NET INTERNATIONAL INVESTMENT POSITION (NIIP)
+              </span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {/* United States */}
+                <div className="bg-[#0b1220] p-3 rounded-lg border border-rose-900/60 bg-gradient-to-br from-rose-950/20 to-transparent space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-white flex items-center gap-1">
+                      <ShieldAlert className="h-3.5 w-3.5 text-rose-400 shrink-0" />
+                      UNITED STATES (IIPUSNETIQ)
+                    </span>
+                    <span className="text-sm font-black text-rose-400">
+                      ${iip.net_iip_usd_tn || -24.2}T
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-300 leading-relaxed font-sans">
+                    {iip.macro_implication || "US NIIP deficit sits at -$24.2T (~85% of GDP). Heavy reliance on foreign capital absorption."}
+                  </p>
+                </div>
+
+                {/* Australia */}
+                <div className="bg-[#0b1220] p-3 rounded-lg border border-cyan-900/60 bg-gradient-to-br from-cyan-950/20 to-transparent space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-white flex items-center gap-1">
+                      <ShieldAlert className="h-3.5 w-3.5 text-cyan-400 shrink-0" />
+                      AUSTRALIA (ABS 5302.0)
+                    </span>
+                    <span className="text-sm font-black text-cyan-400">
+                      ${ausIip.net_iip_usd_tn || -0.42}T
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-300 leading-relaxed font-sans">
+                    {ausIip.macro_implication || "Australia Net IIP sits at -$0.42T (-A$638.9B, ~24% of GDP). Resilient global buffer backed by A$4.5T in superannuation assets invested overseas."}
+                  </p>
+                </div>
               </div>
-              <p className="text-xs text-slate-300 leading-relaxed font-sans">
-                {iip.macro_implication}
-              </p>
             </div>
           </div>
         </div>
