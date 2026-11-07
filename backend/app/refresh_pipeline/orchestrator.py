@@ -157,6 +157,12 @@ class RefreshPipelineOrchestrator:
             except Exception as e:
                 logger.warning(f"[Pipeline] OptionsEngine refresh warning: {e}")
 
+            try:
+                from app.quant_engine.scenarios_engine import ScenariosEngine
+                ScenariosEngine.build_scenarios_payload(force=True)
+            except Exception as e:
+                logger.warning(f"[Pipeline] ScenariosEngine refresh warning: {e}")
+
             today = datetime.now(timezone.utc).date()
             snapshot = db.query(RegimeSnapshot).filter_by(date=today).first()
             if not snapshot:
@@ -301,7 +307,7 @@ async def run_refresh_pipeline_stream() -> AsyncGenerator[str, None]:
                 "stage": 2,
                 "step": "quant_math",
                 "status": "RUNNING",
-                "message": "Recalculating 42 Macro GRID, US Net Liquidity, Commodities Term-Structure & Options Surface...",
+                "message": "Recalculating Scenarios Playbook, 42 Macro GRID, US Net Liquidity, Commodities & Options Surface...",
                 "progress_pct": 45,
             }
             refresh_orchestrator.logs.append(p2)
@@ -358,6 +364,16 @@ async def run_refresh_pipeline_stream() -> AsyncGenerator[str, None]:
                 GlobalGridEngine.build_global_grid_payload(force_refresh=True)
             except Exception as e:
                 logger.warning(f"GlobalGridEngine refresh note: {e}")
+
+            # Execute ScenariosEngine live calculation (forces DB cache refresh & real rates / CB sentiment)
+            try:
+                try:
+                    from app.quant_engine.scenarios_engine import ScenariosEngine
+                except ImportError:
+                    from backend.app.quant_engine.scenarios_engine import ScenariosEngine
+                ScenariosEngine.build_scenarios_payload(force=True)
+            except Exception as e:
+                logger.warning(f"ScenariosEngine refresh note: {e}")
 
             net_liq_val = liq_payload.get("us_net_liquidity", {}).get("net_liquidity_usd_bn", 5745.7)
             real_rate_share = liq_payload.get("bond_stress_and_accord", {}).get("real_rate_share_of_yield_change_pct", 79.3)

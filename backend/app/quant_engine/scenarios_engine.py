@@ -17,11 +17,11 @@ from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, List, Optional, Tuple
 
 try:
-    from app.config import fetch_fred_series_live, settings
+    from app.config import fetch_fred_series_live, fetch_ohlcv_Slot_with_failover, settings
     from app.db.stock_compressed_store import StockCompressedStore
     from app.quant_engine.macro_nowcast import generate_dynamic_forward_quarters
 except ImportError:
-    from backend.app.config import fetch_fred_series_live, settings
+    from backend.app.config import fetch_fred_series_live, fetch_ohlcv_Slot_with_failover, settings
     from backend.app.db.stock_compressed_store import StockCompressedStore
     from backend.app.quant_engine.macro_nowcast import generate_dynamic_forward_quarters
 
@@ -471,8 +471,14 @@ class ScenariosEngine:
             curr_val = float(payroll_s.iloc[-1])
             housing_drawdown_pct = round(((curr_val - peak_val) / max(1.0, peak_val)) * 100, 2)
 
-        # MOVE Index proxy (calibrated to current market regime)
+        # Dynamic MOVE Index (Bond Volatility) via multi-provider failover
         move_index = 104.2
+        try:
+            close_v, _ = fetch_ohlcv_Slot_with_failover(["^MOVE"], period="5d")
+            if "^MOVE" in close_v.columns and not close_v["^MOVE"].dropna().empty:
+                move_index = round(float(close_v["^MOVE"].dropna().iloc[-1]), 1)
+        except Exception:
+            pass
 
         # Evaluate Triggers
         triggers = [
@@ -572,19 +578,41 @@ class ScenariosEngine:
         real_str = next((t["live_value"] for t in t_list if "10Y Real" in t["name"]), "2.05%")
         housing_str = next((t["live_value"] for t in t_list if "Residential" in t["name"]), "-0.78%")
 
+        # Dynamically link to Project-Global Macro Regime
+        regime_title = "Cyclical Reflation Momentum (Quad 2)"
+        base_p = 60
+        alt_p = 40
+        try:
+            try:
+                from app.db import SessionLocal
+                from app.models.db_models import RegimeSnapshot
+            except ImportError:
+                from backend.app.db import SessionLocal
+                from backend.app.models.db_models import RegimeSnapshot
+            with SessionLocal() as db:
+                snap = db.query(RegimeSnapshot).order_by(RegimeSnapshot.date.desc()).first()
+                if snap:
+                    q2 = getattr(snap, "quad_2_prob", 0.60) or 0.60
+                    base_p = max(45, min(75, int(round(q2 * 100))))
+                    alt_p = 100 - base_p
+                    if snap.grid_regime:
+                        regime_title = f"{snap.grid_regime} Momentum"
+        except Exception:
+            pass
+
         scenarios = [
             {
                 "quarter": f"{q0} (Current Quarter)",
-                "scenario_name": "Base Case (60%): Sticky Inflation & Real-Rate Tension | Alt Case (40%): Credit Spread Air-Pocket",
-                "headline": "Cyclical Reflation vs. Real-Yield Duration Headwind",
-                "baseProb": "60%",
-                "altProb": "40%",
+                "scenario_name": f"Base Case ({base_p}%): {regime_title} with Real-Rate Tension | Alt Case ({alt_p}%): Credit Spread Air-Pocket",
+                "headline": f"{regime_title} vs. Real-Yield Duration Headwind",
+                "baseProb": f"{base_p}%",
+                "altProb": f"{alt_p}%",
                 "live_trigger_telemetry": f"Live CPI YoY: {cpi_str} (Trigger >3.5%) | HY OAS: {hy_str} (Trigger >+50 bps) | Live MOVE: {move_str} (Trigger >115)",
                 "trigger_status": "ACTIVE WATCH",
                 "asset_directions": "Base: Equities Choppy/Up, Commodities ($DBC/$XLE) & Gold ($GLD) Outperform, Long Bonds ($TLT) Lag | Alt: $USFR Cash Outperforms",
                 "policy_and_market_result": "Treasury relies heavily on short T-Bill issuance (>22% share) while FOMC holds rate cuts measured unless MOVE breaks >115.",
                 "baseScenario": {
-                    "title": "Base Case: Cyclical Reflation Momentum with Real-Yield Friction (Quad 2)",
+                    "title": f"Base Case: {regime_title} with Real-Yield Friction",
                     "description": "US GDP YoY runs near 2.30% while headline CPI hovers around 3.10% driven by energy base effects. Hyperscaler capex and AI infrastructure spending cushion corporate earnings, though 10Y real yields near 2.05% prevent broad equity multiple expansion.",
                     "assetMatrix": [
                         {"asset": "US Equities ($SPY / $QQQ)", "direction": "BULLISH (+5% to +8%)", "color": "text-emerald-400"},
@@ -783,3 +811,4 @@ class ScenariosEngine:
         # Cache in Neon PostgreSQL
         StockCompressedStore.save_macro_liquidity_payload(cache_key, payload)
         return payload
+
