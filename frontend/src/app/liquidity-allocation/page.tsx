@@ -108,15 +108,15 @@ export default function LiquidityAllocationPage() {
   const filterFactorItem = (item: any) => {
     const signalStr = String(item.proper_trade || item.signal || "");
     const vScore = item.vams_score !== undefined && item.vams_score !== null ? Number(item.vams_score) : Number(item.vams_state || 0);
-    if (factorFilter === "LONG" && !signalStr.includes("LONG") && vScore <= 0.1) return false;
-    if (factorFilter === "SHORT" && !signalStr.includes("SHORT") && vScore >= -0.1) return false;
-    if (factorFilter === "FLAT" && !signalStr.includes("NEUTRAL") && !signalStr.includes("FLAT") && Math.abs(vScore) > 0.1) return false;
+    if (factorFilter === "LONG" && !signalStr.includes("LONG") && vScore <= 0.15) return false;
+    if (factorFilter === "SHORT" && !signalStr.includes("SHORT") && vScore >= -0.15) return false;
+    if (factorFilter === "FLAT" && !signalStr.includes("NEUTRAL") && !signalStr.includes("FLAT") && Math.abs(vScore) > 0.15) return false;
     return true;
   };
 
   const getRsiActionDetails = (rsi: number | undefined | null, vScore: number) => {
-    const isPositive = vScore > 0.1;
-    const isNegative = vScore < -0.1;
+    const isPositive = vScore > 0.15;
+    const isNegative = vScore < -0.15;
     const isNeutral = !isPositive && !isNegative;
 
     if (rsi === undefined || rsi === null || isNaN(rsi)) {
@@ -161,14 +161,14 @@ export default function LiquidityAllocationPage() {
         : f.vams_state < 0
         ? -100
         : 0;
-    const isPositive = vScore > 0.1;
-    const isNegative = vScore < -0.1;
+    const isPositive = vScore > 0.15;
+    const isNegative = vScore < -0.15;
     const rsiInfo = getRsiActionDetails(f.rsi_14d, vScore);
 
     return (
       <div
         key={idx}
-        className={`p-2 rounded-lg border transition shadow-sm w-[135px] sm:w-[145px] shrink-0 text-xs font-mono space-y-1 ${
+        className={`p-2 rounded-lg border transition shadow-sm w-[130px] sm:w-[140px] shrink-0 text-xs font-mono space-y-1 ${
           isPositive
             ? "bg-[#0b1622] border-emerald-900/60 hover:border-emerald-500/60"
             : isNegative
@@ -662,12 +662,14 @@ export default function LiquidityAllocationPage() {
 
             if (filteredGroupItems.length === 0) return null;
 
-            // Partition into Negative, Neutral, and Positive arrays
+            // Partition into 3 distinct groups: Negative, Neutral, and Positive
             // Negative: sorted ascending (most negative first -> sitting furthest left)
             const negativeCards = filteredGroupItems
               .filter((item: any) => {
                 const v = item.vams_score !== undefined && item.vams_score !== null ? Number(item.vams_score) : Number(item.vams_state || 0);
-                return v < -0.10;
+                const tradeStr = String(item.proper_trade || item.signal || "").toUpperCase();
+                if (tradeStr.includes("NEUTRAL") || tradeStr.includes("FLAT")) return false;
+                return v < -0.15;
               })
               .sort((a: any, b: any) => {
                 const vA = a.vams_score !== undefined && a.vams_score !== null ? Number(a.vams_score) : Number(a.vams_state || 0);
@@ -675,23 +677,39 @@ export default function LiquidityAllocationPage() {
                 return vA - vB;
               });
 
-            // Neutral: centered between -0.10 and +0.10
-            const neutralCards = filteredGroupItems.filter((item: any) => {
-              const v = item.vams_score !== undefined && item.vams_score !== null ? Number(item.vams_score) : Number(item.vams_state || 0);
-              return Math.abs(v) <= 0.10;
-            });
+            // Neutral: items with |vams| <= 0.15 or trade marked NEUTRAL/FLAT
+            const neutralCards = filteredGroupItems
+              .filter((item: any) => {
+                const v = item.vams_score !== undefined && item.vams_score !== null ? Number(item.vams_score) : Number(item.vams_state || 0);
+                const tradeStr = String(item.proper_trade || item.signal || "").toUpperCase();
+                if (tradeStr.includes("NEUTRAL") || tradeStr.includes("FLAT")) return true;
+                return Math.abs(v) <= 0.15;
+              })
+              .sort((a: any, b: any) => {
+                const vA = a.vams_score !== undefined && a.vams_score !== null ? Number(a.vams_score) : Number(a.vams_state || 0);
+                const vB = b.vams_score !== undefined && b.vams_score !== null ? Number(b.vams_score) : Number(b.vams_state || 0);
+                return vA - vB;
+              });
 
             // Positive: sorted ascending (lowest positive first -> sitting nearest to center, most positive furthest right)
             const positiveCards = filteredGroupItems
               .filter((item: any) => {
                 const v = item.vams_score !== undefined && item.vams_score !== null ? Number(item.vams_score) : Number(item.vams_state || 0);
-                return v > 0.10;
+                const tradeStr = String(item.proper_trade || item.signal || "").toUpperCase();
+                if (tradeStr.includes("NEUTRAL") || tradeStr.includes("FLAT")) return false;
+                return v > 0.15;
               })
               .sort((a: any, b: any) => {
                 const vA = a.vams_score !== undefined && a.vams_score !== null ? Number(a.vams_score) : Number(a.vams_state || 0);
                 const vB = b.vams_score !== undefined && b.vams_score !== null ? Number(b.vams_score) : Number(b.vams_state || 0);
                 return vA - vB;
               });
+
+            // Neutral placement logic:
+            // "Place them on top of eachother if there are a few Neutral cards. If there are more Neutral that anything else, place them into 2 rows."
+            const isMoreNeutralThanOthers =
+              neutralCards.length > negativeCards.length && neutralCards.length > positiveCards.length;
+            const useTwoRowsForNeutral = isMoreNeutralThanOthers || neutralCards.length >= 4;
 
             return (
               <div key={grp.id} className="p-3.5 rounded-xl bg-[#090f1a] border border-slate-800/80 space-y-2.5">
@@ -707,22 +725,28 @@ export default function LiquidityAllocationPage() {
                   </div>
                 </div>
 
-                {/* 50/50 Canvas with Center Space for Neutral Cards */}
-                <div className="flex flex-col md:flex-row items-start justify-between gap-2.5 min-h-[90px] w-full">
-                  {/* Left Half: Negative VAMS (more negative further left, closer to 0 closer to center) */}
-                  <div className="flex-1 w-full md:w-1/2 flex flex-wrap items-center justify-end content-start gap-2">
+                {/* 3 Groups Canvas: Negative (Left) | Neutral (Center Stack/2-Row) | Positive (Right) */}
+                <div className="flex flex-col md:flex-row items-center justify-center gap-2.5 min-h-[90px] w-full">
+                  {/* Left Group: Negative VAMS (more negative further left, closer to 0 closer to center) */}
+                  <div className="flex-1 w-full md:w-auto flex flex-wrap items-center justify-end content-center gap-2">
                     {negativeCards.map((f: any, idx: number) => renderDrMoCard(f, idx))}
                   </div>
 
-                  {/* Center Space: Neutral Cards (no line, clean space) */}
+                  {/* Center Group: Neutral Cards (stacked vertically if a few, or in 2 rows if more) */}
                   {neutralCards.length > 0 && (
-                    <div className="shrink-0 flex flex-wrap items-center justify-center content-start gap-2 self-center px-1">
+                    <div
+                      className={`shrink-0 items-center justify-center gap-2 self-center px-1 ${
+                        useTwoRowsForNeutral
+                          ? "grid grid-rows-2 grid-flow-col"
+                          : "flex flex-col"
+                      }`}
+                    >
                       {neutralCards.map((f: any, idx: number) => renderDrMoCard(f, idx))}
                     </div>
                   )}
 
-                  {/* Right Half: Positive VAMS (closer to 0 closer to center, more positive further right) */}
-                  <div className="flex-1 w-full md:w-1/2 flex flex-wrap items-center justify-start content-start gap-2">
+                  {/* Right Group: Positive VAMS (closer to 0 closer to center, more positive further right) */}
+                  <div className="flex-1 w-full md:w-auto flex flex-wrap items-center justify-start content-center gap-2">
                     {positiveCards.map((f: any, idx: number) => renderDrMoCard(f, idx))}
                   </div>
                 </div>
