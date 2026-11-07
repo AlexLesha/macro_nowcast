@@ -151,7 +151,7 @@ export default function LiquidityAllocationPage() {
     return { text: `RSI: ${r} · Neutral`, color: "text-slate-400" };
   };
 
-  const renderDrMoCard = (f: any, idx: number) => {
+  const renderDrMoCard = (f: any, idx: string | number) => {
     const vScore = f.vams_score !== undefined && f.vams_score !== null ? Number(f.vams_score) : Number(f.vams_state || 0);
     const targetExp =
       f.target_exposure_pct !== undefined && f.target_exposure_pct !== null
@@ -167,8 +167,8 @@ export default function LiquidityAllocationPage() {
 
     return (
       <div
-        key={idx}
-        className={`p-2 rounded-lg border transition shadow-sm w-[130px] sm:w-[136px] shrink-0 font-mono space-y-1 ${
+        key={`${f.ticker}-${idx}`}
+        className={`p-2 rounded-lg border transition shadow-sm w-[130px] sm:w-[134px] shrink-0 font-mono space-y-1 ${
           isPositive
             ? "bg-[#0b1622] border-emerald-900/60 hover:border-emerald-500/60"
             : isNegative
@@ -592,7 +592,7 @@ export default function LiquidityAllocationPage() {
               DR. MO 70-FACTOR INSTITUTIONAL HEATMAP
             </h2>
             <p className="text-xs text-slate-400 font-mono">
-              50/50 Spectrum Layout: Negative VAMS on left (scaled by distance to center), Neutral clustered in center, Positive VAMS on right
+              Continuous Multi-Row Spectrum: Negative VAMS on left, Neutral in center, Positive VAMS on right — dynamically scaled to eliminate overflow
             </p>
           </div>
 
@@ -662,72 +662,41 @@ export default function LiquidityAllocationPage() {
 
             if (filteredGroupItems.length === 0) return null;
 
-            // Partition into 3 distinct groups: Negative, Neutral, and Positive
-            // Negative: sorted ascending (most negative first -> sitting furthest left)
-            const negativeCards = filteredGroupItems
-              .filter((item: any) => {
-                const v = item.vams_score !== undefined && item.vams_score !== null ? Number(item.vams_score) : Number(item.vams_state || 0);
-                const tradeStr = String(item.proper_trade || item.signal || "").toUpperCase();
-                if (tradeStr.includes("NEUTRAL") || tradeStr.includes("FLAT")) return false;
-                return v < -0.15;
-              })
-              .sort((a: any, b: any) => {
-                const vA = a.vams_score !== undefined && a.vams_score !== null ? Number(a.vams_score) : Number(a.vams_state || 0);
-                const vB = b.vams_score !== undefined && b.vams_score !== null ? Number(b.vams_score) : Number(b.vams_state || 0);
-                return vA - vB;
-              });
+            // Sort all cards strictly ascending by continuous VAMS score (-1.00 to +1.00)
+            const sortedCards = [...filteredGroupItems].sort((a: any, b: any) => {
+              const vA = a.vams_score !== undefined && a.vams_score !== null ? Number(a.vams_score) : Number(a.vams_state || 0);
+              const vB = b.vams_score !== undefined && b.vams_score !== null ? Number(b.vams_score) : Number(b.vams_state || 0);
+              return vA - vB;
+            });
 
-            // Neutral: items with |vams| <= 0.15 or trade marked NEUTRAL/FLAT
-            const neutralCards = filteredGroupItems
-              .filter((item: any) => {
-                const v = item.vams_score !== undefined && item.vams_score !== null ? Number(item.vams_score) : Number(item.vams_state || 0);
-                const tradeStr = String(item.proper_trade || item.signal || "").toUpperCase();
-                if (tradeStr.includes("NEUTRAL") || tradeStr.includes("FLAT")) return true;
-                return Math.abs(v) <= 0.15;
-              })
-              .sort((a: any, b: any) => {
-                const vA = a.vams_score !== undefined && a.vams_score !== null ? Number(a.vams_score) : Number(a.vams_state || 0);
-                const vB = b.vams_score !== undefined && b.vams_score !== null ? Number(b.vams_score) : Number(b.vams_state || 0);
-                return vA - vB;
-              });
-
-            // Positive: sorted ascending (lowest positive first -> sitting nearest to center, most positive furthest right)
-            const positiveCards = filteredGroupItems
-              .filter((item: any) => {
-                const v = item.vams_score !== undefined && item.vams_score !== null ? Number(item.vams_score) : Number(item.vams_state || 0);
-                const tradeStr = String(item.proper_trade || item.signal || "").toUpperCase();
-                if (tradeStr.includes("NEUTRAL") || tradeStr.includes("FLAT")) return false;
-                return v > 0.15;
-              })
-              .sort((a: any, b: any) => {
-                const vA = a.vams_score !== undefined && a.vams_score !== null ? Number(a.vams_score) : Number(a.vams_state || 0);
-                const vB = b.vams_score !== undefined && b.vams_score !== null ? Number(b.vams_score) : Number(b.vams_state || 0);
-                return vA - vB;
-              });
-
-            // Compute dynamic target row count across the 3 groups to organize space neatly and tidy:
-            const maxGroupCount = Math.max(negativeCards.length, neutralCards.length, positiveCards.length);
-            const totalCount = filteredGroupItems.length;
-
-            let targetRows = 2;
-            if (maxGroupCount >= 7 || totalCount >= 16) {
-              targetRows = 3;
-            }
-            if (maxGroupCount >= 11 || totalCount >= 24) {
-              targetRows = 4;
-            }
-            if (totalCount <= 4 && maxGroupCount <= 2) {
-              targetRows = 1;
+            // Dynamically calculate optimal number of columns based on universe size:
+            // Removes any row limit (allows 3, 4, 5, 6, 7+ rows) so scorecards neatly populate the allocated space
+            // without exceeding container width or requiring horizontal scroll.
+            const totalCount = sortedCards.length;
+            let numCols = 5;
+            if (totalCount <= 3) {
+              numCols = totalCount;
+            } else if (totalCount <= 6) {
+              numCols = 3;
+            } else if (totalCount <= 14) {
+              numCols = 4;
+            } else if (totalCount <= 20) {
+              numCols = 5;
+            } else {
+              numCols = 5;
             }
 
-            const rowClass =
-              targetRows === 1
-                ? "grid-rows-1"
-                : targetRows === 2
-                ? "grid-rows-2"
-                : targetRows === 3
-                ? "grid-rows-3"
-                : "grid-rows-4";
+            // Partition sortedCards evenly across columns from left (most negative) to right (most positive).
+            // Rules of segregating types are relaxed: adjacent types sit next to or on top of one another smoothly.
+            const basePerCol = Math.floor(totalCount / numCols);
+            const remainder = totalCount % numCols;
+            const columns: any[][] = [];
+            let cursor = 0;
+            for (let c = 0; c < numCols; c++) {
+              const countInCol = basePerCol + (c < remainder ? 1 : 0);
+              columns.push(sortedCards.slice(cursor, cursor + countInCol));
+              cursor += countInCol;
+            }
 
             return (
               <div key={grp.id} className="p-3.5 rounded-xl bg-[#090f1a] border border-slate-800/80 space-y-2.5">
@@ -743,34 +712,13 @@ export default function LiquidityAllocationPage() {
                   </div>
                 </div>
 
-                {/* 3 Groups Canvas: Negative (Left) | Neutral (Center Stack/Dynamic Rows) | Positive (Right) */}
-                <div className="flex flex-col md:flex-row items-center justify-center gap-2.5 min-h-[90px] w-full overflow-x-auto pb-1">
-                  {/* Left Group: Negative VAMS (aligned toward center) */}
-                  <div className="flex-1 w-full md:w-auto flex items-center justify-end">
-                    {negativeCards.length > 0 && (
-                      <div className={`grid ${rowClass} grid-flow-col gap-2`}>
-                        {negativeCards.map((f: any, idx: number) => renderDrMoCard(f, idx))}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Center Group: Neutral Cards (organic dynamic rows) */}
-                  {neutralCards.length > 0 && (
-                    <div className="shrink-0 flex items-center justify-center px-1">
-                      <div className={`grid ${rowClass} grid-flow-col gap-2`}>
-                        {neutralCards.map((f: any, idx: number) => renderDrMoCard(f, idx))}
-                      </div>
+                {/* Continuous Multi-Row Spectrum: Negative (Left) -> Neutral (Center) -> Positive (Right) */}
+                <div className="flex flex-wrap items-start justify-center gap-2 sm:gap-2.5 min-h-[90px] w-full pb-1">
+                  {columns.map((colCards: any[], colIdx: number) => (
+                    <div key={colIdx} className="flex flex-col gap-2 shrink-0">
+                      {colCards.map((f: any, idx: number) => renderDrMoCard(f, `${colIdx}-${idx}`))}
                     </div>
-                  )}
-
-                  {/* Right Group: Positive VAMS (aligned from center outward) */}
-                  <div className="flex-1 w-full md:w-auto flex items-center justify-start">
-                    {positiveCards.length > 0 && (
-                      <div className={`grid ${rowClass} grid-flow-col gap-2`}>
-                        {positiveCards.map((f: any, idx: number) => renderDrMoCard(f, idx))}
-                      </div>
-                    )}
-                  </div>
+                  ))}
                 </div>
               </div>
             );
