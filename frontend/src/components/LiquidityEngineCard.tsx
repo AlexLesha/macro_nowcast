@@ -47,6 +47,34 @@ export const LiquidityEngineCard: React.FC<LiquidityEngineCardProps> = ({ initia
     }
   };
 
+  const renderRocLine = (rocs?: { roc_4w_pct?: number; roc_13w_pct?: number; roc_26w_pct?: number }) => {
+    const r4 = rocs?.roc_4w_pct ?? 0.0;
+    const r13 = rocs?.roc_13w_pct ?? 0.0;
+    const r26 = rocs?.roc_26w_pct ?? 0.0;
+    return (
+      <div className="text-xs font-mono text-slate-400 mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+        <span>
+          4W:{" "}
+          <span className={r4 >= 0 ? "text-emerald-400 font-semibold" : "text-rose-400 font-semibold"}>
+            {r4 > 0 ? "+" : ""}{r4}%
+          </span>
+        </span>
+        <span>
+          13W:{" "}
+          <span className={r13 >= 0 ? "text-emerald-400 font-semibold" : "text-rose-400 font-semibold"}>
+            {r13 > 0 ? "+" : ""}{r13}%
+          </span>
+        </span>
+        <span>
+          26W:{" "}
+          <span className={r26 >= 0 ? "text-emerald-400 font-semibold" : "text-rose-400 font-semibold"}>
+            {r26 > 0 ? "+" : ""}{r26}%
+          </span>
+        </span>
+      </div>
+    );
+  };
+
   if (loading && !data) {
     return (
       <div className="bg-[#0e1626] border border-slate-800 rounded-xl p-8 text-center text-slate-400 font-mono text-sm flex items-center justify-center gap-3">
@@ -62,11 +90,12 @@ export const LiquidityEngineCard: React.FC<LiquidityEngineCardProps> = ({ initia
   const globalDebt = data.global_debt_ratios || data.global_liquidity || {};
   const bondAccord = data.bond_stress_accord || data.bond_stress_and_accord || {};
 
-  const accordGauge = bondAccord?.fed_treasury_accord_gauge;
-  const yieldDecomp = bondAccord?.yield_decomposition;
-  const fvModel = bondAccord?.fair_value_model;
-  const moveVix = bondAccord?.move_vix_co_signer;
-  const iip = globalDebt?.us_net_international_investment_position;
+  const accordGauge = bondAccord?.fed_treasury_accord_gauge || {};
+  const yieldDecomp = bondAccord?.yield_decomposition || {};
+  const fvModel = bondAccord?.fair_value_model || {};
+  const moveVix = bondAccord?.move_vix_co_signer || {};
+  const iip = globalDebt?.us_net_international_investment_position || {};
+  const bondRocs = bondAccord?.bond_market_rocs || {};
 
   return (
     <div className="space-y-6">
@@ -85,37 +114,43 @@ export const LiquidityEngineCard: React.FC<LiquidityEngineCardProps> = ({ initia
         </div>
 
         {/* 4 Core Pillars */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-4">
           <div className="bg-[#121c2e] p-3 rounded-lg border border-slate-800">
             <span className="text-xs font-mono text-slate-400 block mb-1">FED NET LIQUIDITY</span>
             <div className="text-base font-black font-mono text-emerald-400">
-              ${usLiq.net_liquidity_usd_bn.toLocaleString()}B
+              ${Number(usLiq.net_liquidity_usd_bn || 0).toLocaleString()}B
             </div>
-            <span className="text-xs text-slate-500 font-mono">52W Z: {usLiq.z_score_52w > 0 ? "+" : ""}{usLiq.z_score_52w}σ</span>
+            {renderRocLine(usLiq.net_liquidity_rocs || usLiq.rates_of_change)}
+            <span className="text-xs text-slate-500 font-mono block mt-1.5">
+              52W Z: {usLiq.z_score_52w > 0 ? "+" : ""}{usLiq.z_score_52w}σ
+            </span>
           </div>
 
           <div className="bg-[#121c2e] p-3 rounded-lg border border-slate-800">
             <span className="text-xs font-mono text-slate-400 block mb-1">FED TOTAL ASSETS (WALCL)</span>
             <div className="text-base font-bold font-mono text-slate-100">
-              ${usLiq.fed_assets_walcl_bn.toLocaleString()}B
+              ${Number(usLiq.fed_assets_walcl_bn || 0).toLocaleString()}B
             </div>
-            <span className="text-xs text-slate-500 font-mono">QT RUNOFF ACTIVE</span>
+            {renderRocLine(usLiq.walcl_rocs)}
+            <span className="text-xs text-slate-500 font-mono block mt-1.5">QT RUNOFF ACTIVE</span>
           </div>
 
           <div className="bg-[#121c2e] p-3 rounded-lg border border-slate-800">
             <span className="text-xs font-mono text-slate-400 block mb-1">TREASURY TGA (WTREGEN)</span>
             <div className="text-base font-bold font-mono text-amber-400">
-              ${usLiq.tga_wtregen_bn.toLocaleString()}B
+              ${Number(usLiq.tga_wtregen_bn || 0).toLocaleString()}B
             </div>
-            <span className="text-xs text-slate-500 font-mono">DRAWS LIQUIDITY (+)</span>
+            {renderRocLine(usLiq.tga_rocs)}
+            <span className="text-xs text-slate-500 font-mono block mt-1.5">DRAWS LIQUIDITY (+)</span>
           </div>
 
           <div className="bg-[#121c2e] p-3 rounded-lg border border-slate-800">
             <span className="text-xs font-mono text-slate-400 block mb-1">REVERSE REPO (RRP)</span>
             <div className="text-base font-bold font-mono text-rose-400">
-              ${usLiq.reverse_repo_rrp_bn.toLocaleString()}B
+              ${Number(usLiq.reverse_repo_rrp_bn || 0).toLocaleString()}B
             </div>
-            <span className="text-xs text-slate-500 font-mono">FACILITY DRAIN (+)</span>
+            {renderRocLine(usLiq.rrp_rocs)}
+            <span className="text-xs text-slate-500 font-mono block mt-1.5">FACILITY DRAIN (+)</span>
           </div>
         </div>
 
@@ -129,20 +164,20 @@ export const LiquidityEngineCard: React.FC<LiquidityEngineCardProps> = ({ initia
             <div className="grid grid-cols-3 gap-2 text-center">
               <div className="p-2 rounded bg-[#131e32] border border-slate-700/60">
                 <span className="text-xs text-slate-400 block">4-WEEK RoC</span>
-                <span className={`font-bold ${usLiq.rates_of_change.roc_4w_pct >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
-                  {usLiq.rates_of_change.roc_4w_pct > 0 ? "+" : ""}{usLiq.rates_of_change.roc_4w_pct}%
+                <span className={`font-bold ${usLiq.rates_of_change?.roc_4w_pct >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                  {usLiq.rates_of_change?.roc_4w_pct > 0 ? "+" : ""}{usLiq.rates_of_change?.roc_4w_pct}%
                 </span>
               </div>
               <div className="p-2 rounded bg-[#131e32] border border-slate-700/60">
                 <span className="text-xs text-slate-400 block">13-WEEK RoC</span>
-                <span className={`font-bold ${usLiq.rates_of_change.roc_13w_pct >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
-                  {usLiq.rates_of_change.roc_13w_pct > 0 ? "+" : ""}{usLiq.rates_of_change.roc_13w_pct}%
+                <span className={`font-bold ${usLiq.rates_of_change?.roc_13w_pct >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                  {usLiq.rates_of_change?.roc_13w_pct > 0 ? "+" : ""}{usLiq.rates_of_change?.roc_13w_pct}%
                 </span>
               </div>
               <div className="p-2 rounded bg-[#131e32] border border-slate-700/60">
                 <span className="text-xs text-slate-400 block">26-WEEK RoC</span>
-                <span className={`font-bold ${usLiq.rates_of_change.roc_26w_pct >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
-                  {usLiq.rates_of_change.roc_26w_pct > 0 ? "+" : ""}{usLiq.rates_of_change.roc_26w_pct}%
+                <span className={`font-bold ${usLiq.rates_of_change?.roc_26w_pct >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                  {usLiq.rates_of_change?.roc_26w_pct > 0 ? "+" : ""}{usLiq.rates_of_change?.roc_26w_pct}%
                 </span>
               </div>
             </div>
@@ -158,20 +193,20 @@ export const LiquidityEngineCard: React.FC<LiquidityEngineCardProps> = ({ initia
               <div className="flex items-center justify-between text-sm p-1.5 rounded bg-[#131e32]">
                 <span className="text-slate-200 font-bold">SPY (S&amp;P 500)</span>
                 <span className="text-slate-400">
-                  Fair: ${usLiq.cross_asset_spreads.spy.liquidity_implied_fair_value} | Gap:{" "}
-                  <strong className={usLiq.cross_asset_spreads.spy.valuation_gap_pct > 5 ? "text-amber-400" : "text-emerald-400"}>
-                    {usLiq.cross_asset_spreads.spy.valuation_gap_pct > 0 ? "+" : ""}
-                    {usLiq.cross_asset_spreads.spy.valuation_gap_pct}%
+                  Fair: ${usLiq.cross_asset_spreads?.spy?.liquidity_implied_fair_value} | Gap:{" "}
+                  <strong className={usLiq.cross_asset_spreads?.spy?.valuation_gap_pct > 5 ? "text-amber-400" : "text-emerald-400"}>
+                    {usLiq.cross_asset_spreads?.spy?.valuation_gap_pct > 0 ? "+" : ""}
+                    {usLiq.cross_asset_spreads?.spy?.valuation_gap_pct}%
                   </strong>
                 </span>
               </div>
               <div className="flex items-center justify-between text-sm p-1.5 rounded bg-[#131e32]">
                 <span className="text-slate-200 font-bold">IBIT (Bitcoin, Beta: 3.85)</span>
                 <span className="text-slate-400">
-                  Fair: ${usLiq.cross_asset_spreads.ibit_bitcoin.liquidity_implied_fair_value} | Gap:{" "}
-                  <strong className={usLiq.cross_asset_spreads.ibit_bitcoin.valuation_gap_pct > 10 ? "text-amber-400" : "text-emerald-400"}>
-                    {usLiq.cross_asset_spreads.ibit_bitcoin.valuation_gap_pct > 0 ? "+" : ""}
-                    {usLiq.cross_asset_spreads.ibit_bitcoin.valuation_gap_pct}%
+                  Fair: ${usLiq.cross_asset_spreads?.ibit_bitcoin?.liquidity_implied_fair_value} | Gap:{" "}
+                  <strong className={usLiq.cross_asset_spreads?.ibit_bitcoin?.valuation_gap_pct > 10 ? "text-amber-400" : "text-emerald-400"}>
+                    {usLiq.cross_asset_spreads?.ibit_bitcoin?.valuation_gap_pct > 0 ? "+" : ""}
+                    {usLiq.cross_asset_spreads?.ibit_bitcoin?.valuation_gap_pct}%
                   </strong>
                 </span>
               </div>
@@ -192,50 +227,80 @@ export const LiquidityEngineCard: React.FC<LiquidityEngineCardProps> = ({ initia
           </div>
 
           <div className="space-y-3 font-mono text-sm">
-            <div className="bg-[#121c2e] p-3 rounded border border-slate-800">
-              <span className="text-xs text-slate-500 uppercase block mb-1">
+            <div className="bg-[#121c2e] p-3 rounded border border-slate-800 space-y-2">
+              <span className="text-xs text-slate-500 uppercase block font-semibold">
                 CENTRAL BANK BALANCE SHEETS (SPOT USD)
               </span>
-              <div className="grid grid-cols-2 gap-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-slate-400">Fed (US):</span>
-                  <span className="font-bold text-slate-200">${globalDebt.central_bank_breakdown_tn.fed_united_states}T</span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-sm">
+                <div className="p-2 rounded bg-[#0b1220] border border-slate-800/80">
+                  <div className="flex justify-between items-baseline">
+                    <span className="text-slate-400 text-xs">FED (US):</span>
+                    <span className="font-bold text-slate-200 text-sm">${globalDebt.central_bank_breakdown_tn?.fed_united_states}T</span>
+                  </div>
+                  {renderRocLine(globalDebt.central_bank_rocs?.fed_united_states)}
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-400">ECB (Eurozone):</span>
-                  <span className="font-bold text-slate-200">${globalDebt.central_bank_breakdown_tn.ecb_eurozone}T</span>
+
+                <div className="p-2 rounded bg-[#0b1220] border border-slate-800/80">
+                  <div className="flex justify-between items-baseline">
+                    <span className="text-slate-400 text-xs">ECB (Eurozone):</span>
+                    <span className="font-bold text-slate-200 text-sm">${globalDebt.central_bank_breakdown_tn?.ecb_eurozone}T</span>
+                  </div>
+                  {renderRocLine(globalDebt.central_bank_rocs?.ecb_eurozone)}
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-400">BOJ (Japan):</span>
-                  <span className="font-bold text-slate-200">${globalDebt.central_bank_breakdown_tn.boj_japan}T</span>
+
+                <div className="p-2 rounded bg-[#0b1220] border border-slate-800/80">
+                  <div className="flex justify-between items-baseline">
+                    <span className="text-slate-400 text-xs">BOJ (Japan):</span>
+                    <span className="font-bold text-slate-200 text-sm">${globalDebt.central_bank_breakdown_tn?.boj_japan}T</span>
+                  </div>
+                  {renderRocLine(globalDebt.central_bank_rocs?.boj_japan)}
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-400">PBOC (China):</span>
-                  <span className="font-bold text-slate-200">${globalDebt.central_bank_breakdown_tn.pboc_china}T</span>
+
+                <div className="p-2 rounded bg-[#0b1220] border border-slate-800/80">
+                  <div className="flex justify-between items-baseline">
+                    <span className="text-slate-400 text-xs">PBOC (China):</span>
+                    <span className="font-bold text-slate-200 text-sm">${globalDebt.central_bank_breakdown_tn?.pboc_china}T</span>
+                  </div>
+                  {renderRocLine(globalDebt.central_bank_rocs?.pboc_china)}
                 </div>
               </div>
             </div>
 
-            <div className="bg-[#121c2e] p-3 rounded border border-slate-800">
-              <span className="text-xs text-slate-500 uppercase block mb-1">
+            <div className="bg-[#121c2e] p-3 rounded border border-slate-800 space-y-2">
+              <span className="text-xs text-slate-500 uppercase block font-semibold">
                 BROAD M2 MONEY SUPPLY: ${globalDebt.global_m2_usd_tn}T
               </span>
-              <div className="grid grid-cols-2 gap-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-slate-400">US M2:</span>
-                  <span className="font-bold text-slate-200">${globalDebt.m2_breakdown_tn.united_states}T</span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-sm">
+                <div className="p-2 rounded bg-[#0b1220] border border-slate-800/80">
+                  <div className="flex justify-between items-baseline">
+                    <span className="text-slate-400 text-xs">US M2:</span>
+                    <span className="font-bold text-slate-200 text-sm">${globalDebt.m2_breakdown_tn?.united_states}T</span>
+                  </div>
+                  {renderRocLine(globalDebt.m2_rocs?.united_states)}
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-400">China M2:</span>
-                  <span className="font-bold text-slate-200">${globalDebt.m2_breakdown_tn.china}T</span>
+
+                <div className="p-2 rounded bg-[#0b1220] border border-slate-800/80">
+                  <div className="flex justify-between items-baseline">
+                    <span className="text-slate-400 text-xs">China M2:</span>
+                    <span className="font-bold text-slate-200 text-sm">${globalDebt.m2_breakdown_tn?.china}T</span>
+                  </div>
+                  {renderRocLine(globalDebt.m2_rocs?.china)}
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-400">Eurozone M2:</span>
-                  <span className="font-bold text-slate-200">${globalDebt.m2_breakdown_tn.eurozone}T</span>
+
+                <div className="p-2 rounded bg-[#0b1220] border border-slate-800/80">
+                  <div className="flex justify-between items-baseline">
+                    <span className="text-slate-400 text-xs">Eurozone M2:</span>
+                    <span className="font-bold text-slate-200 text-sm">${globalDebt.m2_breakdown_tn?.eurozone}T</span>
+                  </div>
+                  {renderRocLine(globalDebt.m2_rocs?.eurozone)}
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-400">Japan M2:</span>
-                  <span className="font-bold text-slate-200">${globalDebt.m2_breakdown_tn.japan}T</span>
+
+                <div className="p-2 rounded bg-[#0b1220] border border-slate-800/80">
+                  <div className="flex justify-between items-baseline">
+                    <span className="text-slate-400 text-xs">Japan M2:</span>
+                    <span className="font-bold text-slate-200 text-sm">${globalDebt.m2_breakdown_tn?.japan}T</span>
+                  </div>
+                  {renderRocLine(globalDebt.m2_rocs?.japan)}
                 </div>
               </div>
             </div>
@@ -265,12 +330,12 @@ export const LiquidityEngineCard: React.FC<LiquidityEngineCardProps> = ({ initia
               <div className="space-y-2">
                 <div>
                   <div className="flex justify-between text-sm mb-1">
-                    <span className="font-bold text-rose-400">United States: {globalDebt.debt_to_domestic_liquidity_ratios.united_states_pct}%</span>
+                    <span className="font-bold text-rose-400">United States: {globalDebt.debt_to_domestic_liquidity_ratios?.united_states_pct}%</span>
                     <span className="text-slate-400">Extremely Overleveraged vs Domestic Base</span>
                   </div>
                   <div className="h-2 w-full bg-slate-900 rounded-full overflow-hidden flex border border-slate-800">
                     <div
-                      style={{ width: `${Math.min(100, Math.round((globalDebt.debt_to_domestic_liquidity_ratios.united_states_pct / 150) * 100))}%` }}
+                      style={{ width: `${Math.min(100, Math.round(((globalDebt.debt_to_domestic_liquidity_ratios?.united_states_pct || 140) / 150) * 100))}%` }}
                       className="bg-rose-500"
                     />
                   </div>
@@ -278,12 +343,12 @@ export const LiquidityEngineCard: React.FC<LiquidityEngineCardProps> = ({ initia
 
                 <div>
                   <div className="flex justify-between text-sm mb-1">
-                    <span className="font-bold text-emerald-400">Eurozone: {globalDebt.debt_to_domestic_liquidity_ratios.eurozone_pct}%</span>
-                    <span className="font-bold text-emerald-400">Japan: {globalDebt.debt_to_domestic_liquidity_ratios.japan_pct}%</span>
+                    <span className="font-bold text-emerald-400">Eurozone: {globalDebt.debt_to_domestic_liquidity_ratios?.eurozone_pct}%</span>
+                    <span className="font-bold text-emerald-400">Japan: {globalDebt.debt_to_domestic_liquidity_ratios?.japan_pct}%</span>
                   </div>
                   <div className="h-2 w-full bg-slate-900 rounded-full overflow-hidden flex border border-slate-800">
                     <div
-                      style={{ width: `${Math.min(100, Math.round((globalDebt.debt_to_domestic_liquidity_ratios.eurozone_pct / 150) * 100))}%` }}
+                      style={{ width: `${Math.min(100, Math.round(((globalDebt.debt_to_domestic_liquidity_ratios?.eurozone_pct || 61) / 150) * 100))}%` }}
                       className="bg-emerald-500"
                     />
                   </div>
@@ -291,12 +356,12 @@ export const LiquidityEngineCard: React.FC<LiquidityEngineCardProps> = ({ initia
 
                 <div>
                   <div className="flex justify-between text-sm mb-1">
-                    <span className="font-bold text-cyan-400">China: {globalDebt.debt_to_domestic_liquidity_ratios.china_pct}%</span>
+                    <span className="font-bold text-cyan-400">China: {globalDebt.debt_to_domestic_liquidity_ratios?.china_pct}%</span>
                     <span className="text-slate-400">High Domestic Liquid Cushion</span>
                   </div>
                   <div className="h-2 w-full bg-slate-900 rounded-full overflow-hidden flex border border-slate-800">
                     <div
-                      style={{ width: `${Math.min(100, Math.round((globalDebt.debt_to_domestic_liquidity_ratios.china_pct / 150) * 100))}%` }}
+                      style={{ width: `${Math.min(100, Math.round(((globalDebt.debt_to_domestic_liquidity_ratios?.china_pct || 31) / 150) * 100))}%` }}
                       className="bg-cyan-500"
                     />
                   </div>
@@ -339,87 +404,140 @@ export const LiquidityEngineCard: React.FC<LiquidityEngineCardProps> = ({ initia
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* 10Y Yield Decomposition */}
-          <div className="bg-[#121c2e] p-4 rounded-lg border border-slate-800 font-mono text-sm">
-            <span className="text-xs text-slate-500 uppercase font-semibold block mb-2">
-              10Y YIELD DECOMPOSITION (42 MACRO 94% RULE)
-            </span>
-            <div className="space-y-2">
-              <div className="flex justify-between">
-                <span className="text-slate-400">10Y Nominal (DGS10):</span>
-                <span className="font-bold text-white">{yieldDecomp.nominal_10y_pct}%</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">10Y Real TIPS (DFII10):</span>
-                <span className="font-bold text-amber-300">{yieldDecomp.real_tips_10y_pct}%</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">10Y Breakeven Inflation:</span>
-                <span className="font-bold text-cyan-300">{yieldDecomp.breakeven_inflation_10y_pct}%</span>
-              </div>
-              <div className="border-t border-slate-800 pt-2 flex justify-between">
-                <span className="text-slate-400">Real Rate Share of Yield Rise:</span>
-                <span className="font-black text-rose-400">{yieldDecomp.real_rate_share_pct}%</span>
+          <div className="bg-[#121c2e] p-4 rounded-lg border border-slate-800 font-mono text-sm flex flex-col justify-between">
+            <div>
+              <span className="text-xs text-slate-500 uppercase font-semibold block mb-2">
+                10Y YIELD DECOMPOSITION (42 MACRO 94% RULE)
+              </span>
+              <div className="space-y-2.5">
+                <div className="p-2 rounded bg-[#0b1220] border border-slate-800/80">
+                  <div className="flex justify-between items-baseline">
+                    <span className="text-slate-400 text-xs">10Y Nominal (DGS10):</span>
+                    <span className="font-bold text-white text-sm">{yieldDecomp.nominal_10y_pct}%</span>
+                  </div>
+                  {renderRocLine(bondRocs.nominal_10y)}
+                </div>
+
+                <div className="p-2 rounded bg-[#0b1220] border border-slate-800/80">
+                  <div className="flex justify-between items-baseline">
+                    <span className="text-slate-400 text-xs">10Y Real TIPS (DFII10):</span>
+                    <span className="font-bold text-amber-300 text-sm">{yieldDecomp.real_tips_10y_pct}%</span>
+                  </div>
+                  {renderRocLine(bondRocs.real_10y_tips)}
+                </div>
+
+                <div className="p-2 rounded bg-[#0b1220] border border-slate-800/80">
+                  <div className="flex justify-between items-baseline">
+                    <span className="text-slate-400 text-xs">10Y Breakeven Inflation:</span>
+                    <span className="font-bold text-cyan-300 text-sm">{yieldDecomp.breakeven_inflation_10y_pct}%</span>
+                  </div>
+                  {renderRocLine(bondRocs.breakeven_10y)}
+                </div>
+
+                <div className="pt-1 flex justify-between text-xs">
+                  <span className="text-slate-400">Real Rate Share of Yield Rise:</span>
+                  <span className="font-black text-rose-400">{yieldDecomp.real_rate_share_pct}%</span>
+                </div>
               </div>
             </div>
-            <p className="text-xs text-slate-400 mt-2">{yieldDecomp.rule_interpretation}</p>
+            <p className="text-xs text-slate-400 mt-2.5 border-t border-slate-800/70 pt-2">{yieldDecomp.rule_interpretation}</p>
           </div>
 
           {/* 3Fourteen Fair Value & MOVE vs VIX */}
-          <div className="bg-[#121c2e] p-4 rounded-lg border border-slate-800 font-mono text-sm">
-            <span className="text-xs text-slate-500 uppercase font-semibold block mb-2">
-              3FOURTEEN FAIR VALUE &amp; MOVE/VIX RATIO
-            </span>
-            <div className="space-y-2">
-              <div className="flex justify-between">
-                <span className="text-slate-400">2Y Actual vs FV:</span>
-                <span className="font-bold text-slate-200">
-                  {fvModel.actual_2y_pct}% (FV: {fvModel.fair_value_2y_pct}%)
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">10Y Actual vs FV:</span>
-                <span className="font-bold text-slate-200">
-                  {fvModel.actual_10y_pct}% (FV: {fvModel.fair_value_10y_pct}%)
-                </span>
-              </div>
-              <div className="border-t border-slate-800 pt-2 flex justify-between">
-                <span className="text-slate-400">MOVE / VIX Ratio:</span>
-                <span className="font-bold text-cyan-300">{moveVix.move_vix_ratio}x ({moveVix.co_signer_signal})</span>
+          <div className="bg-[#121c2e] p-4 rounded-lg border border-slate-800 font-mono text-sm flex flex-col justify-between">
+            <div>
+              <span className="text-xs text-slate-500 uppercase font-semibold block mb-2">
+                3FOURTEEN FAIR VALUE &amp; MOVE/VIX RATIO
+              </span>
+              <div className="space-y-2.5">
+                <div className="p-2 rounded bg-[#0b1220] border border-slate-800/80">
+                  <div className="flex justify-between items-baseline">
+                    <span className="text-slate-400 text-xs">2Y Actual vs FV:</span>
+                    <span className="font-bold text-slate-200 text-sm">
+                      {fvModel.actual_2y_pct}% (FV: {fvModel.fair_value_2y_pct}%)
+                    </span>
+                  </div>
+                  {renderRocLine(bondRocs.two_year)}
+                </div>
+
+                <div className="p-2 rounded bg-[#0b1220] border border-slate-800/80">
+                  <div className="flex justify-between items-baseline">
+                    <span className="text-slate-400 text-xs">10Y Actual vs FV:</span>
+                    <span className="font-bold text-slate-200 text-sm">
+                      {fvModel.actual_10y_pct}% (FV: {fvModel.fair_value_10y_pct}%)
+                    </span>
+                  </div>
+                  {renderRocLine(bondRocs.nominal_10y)}
+                </div>
+
+                <div className="p-2 rounded bg-[#0b1220] border border-slate-800/80">
+                  <div className="flex justify-between items-baseline">
+                    <span className="text-slate-400 text-xs">^MOVE Index:</span>
+                    <span className="font-bold text-cyan-300 text-sm">{moveVix.move_index}</span>
+                  </div>
+                  {renderRocLine(bondRocs.move_index)}
+                </div>
+
+                <div className="p-2 rounded bg-[#0b1220] border border-slate-800/80">
+                  <div className="flex justify-between items-baseline">
+                    <span className="text-slate-400 text-xs">^VIX Index:</span>
+                    <span className="font-bold text-cyan-300 text-sm">{moveVix.vix_index}</span>
+                  </div>
+                  {renderRocLine(bondRocs.vix_index)}
+                </div>
+
+                <div className="pt-1 flex justify-between text-xs">
+                  <span className="text-slate-400">MOVE / VIX Ratio:</span>
+                  <span className="font-bold text-cyan-300">{moveVix.move_vix_ratio}x ({moveVix.co_signer_signal})</span>
+                </div>
               </div>
             </div>
-            <p className="text-xs text-slate-400 mt-2">{moveVix.co_signer_description}</p>
+            <p className="text-xs text-slate-400 mt-2.5 border-t border-slate-800/70 pt-2">{moveVix.co_signer_description}</p>
           </div>
 
           {/* Fed-Treasury Accord 2.0 Probability Gauge */}
-          <div className="bg-[#121c2e] p-4 rounded-lg border border-slate-800 font-mono text-sm">
-            <span className="text-xs text-slate-500 uppercase font-semibold block mb-2">
-              ACCORD 2.0 PROBABILITY GAUGE
-            </span>
-            <div className="text-center py-2">
-              <div className="text-base font-black text-amber-400">
-                {accordGauge.probability_pct}%
-              </div>
-              <span className="text-xs font-bold text-slate-300 uppercase block mt-1">
-                {accordGauge.state}
+          <div className="bg-[#121c2e] p-4 rounded-lg border border-slate-800 font-mono text-sm flex flex-col justify-between">
+            <div>
+              <span className="text-xs text-slate-500 uppercase font-semibold block mb-2">
+                ACCORD 2.0 PROBABILITY GAUGE
               </span>
-            </div>
+              <div className="space-y-2.5">
+                <div className="p-2.5 rounded bg-[#0b1220] border border-slate-800/80 text-center">
+                  <div className="flex justify-between items-baseline">
+                    <span className="text-slate-400 text-xs uppercase font-semibold">ACCORD 2.0 PROBABILITY:</span>
+                    <span className="text-base font-black text-amber-400">{accordGauge.probability_pct}%</span>
+                  </div>
+                  {renderRocLine(bondRocs.accord_gauge)}
+                  <span className="text-xs font-bold text-slate-300 uppercase block mt-1">
+                    {accordGauge.state}
+                  </span>
+                </div>
 
-            <div className="space-y-1.5 pt-2 border-t border-slate-800 text-xs">
-              <div className="flex justify-between">
-                <span className="text-slate-400">Real Rate Surge Factor:</span>
-                <span className="font-bold text-slate-200">{accordGauge.sub_scores.real_rate_surge_score} / 35</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">HY Credit Spread Stress:</span>
-                <span className="font-bold text-slate-200">{accordGauge.sub_scores.credit_spread_stress_score} / 35</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">T-Bill Issuance Share:</span>
-                <span className="font-bold text-slate-200">
-                  {accordGauge.tbill_issuance_share_pct}% (TBAC Max: {accordGauge.tbac_recommended_limit_pct}%)
-                </span>
+                <div className="p-2 rounded bg-[#0b1220] border border-slate-800/80">
+                  <div className="flex justify-between items-baseline">
+                    <span className="text-slate-400 text-xs">T-Bill Issuance Share:</span>
+                    <span className="font-bold text-slate-200 text-sm">
+                      {accordGauge.tbill_issuance_share_pct}% (TBAC Max: {accordGauge.tbac_recommended_limit_pct}%)
+                    </span>
+                  </div>
+                  {renderRocLine(bondRocs.tbill_share)}
+                </div>
+
+                <div className="space-y-1.5 pt-1 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Real Rate Surge Factor:</span>
+                    <span className="font-bold text-slate-200">{accordGauge.sub_scores?.real_rate_surge_score} / 35</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">HY Credit Spread Stress:</span>
+                    <span className="font-bold text-slate-200">{accordGauge.sub_scores?.credit_spread_stress_score} / 35</span>
+                  </div>
+                </div>
               </div>
             </div>
+            <p className="text-xs text-slate-400 mt-2.5 border-t border-slate-800/70 pt-2">
+              Accord 2.0 indicates market pressure for administrative caps on long Treasury yields or SLR balance-sheet relief.
+            </p>
           </div>
         </div>
       </div>

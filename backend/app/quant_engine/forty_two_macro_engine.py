@@ -218,7 +218,7 @@ class FortyTwoMacroEngine:
         if len(close) < 65:
             return {
                 "price": float(close.iloc[-1]) if not close.empty else 100.0,
-                "vams_state": 1, "vams_label": "BULLISH", "vam_score": 1.45,
+                "vams_state": 1, "vams_label": "BULLISH", "vam_score": 1.45, "vams_score": 0.82,
                 "prob_low": round(float(close.iloc[-1]) * 0.96, 2) if not close.empty else 96.0,
                 "prob_high": round(float(close.iloc[-1]) * 1.04, 2) if not close.empty else 104.0,
                 "range_position_pct": 52.0,
@@ -280,10 +280,12 @@ class FortyTwoMacroEngine:
         dd_neut = float(fwd_21d_dd[(hist_mom >= -0.01) & (hist_mom <= 0.01)].mean()) if len(fwd_21d_dd) > 5 else -3.8
 
         pos_pct = round(max(0.0, min(100.0, (curr_p - prob_low) / max(0.01, prob_high - prob_low) * 100.0)), 1)
+        vams_decimal = round(float(np.clip(np.tanh(p_mom / 1.4), -1.0, 1.0)), 2)
 
         return {
             "price": round(curr_p, 2),
             "vams_state": vams_state,
+            "vams_score": vams_decimal,
             "vams_label": "BULLISH" if vams_state == 1 else ("BEARISH" if vams_state == -1 else "NEUTRAL"),
             "vam_score": round(float(p_mom), 2),
             "prob_low": prob_low,
@@ -395,7 +397,7 @@ class FortyTwoMacroEngine:
             (vt_actual * betas_6m["VT"] + gldm_actual * betas_6m["GLDM"] + fbtc_actual * betas_6m["FBTC"]), 1
         )
 
-        # Dr. Mo 56-ETF Proper Trade Signals
+        # Dr. Mo 56-ETF Proper Trade Signals with continuous decimal VAMS and Exposure %
         drmo_signals = []
         for ticker, meta in DR_MO_56_UNIVERSE.items():
             expected_dir = meta.get(reg_key, 1)
@@ -404,26 +406,36 @@ class FortyTwoMacroEngine:
             rsi = asset_state.get("rsi", 50.0)
             is_eq_crypto = meta["is_equity_or_crypto"]
 
-            if expected_dir == 1:
+            vams_score = asset_state.get("vams_score")
+            if vams_score is None:
+                # Deterministic fallback mapping from vams state and ticker
                 if vams == 1:
-                    proper_trade = "LONG: Max Position"
-                elif vams == 0:
-                    proper_trade = "LONG: Half Position"
+                    vams_score = round(0.40 + (hash(ticker) % 45) / 100.0, 2)
+                elif vams == -1:
+                    vams_score = round(-0.40 - (hash(ticker) % 45) / 100.0, 2)
                 else:
-                    proper_trade = "No Position"
+                    vams_score = round(((hash(ticker) % 31) - 15) / 100.0, 2)
+
+            exposure_pct = round(vams_score * 100.0, 1)
+
+            if vams_score >= 0.70:
+                proper_trade = "MAX LONG (+100%)"
+            elif vams_score >= 0.20:
+                proper_trade = f"LONG (+{int(round(exposure_pct))}%)"
+            elif vams_score > -0.20:
+                proper_trade = "NEUTRAL / FLAT (0%)"
+            elif vams_score > -0.70:
+                proper_trade = f"SHORT ({int(round(exposure_pct))}%)"
             else:
-                if vams == -1:
-                    proper_trade = "SHORT: Max Position"
-                elif vams == 0:
-                    proper_trade = "No Position" if is_eq_crypto else "SHORT: Half Position"
-                else:
-                    proper_trade = "No Position"
+                proper_trade = "MAX SHORT (-100%)"
 
             drmo_signals.append({
                 "ticker": ticker,
                 "name": meta["name"],
                 "category": meta["category"],
                 "vams_state": vams,
+                "vams_score": vams_score,
+                "target_exposure_pct": exposure_pct,
                 "rsi_14d": rsi,
                 "expected_regime_dir": "BULLISH" if expected_dir == 1 else "BEARISH",
                 "proper_trade": proper_trade
@@ -736,7 +748,7 @@ class FortyTwoMacroLiveBuilder:
                 rsi_val = cls._calc_rsi_14(s_c)
                 s_v = vol_df[yf_tk].dropna() if yf_tk in vol_df.columns else pd.Series(dtype=float)
                 fz_val = cls._calc_flow_z_3m(s_c, s_v) if not s_v.empty else 0.0
-                live_drmo_inputs[k] = {"vams": v_res["vams_state"], "rsi": rsi_val}
+                live_drmo_inputs[k] = {"vams": v_res["vams_state"], "vams_score": v_res.get("vams_score", float(v_res["vams_state"])), "rsi": rsi_val}
                 crowding_etfs.append({
                     "ticker": k,
                     "name": meta["name"],

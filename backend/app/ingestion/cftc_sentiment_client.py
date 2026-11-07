@@ -89,8 +89,12 @@ class CftcSentimentClient:
 
                             benchmarks.append({
                                 "contract": meta["name"],
+                                "contract_name": meta["name"],
+                                "name": meta["name"],
                                 "ticker": meta["ticker"],
                                 "net_position": curr_net_pos,
+                                "net_position_contracts": curr_net_pos,
+                                "net_pct_of_oi": curr_net_pct,
                                 "net_noncommercial_pct_oi": curr_net_pct,
                                 "percentile_3y": pct_52w,
                                 "percentile_52w": pct_52w,
@@ -104,12 +108,12 @@ class CftcSentimentClient:
         # Fallback only if live Socrata query fails
         if not benchmarks:
             benchmarks = [
-                {"contract": "E-MINI S&P 500", "ticker": "SPY", "net_position": -42500, "percentile_3y": 38.5, "sentiment": "MODERATELY_SHORT"},
-                {"contract": "10-YEAR US TREASURY NOTES", "ticker": "TLT", "net_position": -680000, "percentile_3y": 12.0, "sentiment": "CROWDED_SHORT"},
-                {"contract": "US DOLLAR INDEX", "ticker": "UUP", "net_position": 14500, "percentile_3y": 55.0, "sentiment": "NEUTRAL"},
-                {"contract": "GOLD", "ticker": "GLD", "net_position": 248000, "percentile_3y": 91.5, "sentiment": "EXTREME_LONG_CROWDED"},
-                {"contract": "WTI CRUDE OIL", "ticker": "USO", "net_position": 195000, "percentile_3y": 42.0, "sentiment": "NEUTRAL"},
-                {"contract": "CME BITCOIN FUTURES", "ticker": "IBIT", "net_position": 2200, "percentile_3y": 68.0, "sentiment": "OVERWEIGHT_LONG"},
+                {"contract": "E-MINI S&P 500", "contract_name": "E-MINI S&P 500", "name": "E-MINI S&P 500", "ticker": "SPY", "net_position": -129414, "net_position_contracts": -129414, "net_pct_of_oi": -6.51, "net_noncommercial_pct_oi": -6.51, "percentile_3y": 34.8, "percentile_52w": 34.8, "sentiment": "MODERATELY_SHORT"},
+                {"contract": "10-YEAR US TREASURY NOTES", "contract_name": "10-YEAR US TREASURY NOTES", "name": "10-YEAR US TREASURY NOTES", "ticker": "TLT", "net_position": -962359, "net_position_contracts": -962359, "net_pct_of_oi": -16.18, "net_noncommercial_pct_oi": -16.18, "percentile_3y": 28.3, "percentile_52w": 28.3, "sentiment": "MODERATELY_SHORT"},
+                {"contract": "US DOLLAR INDEX", "contract_name": "US DOLLAR INDEX", "name": "US DOLLAR INDEX", "ticker": "UUP", "net_position": 14190, "net_position_contracts": 14190, "net_pct_of_oi": 28.91, "net_noncommercial_pct_oi": 28.91, "percentile_3y": 82.2, "percentile_52w": 82.2, "sentiment": "EXTREME_LONG_CROWDED"},
+                {"contract": "GOLD", "contract_name": "GOLD", "name": "GOLD", "ticker": "GLD", "net_position": 179548, "net_position_contracts": 179548, "net_pct_of_oi": 44.98, "net_noncommercial_pct_oi": 44.98, "percentile_3y": 37.4, "percentile_52w": 37.4, "sentiment": "MODERATELY_SHORT"},
+                {"contract": "WTI CRUDE OIL", "contract_name": "WTI CRUDE OIL", "name": "WTI CRUDE OIL", "ticker": "USO", "net_position": 80289, "net_position_contracts": 80289, "net_pct_of_oi": 4.21, "net_noncommercial_pct_oi": 4.21, "percentile_3y": 17.2, "percentile_52w": 17.2, "sentiment": "CROWDED_SHORT"},
+                {"contract": "CME BITCOIN FUTURES", "contract_name": "CME BITCOIN FUTURES", "name": "CME BITCOIN FUTURES", "ticker": "IBIT", "net_position": 2230, "net_position_contracts": 2230, "net_pct_of_oi": 12.72, "net_noncommercial_pct_oi": 12.72, "percentile_3y": 67.2, "percentile_52w": 67.2, "sentiment": "OVERWEIGHT_LONG"},
             ]
         return benchmarks
 

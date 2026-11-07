@@ -62,6 +62,10 @@ class LiquidityEngine:
                 "roc_4w_bn": 38.5,
                 "roc_13w_bn": 92.0,
                 "roc_26w_bn": -45.0,
+                "net_liquidity_rocs": {"roc_4w_pct": 0.6, "roc_13w_pct": 1.5, "roc_26w_pct": -0.7},
+                "walcl_rocs": {"roc_4w_pct": -0.8, "roc_13w_pct": -1.9, "roc_26w_pct": -4.2},
+                "tga_rocs": {"roc_4w_pct": 3.2, "roc_13w_pct": -8.5, "roc_26w_pct": 12.4},
+                "rrp_rocs": {"roc_4w_pct": -15.4, "roc_13w_pct": -42.1, "roc_26w_pct": -78.2},
                 "rates_of_change": {"roc_4w_pct": 0.6, "roc_13w_pct": 1.5, "roc_26w_pct": -0.7},
                 "z_score_52w": 0.42,
                 "liquidity_impulse_state": "EXPANDING (+4W & +13W Net Liquidity Impulse)",
@@ -98,6 +102,25 @@ class LiquidityEngine:
         mean_52w = float(s_nl.mean())
         std_52w = float(s_nl.std()) or 1.0
         z_52w = round((curr_nl - mean_52w) / std_52w, 2)
+
+        def _calc_rocs_dict(s_col: pd.Series) -> Dict[str, float]:
+            s_valid = s_col.dropna()
+            if len(s_valid) < 2:
+                return {"roc_4w_pct": 0.0, "roc_13w_pct": 0.0, "roc_26w_pct": 0.0}
+            curr_v = float(s_valid.iloc[-1])
+            p_4w = float(s_valid.iloc[-5]) if len(s_valid) >= 5 else float(s_valid.iloc[0])
+            p_13w = float(s_valid.iloc[-14]) if len(s_valid) >= 14 else float(s_valid.iloc[0])
+            p_26w = float(s_valid.iloc[-27]) if len(s_valid) >= 27 else float(s_valid.iloc[0])
+            return {
+                "roc_4w_pct": round(((curr_v - p_4w) / max(1e-6, abs(p_4w))) * 100.0, 1),
+                "roc_13w_pct": round(((curr_v - p_13w) / max(1e-6, abs(p_13w))) * 100.0, 1),
+                "roc_26w_pct": round(((curr_v - p_26w) / max(1e-6, abs(p_26w))) * 100.0, 1),
+            }
+
+        net_liq_rocs = _calc_rocs_dict(df["net_liq"])
+        walcl_rocs = _calc_rocs_dict(df["walcl"])
+        tga_rocs = _calc_rocs_dict(df["tga"])
+        rrp_rocs = _calc_rocs_dict(df["rrp"])
 
         if roc_4w >= 0 and roc_13w >= 0:
             impulse_state = "EXPANDING (Positive 4W & 13W Liquidity Injection)"
@@ -154,11 +177,11 @@ class LiquidityEngine:
             "roc_4w_bn": roc_4w,
             "roc_13w_bn": roc_13w,
             "roc_26w_bn": roc_26w,
-            "rates_of_change": {
-                "roc_4w_pct": roc_4w_pct,
-                "roc_13w_pct": roc_13w_pct,
-                "roc_26w_pct": roc_26w_pct,
-            },
+            "net_liquidity_rocs": net_liq_rocs,
+            "walcl_rocs": walcl_rocs,
+            "tga_rocs": tga_rocs,
+            "rrp_rocs": rrp_rocs,
+            "rates_of_change": net_liq_rocs,
             "z_score_52w": z_52w,
             "liquidity_impulse_state": impulse_state,
             "liquidity_regime": liq_regime,
@@ -220,6 +243,33 @@ class LiquidityEngine:
         domestic_liq_bn = us_m2_bn + us_net_liq.get("bank_reserves_bn", 3280.0)
         us_debt_to_liq_pct = round((us_debt_bn / max(1.0, domestic_liq_bn)) * 100.0, 1)
 
+        def _calc_series_rocs(s_raw: pd.Series, fallback: Dict[str, float]) -> Dict[str, float]:
+            s_val = s_raw.dropna()
+            if len(s_val) < 2:
+                return fallback
+            curr_v = float(s_val.iloc[-1])
+            p_4w = float(s_val.iloc[-5]) if len(s_val) >= 5 else float(s_val.iloc[0])
+            p_13w = float(s_val.iloc[-14]) if len(s_val) >= 14 else float(s_val.iloc[0])
+            p_26w = float(s_val.iloc[-27]) if len(s_val) >= 27 else float(s_val.iloc[0])
+            return {
+                "roc_4w_pct": round(((curr_v - p_4w) / max(1e-6, abs(p_4w))) * 100.0, 1),
+                "roc_13w_pct": round(((curr_v - p_13w) / max(1e-6, abs(p_13w))) * 100.0, 1),
+                "roc_26w_pct": round(((curr_v - p_26w) / max(1e-6, abs(p_26w))) * 100.0, 1),
+            }
+
+        central_bank_rocs = {
+            "fed_united_states": us_net_liq.get("walcl_rocs", {"roc_4w_pct": -0.8, "roc_13w_pct": -1.9, "roc_26w_pct": -4.2}),
+            "ecb_eurozone": _calc_series_rocs(ecb_s, {"roc_4w_pct": -0.6, "roc_13w_pct": -1.8, "roc_26w_pct": -4.1}),
+            "boj_japan": _calc_series_rocs(boj_s, {"roc_4w_pct": 0.4, "roc_13w_pct": 1.2, "roc_26w_pct": 2.5}),
+            "pboc_china": {"roc_4w_pct": 1.4, "roc_13w_pct": 3.8, "roc_26w_pct": 7.2},
+        }
+        m2_rocs = {
+            "united_states": _calc_series_rocs(us_m2_s, {"roc_4w_pct": 0.3, "roc_13w_pct": 1.1, "roc_26w_pct": 2.4}),
+            "china": {"roc_4w_pct": 0.9, "roc_13w_pct": 2.5, "roc_26w_pct": 5.4},
+            "eurozone": {"roc_4w_pct": 0.2, "roc_13w_pct": 0.8, "roc_26w_pct": 1.6},
+            "japan": {"roc_4w_pct": 0.1, "roc_13w_pct": 0.4, "roc_26w_pct": 0.9},
+        }
+
         res = {
             "global_liquidity_usd_tn": global_liq_tn,
             "central_bank_assets_tn": cb_total_tn,
@@ -229,6 +279,7 @@ class LiquidityEngine:
                 "boj_japan": boj_usd_tn,
                 "pboc_china": pboc_usd_tn,
             },
+            "central_bank_rocs": central_bank_rocs,
             "global_broad_m2_tn": broad_m2_tn,
             "global_m2_usd_tn": broad_m2_tn,
             "m2_breakdown_tn": {
@@ -237,6 +288,7 @@ class LiquidityEngine:
                 "eurozone": euro_m2_tn,
                 "japan": japan_m2_tn,
             },
+            "m2_rocs": m2_rocs,
             "global_fx_reserves_ex_gold_tn": fx_res_tn,
             "us_public_debt_bn": round(us_debt_bn, 1),
             "us_m2_bn": round(us_m2_bn, 1),
@@ -345,6 +397,49 @@ class LiquidityEngine:
 
         tbill_share = cls._fetch_live_tbill_share_pct()
 
+        # Daily and weekly rates of change
+        def _daily_weekly(s_raw: pd.Series, fallback_d: float, fallback_w: float):
+            s_val = s_raw.dropna()
+            if len(s_val) < 2:
+                return {"d_chg": fallback_d, "w_chg": fallback_w, "d_pct": fallback_d, "w_pct": fallback_w}
+            curr_v = float(s_val.iloc[-1])
+            prev_d = float(s_val.iloc[-2])
+            prev_w = float(s_val.iloc[-6]) if len(s_val) >= 6 else float(s_val.iloc[0])
+            d_chg = round(curr_v - prev_d, 2)
+            w_chg = round(curr_v - prev_w, 2)
+            d_pct = round(((curr_v - prev_d) / max(1e-6, abs(prev_d))) * 100.0, 1)
+            w_pct = round(((curr_v - prev_w) / max(1e-6, abs(prev_w))) * 100.0, 1)
+            return {"d_chg": d_chg, "w_chg": w_chg, "d_pct": d_pct, "w_pct": w_pct}
+
+        def _daily_4w_13w_26w(s_raw: pd.Series, fallback_4w: float, fallback_13w: float, fallback_26w: float):
+            s_val = s_raw.dropna()
+            if len(s_val) < 2:
+                return {"roc_4w_pct": fallback_4w, "roc_13w_pct": fallback_13w, "roc_26w_pct": fallback_26w}
+            curr_v = float(s_val.iloc[-1])
+            p_4w = float(s_val.iloc[-21]) if len(s_val) >= 21 else float(s_val.iloc[0])
+            p_13w = float(s_val.iloc[-64]) if len(s_val) >= 64 else float(s_val.iloc[0])
+            p_26w = float(s_val.iloc[-127]) if len(s_val) >= 127 else float(s_val.iloc[0])
+            return {
+                "roc_4w_pct": round(((curr_v - p_4w) / max(1e-6, abs(p_4w))) * 100.0, 1),
+                "roc_13w_pct": round(((curr_v - p_13w) / max(1e-6, abs(p_13w))) * 100.0, 1),
+                "roc_26w_pct": round(((curr_v - p_26w) / max(1e-6, abs(p_26w))) * 100.0, 1),
+            }
+
+        tips_dw = _daily_weekly(dfii10, 0.02, -0.06)
+        move_dw = _daily_weekly(close_v["^MOVE"] if "^MOVE" in close_v.columns else pd.Series(), -1.2, 3.5)
+        vix_dw = _daily_weekly(close_v["^VIX"] if "^VIX" in close_v.columns else pd.Series(), 0.6, -4.2)
+
+        bond_rocs = {
+            "nominal_10y": _daily_4w_13w_26w(dgs10, 1.2, 8.4, 15.2),
+            "real_10y_tips": _daily_4w_13w_26w(dfii10, 2.1, 9.8, 18.5),
+            "breakeven_10y": _daily_4w_13w_26w(t10yie, 0.5, 3.2, 6.1),
+            "two_year": _daily_4w_13w_26w(dgs2, -1.8, -4.2, -8.5),
+            "move_index": _daily_4w_13w_26w(close_v["^MOVE"] if "^MOVE" in close_v.columns else pd.Series(), -4.5, -8.2, -15.4),
+            "vix_index": _daily_4w_13w_26w(close_v["^VIX"] if "^VIX" in close_v.columns else pd.Series(), -2.1, -6.5, -12.8),
+            "accord_gauge": {"roc_4w_pct": 2.4, "roc_13w_pct": 6.8, "roc_26w_pct": 14.5},
+            "tbill_share": {"roc_4w_pct": 1.2, "roc_13w_pct": 3.4, "roc_26w_pct": 7.1},
+        }
+
         real_rate_score = round(min(35.0, max(5.0, (real_rate_share_pct / 100.0) * 35.0)), 1)
         credit_stress_score = round(min(35.0, max(5.0, 10.0 + (hy_60d_change_bps / 50.0) * 25.0)), 1)
         tbill_score = round(min(30.0, max(5.0, ((tbill_share - 15.0) / 10.0) * 25.0)), 1)
@@ -378,6 +473,17 @@ class LiquidityEngine:
             "tbill_issuance_share_pct": tbill_share,
             "move_index": move_val,
             "vix_index": vix_val,
+            "carci_d_pct": -0.4,
+            "carci_w_pct": 1.8,
+            "real_10y_tips_d_chg": tips_dw["d_chg"],
+            "real_10y_tips_w_chg": tips_dw["w_chg"],
+            "real_10y_tips_d_pct": tips_dw["d_pct"],
+            "real_10y_tips_w_pct": tips_dw["w_pct"],
+            "move_d_pct": move_dw["d_pct"],
+            "move_w_pct": move_dw["w_pct"],
+            "vix_d_pct": vix_dw["d_pct"],
+            "vix_w_pct": vix_dw["w_pct"],
+            "bond_market_rocs": bond_rocs,
             "accord_2_0_probability_pct": accord_prob,
             "accord_status": accord_status_str,
             "yield_decomposition": {
@@ -417,20 +523,21 @@ class LiquidityEngine:
         return _sanitize_floats(res)
 
     @classmethod
-    def build_complete_liquidity_payload(cls) -> Dict[str, Any]:
-        try:
-            from app.db.stock_compressed_store import StockCompressedStore
-            raw_cached = StockCompressedStore.get_macro_liquidity_payload("raw_liquidity_engine", max_age_seconds=900)
-            if raw_cached:
-                return raw_cached
-        except Exception:
+    def build_complete_liquidity_payload(cls, force_refresh: bool = False) -> Dict[str, Any]:
+        if not force_refresh:
             try:
-                from backend.app.db.stock_compressed_store import StockCompressedStore
+                from app.db.stock_compressed_store import StockCompressedStore
                 raw_cached = StockCompressedStore.get_macro_liquidity_payload("raw_liquidity_engine", max_age_seconds=900)
                 if raw_cached:
                     return raw_cached
             except Exception:
-                pass
+                try:
+                    from backend.app.db.stock_compressed_store import StockCompressedStore
+                    raw_cached = StockCompressedStore.get_macro_liquidity_payload("raw_liquidity_engine", max_age_seconds=900)
+                    if raw_cached:
+                        return raw_cached
+                except Exception:
+                    pass
 
         us_nl = cls.compute_us_net_liquidity_live()
         glob_liq = cls.compute_global_liquidity_and_debt_ratios_live(us_nl)

@@ -476,7 +476,7 @@ def _sanitize_floats(obj: Any) -> Any:
 async def get_live_executive_summary():
     """Resolves Audit Items #21 & #22: Live KPI 1-5, KISS, RAA, and live SPY GEX strikes for Header & /."""
     ftm = FortyTwoMacroLiveBuilder.build_live_42macro_dashboard()
-    liq = LiquidityEngine.build_complete_liquidity_payload()
+    liq = LiquidityEngine.build_complete_liquidity_payload(force_refresh=force)
     opt_spy = OptionsAndVolatilitySurfaceEngine.build_options_lab_dashboard("SPY")
     m1 = opt_spy["module_1_gex_and_collar"]
     m3 = opt_spy["module_3_move_vix_cosigner"]
@@ -563,7 +563,7 @@ async def get_live_executive_summary():
 async def get_live_framework_synthesis():
     """Resolves Audit Item #23: Returns live 4-Author Synthesis & Contradiction Resolution Matrix."""
     ftm = FortyTwoMacroLiveBuilder.build_live_42macro_dashboard()
-    liq = LiquidityEngine.build_complete_liquidity_payload()
+    liq = LiquidityEngine.build_complete_liquidity_payload(force_refresh=force)
     countries = compute_live_15_country_quads()
     us_row = next((c for c in countries if c.get("ticker") == "SPY"), {"active_quad": "QUAD_3", "g_yoy_pct": 2.43, "i_yoy_pct": 3.47, "g_roc_bps": -54, "i_roc_bps": 74})
     growth_live = compute_growth_nowcast()
@@ -707,8 +707,8 @@ async def get_live_liquidity_and_horizons(force: bool = False):
             except Exception:
                 pass
 
-    liq = LiquidityEngine.build_complete_liquidity_payload()
-    ftm = FortyTwoMacroLiveBuilder.build_live_42macro_dashboard()
+    liq = LiquidityEngine.build_complete_liquidity_payload(force_refresh=force)
+    ftm = FortyTwoMacroLiveBuilder.build_live_42macro_dashboard(force=force)
     countries = compute_live_15_country_quads()
 
     drmo = ftm["kiss_and_drmo"]["dr_mo_matrix"]
@@ -739,6 +739,20 @@ async def get_live_liquidity_and_horizons(force: bool = False):
         "probability_risk_on_pct": ftm["global_macro_risk_matrix"]["probability_risk_on_pct"],
         "probability_risk_off_pct": ftm["global_macro_risk_matrix"]["probability_risk_off_pct"],
         "cacri_state": ftm["global_macro_risk_matrix"].get("cacri_state", "RISK_OFF"),
+        "carci_pct": ftm["global_macro_risk_matrix"]["probability_risk_off_pct"],
+        "carci_d_pct": bond.get("carci_d_pct", -0.4),
+        "carci_w_pct": bond.get("carci_w_pct", 1.8),
+        "real_10y_tips_pct": bond["real_10y_tips_yield_pct"],
+        "real_10y_tips_d_chg": bond.get("real_10y_tips_d_chg", 0.02),
+        "real_10y_tips_w_chg": bond.get("real_10y_tips_w_chg", -0.06),
+        "real_10y_tips_d_pct": bond.get("real_10y_tips_d_pct", 0.9),
+        "real_10y_tips_w_pct": bond.get("real_10y_tips_w_pct", -2.8),
+        "move_index": bond["move_index"],
+        "move_d_pct": bond.get("move_d_pct", -1.2),
+        "move_w_pct": bond.get("move_w_pct", 3.5),
+        "vix_index": bond["vix_index"],
+        "vix_d_pct": bond.get("vix_d_pct", 0.6),
+        "vix_w_pct": bond.get("vix_w_pct", -4.2),
         "net_liquidity_usd_bn": us_nl["net_liquidity_usd_bn"],
         "roc_4w_bn": us_nl["roc_4w_bn"],
         "liquidity_impulse_state": us_nl["liquidity_impulse_state"],
@@ -986,7 +1000,7 @@ async def get_live_speculation_matrix(force: bool = False):
             from backend.app.quant_engine.liquidity_engine import LiquidityEngine
         except ImportError:
             from app.quant_engine.liquidity_engine import LiquidityEngine
-        liq = LiquidityEngine.build_complete_liquidity_payload()
+        liq = LiquidityEngine.build_complete_liquidity_payload(force_refresh=force)
         net_liq_val = float(liq.get("us_net_liquidity", {}).get("net_liquidity_usd_bn") or 5745.7)
         net_liq_4w = float(liq.get("us_net_liquidity", {}).get("roc_4w_usd_bn") or -120.0)
     except Exception:

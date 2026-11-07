@@ -63,23 +63,169 @@ export default function LiquidityAllocationPage() {
 
   const rawDrMoList = liveAllocationData?.dr_mo_matrix || [];
 
-  const filteredDrMo = rawDrMoList.filter((item: any) => {
-    // 1. Stance Filter
+  const fmtRoC = (val: number | undefined | null) => {
+    if (val === undefined || val === null || isNaN(val)) return "0.0%";
+    return `${val >= 0 ? "+" : ""}${Number(val).toFixed(1)}%`;
+  };
+
+  const getAssetGroup = (cat: string) => {
+    const c = String(cat || "").toUpperCase();
+    if (c.includes("SECTOR") && !c.includes("FIXED")) return "SECTORS";
+    if (c.includes("FACTOR") || c.includes("STYLE")) return "FACTORS";
+    if (c.includes("GLOBAL") || c.includes("COUNTRY")) return "GLOBAL";
+    if (c.includes("FIXED") || c.includes("BOND") || c.includes("RATE")) return "BONDS";
+    return "COMMODITIES"; // Macro Exposures, Commodities, FX, Crypto
+  };
+
+  const sortAlongXAxis = (items: any[]) => {
+    return [...items].sort((a, b) => {
+      const vScoreA = a.vams_score !== undefined && a.vams_score !== null ? Number(a.vams_score) : Number(a.vams_state || 0);
+      const vScoreB = b.vams_score !== undefined && b.vams_score !== null ? Number(b.vams_score) : Number(b.vams_state || 0);
+      if (Math.abs(vScoreA - vScoreB) > 0.001) return vScoreA - vScoreB;
+      const expA = a.target_exposure_pct !== undefined && a.target_exposure_pct !== null ? Number(a.target_exposure_pct) : 0;
+      const expB = b.target_exposure_pct !== undefined && b.target_exposure_pct !== null ? Number(b.target_exposure_pct) : 0;
+      return expA - expB;
+    });
+  };
+
+  const DR_MO_GROUPS = [
+    {
+      id: "SECTORS",
+      title: "US Equity Sectors",
+      description: "11 GICS Select Sector SPDRs & SPY Benchmark",
+    },
+    {
+      id: "FACTORS",
+      title: "US Equity Style Factors",
+      description: "Smart Beta, Low Volatility, High Beta, Quality & Momentum",
+    },
+    {
+      id: "GLOBAL",
+      title: "Global Equities & Regions",
+      description: "Developed & Emerging Market Country Quad Proxies",
+    },
+    {
+      id: "BONDS",
+      title: "Fixed Income & Sovereign Debt",
+      description: "Duration, Credit Spreads, Mortgages & TIPS Inflation Plumbing",
+    },
+    {
+      id: "COMMODITIES",
+      title: "Commodities, Currencies & Digital Assets",
+      description: "Monetary Metals, Energy, Agriculture, Currencies & Bitcoin",
+    },
+  ];
+
+  const filterFactorItem = (item: any) => {
     const signalStr = String(item.proper_trade || item.signal || "");
-    if (factorFilter === "LONG" && !signalStr.includes("LONG")) return false;
-    if (factorFilter === "SHORT" && !signalStr.includes("SHORT")) return false;
-    if (factorFilter === "FLAT" && !signalStr.includes("FLAT")) return false;
-
-    // 2. Category Filter
-    const cat = String(item.category || "").toUpperCase();
-    if (categoryFilter === "SECTORS" && !cat.includes("SECTOR")) return false;
-    if (categoryFilter === "FACTORS" && !cat.includes("FACTOR") && !cat.includes("STYLE")) return false;
-    if (categoryFilter === "GLOBAL" && !cat.includes("COUNTRY") && !cat.includes("GLOBAL")) return false;
-    if (categoryFilter === "BONDS" && !cat.includes("FIXED") && !cat.includes("BOND") && !cat.includes("RATE")) return false;
-    if (categoryFilter === "COMMODITIES" && !cat.includes("COMMODITY") && !cat.includes("FX") && !cat.includes("CRYPTO")) return false;
-
+    const vScore = item.vams_score !== undefined && item.vams_score !== null ? Number(item.vams_score) : Number(item.vams_state || 0);
+    if (factorFilter === "LONG" && !signalStr.includes("LONG") && vScore <= 0.1) return false;
+    if (factorFilter === "SHORT" && !signalStr.includes("SHORT") && vScore >= -0.1) return false;
+    if (factorFilter === "FLAT" && !signalStr.includes("NEUTRAL") && !signalStr.includes("FLAT") && Math.abs(vScore) > 0.1) return false;
     return true;
-  });
+  };
+
+  const renderDrMoCard = (f: any, idx: number) => {
+    const vScore = f.vams_score !== undefined && f.vams_score !== null ? Number(f.vams_score) : Number(f.vams_state || 0);
+    const targetExp =
+      f.target_exposure_pct !== undefined && f.target_exposure_pct !== null
+        ? Number(f.target_exposure_pct)
+        : f.vams_state > 0
+        ? 100
+        : f.vams_state < 0
+        ? -100
+        : 0;
+    const isPositive = vScore > 0.1;
+    const isNegative = vScore < -0.1;
+    const signalStr =
+      f.proper_trade || (isPositive ? `LONG (+${Math.round(targetExp)}%)` : isNegative ? `SHORT (${Math.round(targetExp)}%)` : "NEUTRAL (0%)");
+
+    // Position on [-1.0, +1.0] spectrum: 0% to 100%
+    const spectrumPct = Math.min(100, Math.max(0, ((vScore + 1.0) / 2.0) * 100));
+
+    return (
+      <div
+        key={idx}
+        className={`p-2.5 rounded-lg border transition shadow-sm flex flex-col justify-between ${
+          isPositive
+            ? "bg-emerald-950/20 border-emerald-800/40 hover:border-emerald-500/60"
+            : isNegative
+            ? "bg-rose-950/20 border-rose-800/40 hover:border-rose-500/60"
+            : "bg-slate-900/50 border-slate-800 hover:border-slate-700"
+        }`}
+      >
+        <div>
+          <div className="flex items-center justify-between text-xs font-mono">
+            <span className="font-bold text-slate-100">${f.ticker}</span>
+            <span
+              className={`text-xs px-1.5 py-0.5 rounded font-mono font-bold border ${
+                isPositive
+                  ? "bg-emerald-950 border-emerald-800 text-emerald-300"
+                  : isNegative
+                  ? "bg-rose-950 border-rose-800 text-rose-300"
+                  : "bg-slate-800 border-slate-700 text-slate-300"
+              }`}
+            >
+              VAMS: {vScore > 0 ? "+" : ""}{vScore.toFixed(2)}
+            </span>
+          </div>
+          <div className="text-xs text-slate-400 font-mono truncate mt-0.5" title={f.name}>
+            {f.name || f.ticker}
+          </div>
+        </div>
+
+        <div className="mt-2 space-y-1.5">
+          {/* Horizontal X-Axis Mini Spectrum Bar */}
+          <div className="space-y-0.5">
+            <div className="flex justify-between text-xs font-mono text-slate-500">
+              <span>-1.0</span>
+              <span className="text-slate-400">0.0</span>
+              <span>+1.0</span>
+            </div>
+            <div className="h-1.5 w-full bg-slate-950 rounded-full overflow-hidden border border-slate-800 relative">
+              {/* Center line marker at 50% */}
+              <div className="absolute top-0 bottom-0 left-1/2 w-px bg-slate-700 z-10" />
+              {/* Value fill bar */}
+              {vScore >= 0 ? (
+                <div
+                  style={{ left: "50%", width: `${(vScore / 2) * 100}%` }}
+                  className="absolute top-0 bottom-0 bg-emerald-500 rounded-r-full"
+                />
+              ) : (
+                <div
+                  style={{ left: `${spectrumPct}%`, width: `${(Math.abs(vScore) / 2) * 100}%` }}
+                  className="absolute top-0 bottom-0 bg-rose-500 rounded-l-full"
+                />
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between text-xs font-mono pt-0.5 border-t border-slate-800/60">
+            <span
+              className={`font-bold truncate text-xs ${
+                isPositive ? "text-emerald-400" : isNegative ? "text-rose-400" : "text-slate-400"
+              }`}
+              title={signalStr}
+            >
+              {signalStr}
+            </span>
+            <span className="text-slate-400 font-semibold shrink-0 ml-1 text-xs">
+              Exp:{" "}
+              <strong className={targetExp > 0 ? "text-emerald-300" : targetExp < 0 ? "text-rose-300" : "text-slate-300"}>
+                {targetExp > 0 ? "+" : ""}{typeof targetExp === "number" ? targetExp.toFixed(1) : targetExp}%
+              </strong>
+            </span>
+          </div>
+          {f.rsi_14d != null && (
+            <div className="flex justify-between text-xs font-mono text-slate-500">
+              <span>RSI: {Math.round(f.rsi_14d)}</span>
+              <span className="uppercase text-slate-400">{f.expected_regime_dir || "NEUTRAL"}</span>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
@@ -108,28 +254,36 @@ export default function LiquidityAllocationPage() {
 
       {/* GLOBAL MACRO REGIME & LIQUIDITY COCKPIT */}
       {macroRegime && (
-        <div className="rounded-xl border border-slate-800/90 bg-slate-950/70 p-3.5 space-y-2 font-mono text-xs shadow-lg">
+        <div className="rounded-xl border border-slate-800/90 bg-slate-950/70 p-3.5 space-y-2.5 font-mono text-xs shadow-lg">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/80 pb-2">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded bg-cyan-950/80 border border-cyan-800 text-cyan-300 font-bold">
+              <span className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-cyan-950/80 border border-cyan-800 text-cyan-300 font-bold">
                 <Compass className="h-3.5 w-3.5 text-cyan-400" />
                 GLOBAL REGIME: {macroRegime.regime_name || macroRegime.primary_regime || "STAGFLATION"} ({macroRegime.active_quad || "QUAD 3"})
               </span>
-              <span className={`px-2.5 py-0.5 rounded border font-semibold ${
-                macroRegime.probability_risk_off_pct >= 60
-                  ? "bg-rose-950/80 border-rose-800 text-rose-300"
-                  : "bg-emerald-950/80 border-emerald-800 text-emerald-300"
-              }`}>
-                CACRI: {macroRegime.probability_risk_off_pct}% Risk-Off ({macroRegime.cacri_state})
+              <span
+                className={`px-2.5 py-1 rounded border font-semibold ${
+                  macroRegime.probability_risk_off_pct >= 60
+                    ? "bg-rose-950/80 border-rose-800 text-rose-300"
+                    : "bg-emerald-950/80 border-emerald-800 text-emerald-300"
+                }`}
+              >
+                CARCI: {macroRegime.probability_risk_off_pct}% Risk-Off (D: {fmtRoC(macroRegime.carci_d_pct)}, W: {fmtRoC(macroRegime.carci_w_pct)})
               </span>
-              <span className="px-2.5 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-300 font-medium">
-                10Y Real TIPS: <span className="text-amber-300 font-bold">{macroRegime.real_10y_tips_pct}%</span>
+              <span className="px-2.5 py-1 rounded bg-slate-900 border border-slate-800 text-slate-300 font-medium">
+                10Y Real TIPS: <span className="text-amber-300 font-bold">{macroRegime.real_10y_tips_pct}%</span>{" "}
+                <span className="text-slate-400 text-xs">
+                  (D: {fmtRoC(macroRegime.real_10y_tips_d_chg)}, W: {fmtRoC(macroRegime.real_10y_tips_w_chg)})
+                </span>
               </span>
             </div>
-            <div className="flex items-center gap-2 text-slate-400 text-xs">
-              <span>^MOVE: <strong className="text-cyan-300">{macroRegime.move_index}</strong></span>
-              <span>•</span>
-              <span>^VIX: <strong className="text-cyan-300">{macroRegime.vix_index}</strong></span>
+            <div className="flex flex-wrap items-center gap-2 text-slate-400 text-xs">
+              <span className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800">
+                ^MOVE: <strong className="text-cyan-300">{macroRegime.move_index}</strong> (D: {fmtRoC(macroRegime.move_d_pct)}, W: {fmtRoC(macroRegime.move_w_pct)})
+              </span>
+              <span className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800">
+                ^VIX: <strong className="text-cyan-300">{macroRegime.vix_index}</strong> (D: {fmtRoC(macroRegime.vix_d_pct)}, W: {fmtRoC(macroRegime.vix_w_pct)})
+              </span>
             </div>
           </div>
 
@@ -145,13 +299,15 @@ export default function LiquidityAllocationPage() {
             </div>
             <div className="p-2 rounded bg-slate-900/60 border border-slate-800/70">
               <span className="text-slate-400 text-xs block">Liquidity Impulse</span>
-              <span className={`text-sm font-bold ${
-                String(macroRegime.liquidity_impulse_state).includes("EXPANDING")
-                  ? "text-emerald-400"
-                  : String(macroRegime.liquidity_impulse_state).includes("INFLECTING")
-                  ? "text-amber-400"
-                  : "text-rose-400"
-              }`}>
+              <span
+                className={`text-sm font-bold ${
+                  String(macroRegime.liquidity_impulse_state).includes("EXPANDING")
+                    ? "text-emerald-400"
+                    : String(macroRegime.liquidity_impulse_state).includes("INFLECTING")
+                    ? "text-amber-400"
+                    : "text-rose-400"
+                }`}
+              >
                 {String(macroRegime.liquidity_impulse_state).split(" ")[0]}
               </span>
               <span className="text-xs text-slate-400 block mt-0.5 truncate">
@@ -356,7 +512,7 @@ export default function LiquidityAllocationPage() {
                 CFTC INSTITUTIONAL SPECULATIVE POSITIONING (COT REPORT)
               </h2>
               <p className="text-xs text-slate-400 font-mono">
-                Non-commercial institutional net contracts, open interest share &amp; 52-week crowding percentiles
+                Official CFTC Socrata live feed: non-commercial net contracts, % of open interest &amp; 52-week crowding percentiles
               </p>
             </div>
             <span className="text-xs font-mono text-slate-400 bg-slate-900 border border-slate-800 px-2.5 py-0.5 rounded">
@@ -370,6 +526,8 @@ export default function LiquidityAllocationPage() {
               const pctl = pos.percentile_52w || 50.0;
               const isCrowdedLong = pctl >= 80.0;
               const isCrowdedShort = pctl <= 20.0;
+              const oiVal = pos.net_pct_of_oi ?? pos.net_noncommercial_pct_oi;
+              const oiNum = oiVal !== undefined && oiVal !== null ? Number(oiVal) : null;
               return (
                 <div
                   key={idx}
@@ -402,7 +560,9 @@ export default function LiquidityAllocationPage() {
 
                   <div className="flex items-center justify-between text-slate-400 text-xs">
                     <span>% of Open Interest:</span>
-                    <span className="font-semibold text-slate-200">{pos.net_pct_of_oi ? `${pos.net_pct_of_oi}%` : "N/A"}</span>
+                    <span className={`font-semibold ${oiNum !== null && oiNum >= 0 ? "text-emerald-400" : oiNum !== null ? "text-rose-400" : "text-slate-200"}`}>
+                      {oiNum !== null ? `${oiNum > 0 ? "+" : ""}${oiNum}%` : "N/A"}
+                    </span>
                   </div>
 
                   {/* 52W Percentile Bar */}
@@ -436,7 +596,7 @@ export default function LiquidityAllocationPage() {
               DR. MO 70-FACTOR INSTITUTIONAL HEATMAP
             </h2>
             <p className="text-xs text-slate-400 font-mono">
-              Live quantitative momentum &amp; VAMS signals across Sectors, Factors, Global Quads, Rates, Commodities &amp; FX
+              Live quantitative momentum, continuous VAMS decimal signals &amp; granular exposure across asset classes (arranged X-axis: most negative to most positive)
             </p>
           </div>
 
@@ -464,12 +624,12 @@ export default function LiquidityAllocationPage() {
 
         {/* Category Filter Tabs */}
         <div className="flex flex-wrap items-center gap-1.5 text-xs font-mono">
-          <span className="text-slate-400 mr-1">Category:</span>
+          <span className="text-slate-400 mr-1">Category View:</span>
           {[
-            { id: "ALL", label: "All Universes" },
+            { id: "ALL", label: "All Universes (Categorized)" },
             { id: "SECTORS", label: "US Sectors" },
             { id: "FACTORS", label: "Equity Factors" },
-            { id: "GLOBAL", label: "Global Countries" },
+            { id: "GLOBAL", label: "Global Equities" },
             { id: "BONDS", label: "Fixed Income" },
             { id: "COMMODITIES", label: "Commodities & FX" },
           ].map((cat) => (
@@ -486,55 +646,51 @@ export default function LiquidityAllocationPage() {
             </button>
           ))}
           <span className="text-slate-400 ml-auto">
-            Showing {filteredDrMo.length} of {rawDrMoList.length} assets
+            Universe: {rawDrMoList.length} Systematic Proxies
           </span>
         </div>
 
-        {/* Heatmap Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2.5">
-          {filteredDrMo.map((f: any, idx: number) => {
-            const signalStr = String(f.proper_trade || f.signal || "");
-            const isLong = signalStr.includes("LONG") || f.vams_state > 0;
-            const isShort = signalStr.includes("SHORT") || f.vams_state < 0;
-            const targetExp = f.target_exposure_pct ?? (f.vams_state > 0 ? 100 : f.vams_state < 0 ? -100 : 0);
+        {/* Grouped Asset Classes / Sectors with X-Axis Ordering */}
+        <div className="space-y-5 pt-1">
+          {DR_MO_GROUPS.filter((grp) => categoryFilter === "ALL" || categoryFilter === grp.id).map((grp) => {
+            const rawGroupItems = rawDrMoList.filter((item: any) => getAssetGroup(item.category) === grp.id);
+            const filteredGroupItems = rawGroupItems.filter(filterFactorItem);
+            const sortedGroupItems = sortAlongXAxis(filteredGroupItems);
+
+            if (categoryFilter !== "ALL" && sortedGroupItems.length === 0) {
+              return (
+                <div key={grp.id} className="p-4 rounded-xl bg-slate-900/40 border border-slate-800 text-center text-slate-400 text-xs font-mono">
+                  No assets in {grp.title} matching stance &quot;{factorFilter}&quot;.
+                </div>
+              );
+            }
+
+            if (sortedGroupItems.length === 0) return null;
+
             return (
-              <div
-                key={idx}
-                className={`p-3 rounded-xl border transition shadow-sm ${
-                  isLong
-                    ? "bg-emerald-950/20 border-emerald-800/40 hover:border-emerald-500/60"
-                    : isShort
-                    ? "bg-rose-950/20 border-rose-800/40 hover:border-rose-500/60"
-                    : "bg-slate-900/40 border-slate-800 hover:border-slate-700"
-                }`}
-              >
-                <div className="flex items-center justify-between text-xs font-mono">
-                  <span className="font-bold text-slate-100">${f.ticker}</span>
-                  <span
-                    className={`text-xs px-1.5 py-0.2 rounded font-mono font-bold ${
-                      isLong
-                        ? "bg-emerald-900 text-emerald-300"
-                        : isShort
-                        ? "bg-rose-900 text-rose-300"
-                        : "bg-slate-800 text-slate-400"
-                    }`}
-                  >
-                    VAMS: {f.vams_state > 0 ? "+1" : f.vams_state < 0 ? "-1" : "0"}
-                  </span>
+              <div key={grp.id} className="p-3.5 rounded-xl bg-[#090f1a] border border-slate-800/80 space-y-2.5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 border-b border-slate-800/60 pb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-mono font-bold text-slate-100 uppercase tracking-wide">
+                      {grp.title}
+                    </span>
+                    <span className="text-xs font-mono px-2 py-0.2 rounded bg-slate-900 border border-slate-800 text-slate-400">
+                      {sortedGroupItems.length} assets
+                    </span>
+                  </div>
+                  {/* X-Axis Spectrum Guide */}
+                  <div className="flex items-center gap-1.5 text-xs font-mono text-slate-500">
+                    <span className="text-rose-400">← Most Negative (-1.00)</span>
+                    <span className="text-slate-600">|</span>
+                    <span className="text-slate-400">Neutral (0.00)</span>
+                    <span className="text-slate-600">|</span>
+                    <span className="text-emerald-400">Most Positive (+1.00) →</span>
+                  </div>
                 </div>
-                <div className="text-xs text-slate-400 font-mono truncate mt-1" title={f.name}>
-                  {f.name || f.ticker}
-                </div>
-                <div
-                  className={`text-xs font-mono font-bold mt-1.5 ${
-                    isLong ? "text-emerald-400" : isShort ? "text-rose-400" : "text-slate-400"
-                  }`}
-                >
-                  {signalStr || (isLong ? "LONG (+1)" : isShort ? "SHORT (-1)" : "FLAT")}
-                </div>
-                <div className="text-xs font-mono text-slate-400 mt-0.5 flex justify-between">
-                  <span>Exp: {targetExp}%</span>
-                  {f.rsi_14 != null && <span>RSI: {Math.round(f.rsi_14)}</span>}
+
+                {/* Compact Grid of Factor Cards */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
+                  {sortedGroupItems.map((f: any, idx: number) => renderDrMoCard(f, idx))}
                 </div>
               </div>
             );
