@@ -17,8 +17,8 @@ logger = logging.getLogger("macropulse.global_grid_engine")
 # 18 Sovereign Economies
 GLOBAL_ECONOMIES_METADATA = [
     {"country": "United States", "ticker": "SPY", "region": "Americas", "base_g": 2.7, "base_i": 3.1, "flag": "🇺🇸"},
-    {"country": "Eurozone / Germany", "ticker": "EWG", "region": "G7 / DM", "base_g": 0.4, "base_i": 2.4, "flag": "🇩🇪"},
-    {"country": "Eurozone / France", "ticker": "EWQ", "region": "G7 / DM", "base_g": 0.8, "base_i": 2.2, "flag": "🇫🇷"},
+    {"country": "Germany", "ticker": "EWG", "region": "G7 / DM", "base_g": 0.4, "base_i": 2.4, "flag": "🇩🇪"},
+    {"country": "France", "ticker": "EWQ", "region": "G7 / DM", "base_g": 0.8, "base_i": 2.2, "flag": "🇫🇷"},
     {"country": "United Kingdom", "ticker": "EWU", "region": "G7 / DM", "base_g": 1.1, "base_i": 2.8, "flag": "🇬🇧"},
     {"country": "Japan", "ticker": "EWJ", "region": "G7 / DM", "base_g": 0.9, "base_i": 2.3, "flag": "🇯🇵"},
     {"country": "Canada", "ticker": "EWC", "region": "G7 / DM", "base_g": 1.4, "base_i": 2.5, "flag": "🇨🇦"},
@@ -94,7 +94,7 @@ CANONICAL_ANOMALIES: Dict[Tuple[str, str], Dict[str, str]] = {
         ),
         "rule": "Do not trade base-effect inflections during a structural real estate balance sheet deleveraging cycle."
     },
-    ("Eurozone / Germany", "2023-Q4"): {
+    ("Germany", "2023-Q4"): {
         "title": "German DAX All-Time Highs vs Manufacturing Recession",
         "expected": "Theoretical: Severe manufacturing slump (PMI < 40) signaled Quad 4 Deflation; bearish German equities.",
         "actual": "Reality: German DAX index rallied +14.2% to record all-time highs.",
@@ -125,6 +125,177 @@ CANONICAL_ANOMALIES: Dict[Tuple[str, str], Dict[str, str]] = {
             "Sovereign debt was sold indiscriminately to meet collateral calls, inverting the normal flight-to-quality mechanism."
         ),
         "rule": "Unfunded fiscal shocks in high-inflation regimes cause sovereign duration to behave like high-risk emerging market debt."
+    },
+}
+
+
+# Canonical Historical Policy & Central Bank Liquidity Interventions ("P" superscript)
+# Integrates with /scenarios framework to diagnose when liquidity overrides cyclical GDP/CPI RoC
+CANONICAL_POLICY_INTERVENTIONS: Dict[Tuple[str, str], Dict[str, str]] = {
+    ("United States", "2020-Q2"): {
+        "title": "Fed Emergency QE & CARES Act Stimulus Surge",
+        "category": "Central Bank QE & Fiscal Expansion",
+        "liquidity_impulse": "+$3.0T Fed Balance Sheet Expansion (+68% YoY)",
+        "divergence_rationale": "Overrode Quad 4 real-economy growth contraction (-31.4% ann); equity markets front-ran unprecedented liquidity injection with +20.5% rally.",
+        "scenario_possibilities": "Directly informs /scenarios 'Emergency Global Easing Pivot' scenario where central bank liquidity velocity completely decouples asset valuations from fundamental growth slowdowns."
+    },
+    ("United States", "2023-Q1"): {
+        "title": "SVB Collapse & Bank Term Funding Program (BTFP)",
+        "category": "Emergency Banking Liquidity Facility",
+        "liquidity_impulse": "+$400B Central Bank Balance Sheet Re-expansion",
+        "divergence_rationale": "Halted Quad 3 bank run contagion and fueled the initial 2023 mega-cap tech and secular AI rally despite 500 bps Fed funds rate.",
+        "scenario_possibilities": "Directly informs /scenarios 'Selective Credit Facilities' scenario where targeted liquidity buffers sustain equity multiples while headline policy rates remain restrictive."
+    },
+    ("United States", "2020-Q1"): {
+        "title": "Coordinated G7 FX Swaps & Primary Dealer Credit Facility",
+        "category": "Global USD Currency Swap & Liquidity Support",
+        "liquidity_impulse": "+$450B FX Swap Lines Deployed in Weeks",
+        "divergence_rationale": "Prevented an acute offshore US dollar funding shortage and liquidation cascade across foreign banking sectors.",
+        "scenario_possibilities": "Directly informs /scenarios 'Coordinated Central Bank Intervention' playbook."
+    },
+    ("United States", "2019-Q3"): {
+        "title": "Repo Market Spike & Reserve Replenishment (Not-QE)",
+        "category": "Standing Repo & Reserve Balance Expansion",
+        "liquidity_impulse": "+$400B Fed T-Bill Purchases & Repo Injections",
+        "divergence_rationale": "Fed abruptly halted quantitative tightening and injected reserves, lifting equity multiples into 2019 year-end.",
+        "scenario_possibilities": "Directly informs /scenarios 'Reserve Scarcity Pivot' scenario."
+    },
+    ("Japan", "2024-Q3"): {
+        "title": "BoJ Rate Hike & Ministry of Finance Yen Intervention",
+        "category": "Foreign Exchange Intervention & Carry Unwind",
+        "liquidity_impulse": "-$60B Foreign Reserve Draw & Sharp JPY Surge",
+        "divergence_rationale": "Triggered an abrupt liquidation of $1T+ global yen carry trades, causing an equity flash crash across global indices.",
+        "scenario_possibilities": "Directly informs /scenarios 'Cross-Border FX Liquidity Shock' scenario where exchange rate defense drains global leverage."
+    },
+    ("China", "2024-Q3"): {
+        "title": "PBOC Comprehensive Bazooka Stimulus & Stock Swap Facility",
+        "category": "State Liquidity & Equity Support Vehicle",
+        "liquidity_impulse": "800B RMB PBOC Relending Facility + 50 bps RRR Cut",
+        "divergence_rationale": "Direct central bank financing for institutional stock buybacks and property debt stabilization, triggering a +35% equity surge.",
+        "scenario_possibilities": "Directly informs /scenarios 'Fiscal/Monetary Bazooka Transmission' scenario evaluating China's ability to cushion global industrial demand."
+    },
+    ("China", "2024-Q4"): {
+        "title": "Ministry of Finance 10 Trillion RMB Debt Ceiling Swap",
+        "category": "Local Government Debt Restructuring & Fiscal Support",
+        "liquidity_impulse": "10T RMB Sovereign Bond Quota over 3 Years",
+        "divergence_rationale": "Replaced high-interest hidden LGFV debt with low-yield sovereign bonds, releasing municipal balance sheets from paralysis.",
+        "scenario_possibilities": "Directly informs /scenarios 'Sovereign Debt Re-anchoring' scenario."
+    },
+    ("Germany", "2020-Q2"): {
+        "title": "ECB Pandemic Emergency Purchase Programme (PEPP)",
+        "category": "Sovereign Debt Purchase Shield",
+        "liquidity_impulse": "+€1.85T ECB Balance Sheet Expansion",
+        "divergence_rationale": "Compressed peripheral sovereign spreads (BTP/Bund) and backstopped European corporate credit markets against fragmentation.",
+        "scenario_possibilities": "Directly informs /scenarios 'Spread Compression Interventions' scenario."
+    },
+    ("France", "2020-Q2"): {
+        "title": "ECB PEPP & French State-Guaranteed Loans (PGE)",
+        "category": "Sovereign Debt Purchase & Corporate Loan Backstop",
+        "liquidity_impulse": "+€300B State Guaranteed Credit Lines + ECB PEPP",
+        "divergence_rationale": "Shielded French corporate solvent entities from liquidity insolvency, sparking rapid recovery in European cyclicals.",
+        "scenario_possibilities": "Directly informs /scenarios 'Targeted Credit Backstop' scenario."
+    },
+    ("United Kingdom", "2022-Q3"): {
+        "title": "Bank of England Emergency Temporary Gilt Purchases",
+        "category": "Financial Stability Intervention",
+        "liquidity_impulse": "£65B Emergency Sovereign Bond Backstop",
+        "divergence_rationale": "BoE intervened as buyer of last resort to halt systemic insolvency of UK pension funds caught in LDI collateral calls.",
+        "scenario_possibilities": "Directly informs /scenarios 'Sovereign Debt Market Dysfunction' scenario."
+    },
+}
+
+
+# Forward Sovereign Regime Radar: Institutional Path Analysis, Risks, and Pivot Triggers
+SOVEREIGN_FORWARD_RADAR_INSIGHTS: Dict[str, Dict[str, str]] = {
+    "United States": {
+        "future_vision_path": "Growth decelerates toward a cyclical trough in Q2-27 under the cumulative lag of restrictive real rates and labor cooling, before rate cut transmission and easy comps ignite Goldilocks expansion into late 2027.",
+        "forecast_invalidation_risks": "Re-acceleration of core services/shelter inflation forcing the Fed to pause easing; secondary tariff escalation spiking import costs; primary dealer Treasury auction digestion indigestion.",
+        "pivot_watch_indicators": "10Y-2Y yield curve slope, 13-week Fed Net Liquidity impulse, ISM Manufacturing New Orders / Inventories spread, corporate credit OAS spreads."
+    },
+    "Germany": {
+        "future_vision_path": "Stagnates in Deflation through H1-27 as structural de-industrialization and high energy costs persist, then enters shallow Goldilocks as ECB rate cuts stimulate external export demand and lower financing costs.",
+        "forecast_invalidation_risks": "Further escalation in geopolitical trade frictions / US auto tariffs; persistent domestic wage stickiness preventing ECB from easing; worsening Chinese demand for German capital goods.",
+        "pivot_watch_indicators": "ifo Business Climate Expectations index, German Industrial Production MoM, ZEW Sentiment survey, Bund-BTP yield spread."
+    },
+    "France": {
+        "future_vision_path": "Gradual fiscal consolidation and political fragmentation weigh on domestic consumption through mid-2027, followed by synchronized European monetary relief lifting private investment into Q4-27.",
+        "forecast_invalidation_risks": "Political deadlock triggering French sovereign rating downgrades and OAT-Bund spread blowout (>90 bps); sovereign debt austerity overshooting growth targets.",
+        "pivot_watch_indicators": "OAT-Bund 10Y sovereign spread, INSEE Business Climate Indicator, French household savings rate, CAC-40 luxury earnings revisions."
+    },
+    "United Kingdom": {
+        "future_vision_path": "Endures stagflationary friction through early 2027 from sticky wage growth and fiscal tax hikes, transitioning toward Goldilocks in H2-27 as Bank of England cuts take effect.",
+        "forecast_invalidation_risks": "Renewed gilt market volatility from debt issuance pressure; persistent wage-price spirals in services forcing BoE to keep Bank Rate higher for longer.",
+        "pivot_watch_indicators": "UK Average Weekly Earnings 3M YoY, 10Y Gilt yield momentum, BoE Bank Rate expectations, Nationwide House Price index."
+    },
+    "Japan": {
+        "future_vision_path": "Distinct from G7 easing cycles: BoJ monetary normalization and real wage growth transition Japan from Reflation to self-sustaining Goldilocks, anchored by domestic wage-consumption cycle.",
+        "forecast_invalidation_risks": "Excessive Yen strengthening (USD/JPY < 135) crushing corporate exporter margins; domestic consumption failure if Shunto wage gains are eroded by imported inflation.",
+        "pivot_watch_indicators": "USD/JPY exchange rate velocity, BoJ Overnight Call Rate forward swaps, Tokyo core CPI ex-fresh food & energy, Shunto spring wage round settlements."
+    },
+    "Canada": {
+        "future_vision_path": "Mortgage renewal cliff and high household debt depress growth in Q1/Q2-27, paving the way for aggressive Bank of Canada rate cuts to spark a housing-led Goldilocks recovery by Q4-27.",
+        "forecast_invalidation_risks": "Severe US trade tariff renegotiation disruptions under CUSMA; prolonged crude oil price slump below $60/bbl impairing energy sector capex.",
+        "pivot_watch_indicators": "WTI Crude / Western Canadian Select spread, BoC Policy Rate path, Canadian Unemployment Rate, 5-year fixed mortgage benchmark rates."
+    },
+    "Australia": {
+        "future_vision_path": "Sticky services inflation delays RBA easing until mid-2027; growth rebounds strongly into late 2027 as China infrastructure stimulus boosts iron ore and bulk commodity exports.",
+        "forecast_invalidation_risks": "Abrupt property market or banking contraction in China reducing Australian resource demand; persistent domestic rental and electricity inflation keeping RBA restrictive.",
+        "pivot_watch_indicators": "Dalian Iron Ore futures, AUD/USD terms of trade, RBA Cash Rate futures, Australia NAB Monthly Business Survey."
+    },
+    "Switzerland": {
+        "future_vision_path": "SNB maintains low policy rates to combat Swiss Franc (CHF) safe-haven appreciation, sustaining mild Goldilocks conditions throughout 2027 with subdued domestic inflation.",
+        "forecast_invalidation_risks": "European geopolitical escalation driving explosive CHF safe-haven appreciation that crushes Swiss export competitiveness; European pharma sector margin compressions.",
+        "pivot_watch_indicators": "EUR/CHF and USD/CHF spot levels, SNB sight deposits, Swiss KOF Economic Barometer, CPI YoY."
+    },
+    "China": {
+        "future_vision_path": "Fiscal expansion, sovereign bond issuance, and property debt restructurings lead a cyclical inflection earlier than DM peers, lifting China from balance-sheet disinflation to mild Reflation by late 2027.",
+        "forecast_invalidation_risks": "US trade tariff shock >60% without adequate offsetting domestic fiscal expansion; deepening local government financing vehicle (LGFV) debt distress and persistent housing price decline.",
+        "pivot_watch_indicators": "PBOC Total Social Financing (TSF) impulse, China 30-City Property Sales volume, Caixin Manufacturing PMI, USD/CNH fixing rate."
+    },
+    "India": {
+        "future_vision_path": "Sustained high structural capex, demographic dividends, and supply-chain onshoring enable India to remain in high-growth Goldilocks / Reflation, significantly outperforming global emerging peers.",
+        "forecast_invalidation_risks": "Food inflation spikes caused by erratic monsoon cycles triggering RBI hawkishness; steep spikes in imported crude oil burdening the current account deficit.",
+        "pivot_watch_indicators": "Brent Crude oil price, RBI Repo Rate expectations, India HSBC Composite PMI, Foreign Portfolio Investment (FPI) equity flows."
+    },
+    "South Korea": {
+        "future_vision_path": "Cyclical semiconductor memory trough bottoms in Q1-27; high-bandwidth memory (HBM) and global electronics capex drive robust Goldilocks export acceleration into H2-27.",
+        "forecast_invalidation_risks": "Global technology capex digestion pause or delay in enterprise AI adoption; sharp Chinese competitive capacity expansion in legacy chips and electric vehicle batteries.",
+        "pivot_watch_indicators": "Korean 20-day export growth, DRAM & NAND contract prices, USD/KRW currency volatility, Kospi semiconductor earnings revisions."
+    },
+    "Taiwan": {
+        "future_vision_path": "Foundry dominance and AI accelerator shipments keep Taiwan at the leading edge of global tech trade; transition from Deflationary pause to vigorous Reflationary growth by Q3/Q4-27.",
+        "forecast_invalidation_risks": "Cross-strait geopolitical tensions causing sudden supply disruption fears; cyclical slowdown in global hyperscaler data center buildouts.",
+        "pivot_watch_indicators": "TSMC monthly revenue disclosures, Taiwan export orders, global semiconductor billings, Philadelphia Semiconductor Index (SOX)."
+    },
+    "Brazil": {
+        "future_vision_path": "High Selic policy rates engineer disinflation through H1-27, creating headroom for Banco Central do Brasil to cut rates aggressively and launch a domestic credit and commodity reflation cycle by late 2027.",
+        "forecast_invalidation_risks": "Fiscal policy slippage leading to fiscal framework breach and market loss of confidence in debt sustainability; sharp decline in agricultural and industrial commodity prices.",
+        "pivot_watch_indicators": "Selic terminal rate pricing, Brazilian Real (USD/BRL) exchange rate, 10-year NTN-F yields, Iron ore and Soybean export prices."
+    },
+    "Mexico": {
+        "future_vision_path": "Nearshoring structural FDI provides secular support, but US cyclical slowdown cools manufacturing in early 2027 before Banxico cuts and US rebound re-energize activity in H2-27.",
+        "forecast_invalidation_risks": "Punitive US tariff implementation on automotive/manufacturing exports; constitutional and judicial reform uncertainty dampening foreign direct investment commitments.",
+        "pivot_watch_indicators": "USD/MXN exchange rate, US Auto Production MoM, Mexican Gross Fixed Investment, Banxico-Fed policy rate differential."
+    },
+    "Poland": {
+        "future_vision_path": "Substantial EU recovery fund disbursements and real wage growth support resilient domestic demand, with Goldilocks conditions solidifying as German demand recovers in late 2027.",
+        "forecast_invalidation_risks": "Spillover escalation from Eastern European war; persistent domestic inflation keeping NBP interest rates too high, crowding out private investment.",
+        "pivot_watch_indicators": "EU structural fund absorption rate, Polish retail sales YoY, WIBOR interest rate swaps, EUR/PLN exchange rate."
+    },
+    "South Africa": {
+        "future_vision_path": "Government of National Unity (GNU) structural reforms and reduced power grid load-shedding foster gradual recovery, transitioning from Deflation to modest Goldilocks by Q4-27.",
+        "forecast_invalidation_risks": "Political coalition instability threatening policy consensus; deteriorating rail and port infrastructure logistics bottlenecking mineral bulk exports.",
+        "pivot_watch_indicators": "Eskom energy availability factor (EAF), Platinum & Gold mining production, USD/ZAR currency spread, South Africa 10Y sovereign yield."
+    },
+    "Saudi Arabia": {
+        "future_vision_path": "Vision 2030 non-oil GDP momentum remains solid; OPEC+ gradual unwinding of production cuts in H2-27 lifts headline growth from sluggish Deflation into vibrant Reflation.",
+        "forecast_invalidation_risks": "Sustained global crude oil price slump (<$65/bbl) forcing cancellation or scaling back of giga-projects; regional Middle East security escalations.",
+        "pivot_watch_indicators": "Brent Crude oil spot price, Saudi non-oil private sector PMI, Tadawul All Share Index volume, sovereign bond credit spreads."
+    },
+    "Argentina": {
+        "future_vision_path": "Milei economic stabilization enters expansion phase: fiscal surpluses and deregulation lead to capital return, rapid disinflation, and high-beta growth takeoff across 2027.",
+        "forecast_invalidation_risks": "Social tolerance fatigue over spending cuts; legislative resistance blocking further structural deregulation; FX reserve depletion if agricultural exports falter.",
+        "pivot_watch_indicators": "Central bank FX net reserve accumulation, Monthly INDEC CPI prints, Sovereign bond EMBI+ spread, CCL blue-chip swap rate."
     },
 }
 
@@ -202,7 +373,7 @@ class GlobalGridEngine:
                     g_roc = base_g_roc + 45
                     i_roc = base_i_roc + 15
                     driver_template = "Structural infrastructure capex + demographics outperforming global growth drag"
-                elif country == "Eurozone / Germany" or country == "Eurozone / France":
+                elif country == "Germany" or country == "France":
                     g_roc = base_g_roc - 15
                     i_roc = base_i_roc - 20
                     driver_template = "ECB rapid cutting cycle leading industrial trough by 6 months"
@@ -586,6 +757,21 @@ class GlobalGridEngine:
         else:
             logger.info(f"[GlobalGridEngine] Historical records preserved ({len(db_records)} records immutable in DB).")
 
+        # Enrich records dynamically with canonical central bank policy interventions ("P" superscript)
+        for r in db_records:
+            pol_key = (r.get("country"), r.get("period"))
+            if pol_key in CANONICAL_POLICY_INTERVENTIONS:
+                pol = CANONICAL_POLICY_INTERVENTIONS[pol_key]
+                r["has_policy_intervention"] = True
+                r["policy_marker"] = "P"
+                r["policy_title"] = pol.get("title")
+                r["policy_category"] = pol.get("category")
+                r["liquidity_impulse"] = pol.get("liquidity_impulse")
+                r["divergence_rationale"] = pol.get("divergence_rationale")
+                r["scenario_possibilities"] = pol.get("scenario_possibilities")
+            else:
+                r["has_policy_intervention"] = False
+
         # 3. Weekly 4-Quarter Forward Forecast Recalculation & DB Persistence
         forward_forecasts = cls.generate_4q_forward_forecasts()
         StockCompressedStore.save_global_grid_forecasts_bulk(forward_forecasts)
@@ -601,6 +787,12 @@ class GlobalGridEngine:
             path_str = " -> ".join(f.get("projected_regime", "").split(" ")[0] for f in c_forecasts_sorted)
             trough_q = min(c_forecasts_sorted, key=lambda x: x.get("projected_gdp_roc_bps", 0)).get("forward_period", "2027-Q2")
 
+            radar_info = SOVEREIGN_FORWARD_RADAR_INSIGHTS.get(c_name, {
+                "future_vision_path": f"{c_name} transitions along cyclical base-effects as central bank policy transmission lag concludes.",
+                "forecast_invalidation_risks": "Global commodity shocks, geopolitical escalation, or sudden fiscal shifts.",
+                "pivot_watch_indicators": "Sovereign yield curve slope, 3M Net Liquidity impulse, leading manufacturing PMIs."
+            })
+
             country_trajectories[c_name] = {
                 "country": c_name,
                 "ticker": econ["ticker"],
@@ -613,7 +805,9 @@ class GlobalGridEngine:
                 "f3_regime": c_forecasts_sorted[2].get("projected_regime") if len(c_forecasts_sorted) > 2 else "GOLDILOCKS (G)",
                 "f4_regime": c_forecasts_sorted[3].get("projected_regime") if len(c_forecasts_sorted) > 3 else "REFLATION (R)",
                 "leading_drivers": c_forecasts_sorted[0].get("leading_drivers", ""),
-                "asset_implication": c_forecasts_sorted[0].get("asset_implication", ""),
+                "future_vision_path": radar_info["future_vision_path"],
+                "forecast_invalidation_risks": radar_info["forecast_invalidation_risks"],
+                "pivot_watch_indicators": radar_info["pivot_watch_indicators"],
                 "avg_confidence_pct": round(sum(f.get("confidence_pct", 70.0) for f in c_forecasts_sorted) / max(1, len(c_forecasts_sorted)), 1),
             }
 
