@@ -1542,71 +1542,36 @@ async def get_commodities_alternatives_dashboard_route(force: bool = False):
 
 @api_router.get("/v1/scenarios")
 @api_router.get("/scenarios")
-def get_macro_scenarios(db: Session = Depends(get_db)):
-    """Returns dynamic forward quarter macro scenarios, policy triggers, and asset allocations."""
+def get_macro_scenarios(force: bool = False, db: Session = Depends(get_db)):
+    """Returns dynamic forward quarter macro scenarios, live triggers, real rates, and central bank sentiment."""
     try:
-        from app.quant_engine.macro_nowcast import generate_dynamic_forward_quarters
+        from app.quant_engine.scenarios_engine import ScenariosEngine
     except ImportError:
-        from backend.app.quant_engine.macro_nowcast import generate_dynamic_forward_quarters
-    fwd_quarters = generate_dynamic_forward_quarters(4)
-    
-    snapshot = None
+        from backend.app.quant_engine.scenarios_engine import ScenariosEngine
+    payload = ScenariosEngine.build_scenarios_payload(force=force)
+    return _sanitize_floats(payload)
+
+
+@api_router.get("/v1/central-bank/speeches")
+@api_router.get("/central-bank/speeches")
+def get_central_bank_speeches_endpoint():
+    """Returns the central bank speeches ledger and 8-week sentiment consensus matrix."""
     try:
-        snapshot = db.query(RegimeSnapshot).order_by(RegimeSnapshot.date.desc()).first()
-    except Exception as e:
-        logger.debug(f"DB query scenarios fallback: {e}")
-    q2_prob = getattr(snapshot, "quad_2_prob", 0.58) if snapshot else 0.58
-    q3_prob = getattr(snapshot, "quad_3_prob", 0.10) if snapshot else 0.10
+        from app.quant_engine.scenarios_engine import ScenariosEngine
+    except ImportError:
+        from backend.app.quant_engine.scenarios_engine import ScenariosEngine
+    return _sanitize_floats(ScenariosEngine.get_central_bank_sentiment_ledger())
 
-    scenarios = [
-        {
-            "quarter": fwd_quarters[0],
-            "base_case": {"scenario": "Reflation (Quad 2)", "probability": round(q2_prob, 2), "gdp_growth_yoy": 2.4, "cpi_yoy": 2.8},
-            "bear_case": {"scenario": "Labor Cooling Slowdown (Quad 4)", "probability": round(1.0 - q2_prob - q3_prob, 2), "gdp_growth_yoy": 1.2, "cpi_yoy": 2.2},
-            "stagflation_case": {"scenario": "Stagflation Drift (Quad 3)", "probability": round(q3_prob, 2), "gdp_growth_yoy": 1.5, "cpi_yoy": 3.4},
-            "asset_direction": "Long SPY, GLD, VST; Short TLT",
-            "policy_playbook": "Fed easing pacing balanced; TGA drawdown injects liquidity; hedge with put collars at range top.",
-            "triggers": ["Headline CPI accelerating YoY", "Real rate share of yield change >75%"],
-        },
-        {
-            "quarter": fwd_quarters[1],
-            "base_case": {"scenario": "Commodity Stagflation Drift (Quad 3)", "probability": 0.45, "gdp_growth_yoy": 1.8, "cpi_yoy": 3.2},
-            "bear_case": {"scenario": "Disinflationary Expansion (Quad 1)", "probability": 0.35, "gdp_growth_yoy": 2.6, "cpi_yoy": 2.4},
-            "stagflation_case": {"scenario": "Deflationary Shock (Quad 4)", "probability": 0.20, "gdp_growth_yoy": 0.8, "cpi_yoy": 1.8},
-            "asset_direction": "Long Energy (XLE), Gold (GLD), Commodities (DBC)",
-            "policy_playbook": "Rotate from mega-cap tech into commodities and real assets; monitor Accord 2.0 triggers.",
-            "triggers": ["Brent Crude sustained >$85/bbl", "10Y Breakeven inflation >2.50%"],
-        },
-        {
-            "quarter": fwd_quarters[2],
-            "base_case": {"scenario": "Fiscal Dominance & Accord 2.0 Activation", "probability": 0.50, "gdp_growth_yoy": 2.0, "cpi_yoy": 3.0},
-            "bear_case": {"scenario": "Debt Ceiling Austerity Pause", "probability": 0.30, "gdp_growth_yoy": 1.4, "cpi_yoy": 2.1},
-            "stagflation_case": {"scenario": "Credit Spread Blowout", "probability": 0.20, "gdp_growth_yoy": 0.5, "cpi_yoy": 2.6},
-            "asset_direction": "Long GLD, IBIT, USFR, Short Nominal Long Bonds",
-            "policy_playbook": "Fed tapers QT; Treasury tilts issuance heavily to short bills; bank SLR deregulation.",
-            "triggers": ["10Y Term Premium exceeds +80 bps", "US Public Debt interest expense >$1.2T"],
-        },
-        {
-            "quarter": fwd_quarters[3],
-            "base_case": {"scenario": "AI Enterprise Software Monetization", "probability": 0.55, "gdp_growth_yoy": 2.5, "cpi_yoy": 2.6},
-            "bear_case": {"scenario": "Capex Retrenchment Pause", "probability": 0.30, "gdp_growth_yoy": 1.6, "cpi_yoy": 2.2},
-            "stagflation_case": {"scenario": "Late-Cycle Wage Spiral", "probability": 0.15, "gdp_growth_yoy": 1.9, "cpi_yoy": 3.5},
-            "asset_direction": "Overweight Enterprise Software (PLTR, CRWD) over Semiconductor Hardware",
-            "policy_playbook": "Productivity gains dampen unit labor costs; corporate margin expansion supports equities.",
-            "triggers": ["Enterprise software revenue acceleration >20%", "Productivity growth >2.2%"],
-        },
-    ]
 
-    return _sanitize_floats({
-        "forward_quarters": fwd_quarters,
-        "scenarios": scenarios,
-        "policy_triggers": {
-            "fed_funds_rate_projection": "3.75% - 4.00%",
-            "tga_cash_target_usd_bn": 750.0,
-            "accord_2_probability_pct": 95.0,
-        },
-        "timestamp_utc": datetime.now(timezone.utc).isoformat(),
-    })
+@api_router.get("/v1/macro/real-rates")
+@api_router.get("/macro/real-rates")
+def get_real_interest_rates_endpoint():
+    """Returns sovereign real interest rate comparisons, r - g spread, and debt sustainability."""
+    try:
+        from app.quant_engine.scenarios_engine import ScenariosEngine
+    except ImportError:
+        from backend.app.quant_engine.scenarios_engine import ScenariosEngine
+    return _sanitize_floats(ScenariosEngine.compute_real_interest_rates_and_debt_squeeze())
 
 
 # ----------------------------------------------------

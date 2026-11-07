@@ -175,6 +175,22 @@ class StockCompressedStore:
                         updated_at TIMESTAMP WITH TIME ZONE NOT NULL,
                         PRIMARY KEY (country, forward_period)
                     );
+                    CREATE TABLE IF NOT EXISTS central_bank_speeches (
+                        id VARCHAR(128) PRIMARY KEY,
+                        institution VARCHAR(32) NOT NULL,
+                        speaker VARCHAR(128) NOT NULL,
+                        speaker_role VARCHAR(128),
+                        speech_date VARCHAR(32) NOT NULL,
+                        speech_title VARCHAR(512) NOT NULL,
+                        source_url VARCHAR(512),
+                        hawkish_dovish_score DOUBLE PRECISION NOT NULL,
+                        tone_label VARCHAR(64) NOT NULL,
+                        key_quote TEXT,
+                        balance_sheet_stance VARCHAR(64),
+                        liquidity_implication TEXT,
+                        is_liquidity_provider BOOLEAN DEFAULT FALSE,
+                        updated_at TIMESTAMP WITH TIME ZONE NOT NULL
+                    );
                 """)
                 conn.commit()
                 cursor.close()
@@ -305,6 +321,22 @@ class StockCompressedStore:
                         asset_implication TEXT,
                         updated_at TEXT NOT NULL,
                         PRIMARY KEY (country, forward_period)
+                    );
+                    CREATE TABLE IF NOT EXISTS central_bank_speeches (
+                        id TEXT PRIMARY KEY,
+                        institution TEXT NOT NULL,
+                        speaker TEXT NOT NULL,
+                        speaker_role TEXT,
+                        speech_date TEXT NOT NULL,
+                        speech_title TEXT NOT NULL,
+                        source_url TEXT,
+                        hawkish_dovish_score REAL NOT NULL,
+                        tone_label TEXT NOT NULL,
+                        key_quote TEXT,
+                        balance_sheet_stance TEXT,
+                        liquidity_implication TEXT,
+                        is_liquidity_provider INTEGER DEFAULT 0,
+                        updated_at TEXT NOT NULL
                     );
                 """)
                 conn.commit()
@@ -1482,6 +1514,173 @@ class StockCompressedStore:
                 logger.warning(f"[StockCompressedStore] SQLite get_global_grid_forecasts error: {e}")
 
         return results
+
+    @classmethod
+    def save_central_bank_speeches_bulk(cls, speeches: List[Dict[str, Any]]):
+        """Bulk upserts central bank speech sentiment records into Postgres or SQLite."""
+        if not speeches:
+            return
+        db_url = cls.get_db_url()
+        now_dt = datetime.now(timezone.utc)
+
+        if "postgres" in db_url:
+            try:
+                import psycopg2
+                from psycopg2.extras import execute_values
+                dsn = _get_pg_dsn(db_url)
+                with psycopg2.connect(dsn) as conn:
+                    with conn.cursor() as cursor:
+                        query = """
+                            INSERT INTO central_bank_speeches (
+                                id, institution, speaker, speaker_role, speech_date,
+                                speech_title, source_url, hawkish_dovish_score, tone_label,
+                                key_quote, balance_sheet_stance, liquidity_implication,
+                                is_liquidity_provider, updated_at
+                            ) VALUES %s
+                            ON CONFLICT (id) DO UPDATE SET
+                                institution = EXCLUDED.institution,
+                                speaker = EXCLUDED.speaker,
+                                speaker_role = EXCLUDED.speaker_role,
+                                speech_date = EXCLUDED.speech_date,
+                                speech_title = EXCLUDED.speech_title,
+                                source_url = EXCLUDED.source_url,
+                                hawkish_dovish_score = EXCLUDED.hawkish_dovish_score,
+                                tone_label = EXCLUDED.tone_label,
+                                key_quote = EXCLUDED.key_quote,
+                                balance_sheet_stance = EXCLUDED.balance_sheet_stance,
+                                liquidity_implication = EXCLUDED.liquidity_implication,
+                                is_liquidity_provider = EXCLUDED.is_liquidity_provider,
+                                updated_at = EXCLUDED.updated_at;
+                        """
+                        tuples = [
+                            (
+                                s["id"],
+                                s["institution"],
+                                s["speaker"],
+                                s.get("speaker_role", ""),
+                                s["speech_date"],
+                                s["speech_title"],
+                                s.get("source_url", ""),
+                                float(s.get("hawkish_dovish_score", 0.0)),
+                                s.get("tone_label", "NEUTRAL"),
+                                s.get("key_quote", ""),
+                                s.get("balance_sheet_stance", "NEUTRAL"),
+                                s.get("liquidity_implication", ""),
+                                bool(s.get("is_liquidity_provider", False)),
+                                now_dt,
+                            )
+                            for s in speeches
+                        ]
+                        execute_values(cursor, query, tuples)
+                        conn.commit()
+            except Exception as e:
+                logger.warning(f"[StockCompressedStore] Postgres save_central_bank_speeches_bulk error: {e}")
+        else:
+            db_path = db_url.replace("sqlite:///", "")
+            try:
+                with sqlite3.connect(db_path) as conn:
+                    cursor = conn.cursor()
+                    query = """
+                        INSERT OR REPLACE INTO central_bank_speeches (
+                            id, institution, speaker, speaker_role, speech_date,
+                            speech_title, source_url, hawkish_dovish_score, tone_label,
+                            key_quote, balance_sheet_stance, liquidity_implication,
+                            is_liquidity_provider, updated_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                    """
+                    now_iso = now_dt.isoformat()
+                    tuples = [
+                        (
+                            s["id"],
+                            s["institution"],
+                            s["speaker"],
+                            s.get("speaker_role", ""),
+                            s["speech_date"],
+                            s["speech_title"],
+                            s.get("source_url", ""),
+                            float(s.get("hawkish_dovish_score", 0.0)),
+                            s.get("tone_label", "NEUTRAL"),
+                            s.get("key_quote", ""),
+                            s.get("balance_sheet_stance", "NEUTRAL"),
+                            s.get("liquidity_implication", ""),
+                            1 if s.get("is_liquidity_provider") else 0,
+                            now_iso,
+                        )
+                        for s in speeches
+                    ]
+                    cursor.executemany(query, tuples)
+                    conn.commit()
+            except Exception as e:
+                logger.warning(f"[StockCompressedStore] SQLite save_central_bank_speeches_bulk error: {e}")
+
+    @classmethod
+    def get_central_bank_speeches(cls, limit: int = 100, institution: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Queries stored central bank speech records from Postgres or SQLite."""
+        results: List[Dict[str, Any]] = []
+        db_url = cls.get_db_url()
+
+        where_clause = ""
+        params: List[Any] = []
+        if institution:
+            where_clause = "WHERE institution = %s" if "postgres" in db_url else "WHERE institution = ?"
+            params.append(institution.upper())
+
+        if "postgres" in db_url:
+            try:
+                import psycopg2
+                from psycopg2.extras import RealDictCursor
+                dsn = _get_pg_dsn(db_url)
+                with psycopg2.connect(dsn) as conn:
+                    with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+                        query = f"""
+                            SELECT id, institution, speaker, speaker_role, speech_date,
+                                   speech_title, source_url, hawkish_dovish_score, tone_label,
+                                   key_quote, balance_sheet_stance, liquidity_implication,
+                                   is_liquidity_provider, updated_at
+                            FROM central_bank_speeches
+                            {where_clause}
+                            ORDER BY speech_date DESC
+                            LIMIT {limit};
+                        """
+                        cursor.execute(query, params)
+                        for row in cursor.fetchall():
+                            item = dict(row)
+                            if item.get("updated_at"):
+                                item["updated_at"] = str(item["updated_at"])
+                            results.append(item)
+            except Exception as e:
+                logger.warning(f"[StockCompressedStore] Postgres get_central_bank_speeches error: {e}")
+        else:
+            db_path = db_url.replace("sqlite:///", "")
+            try:
+                with sqlite3.connect(db_path) as conn:
+                    cursor = conn.cursor()
+                    query = f"""
+                        SELECT id, institution, speaker, speaker_role, speech_date,
+                               speech_title, source_url, hawkish_dovish_score, tone_label,
+                               key_quote, balance_sheet_stance, liquidity_implication,
+                               is_liquidity_provider, updated_at
+                        FROM central_bank_speeches
+                        {where_clause}
+                        ORDER BY speech_date DESC
+                        LIMIT {limit};
+                    """
+                    cursor.execute(query, params)
+                    cols = [
+                        "id", "institution", "speaker", "speaker_role", "speech_date",
+                        "speech_title", "source_url", "hawkish_dovish_score", "tone_label",
+                        "key_quote", "balance_sheet_stance", "liquidity_implication",
+                        "is_liquidity_provider", "updated_at"
+                    ]
+                    for row in cursor.fetchall():
+                        item = dict(zip(cols, row))
+                        item["is_liquidity_provider"] = bool(item["is_liquidity_provider"])
+                        results.append(item)
+            except Exception as e:
+                logger.warning(f"[StockCompressedStore] SQLite get_central_bank_speeches error: {e}")
+
+        return results
+
 
 
 

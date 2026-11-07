@@ -1159,242 +1159,39 @@ async def get_live_speculation_matrix(force: bool = False):
 
 @app.get("/api/v1/scenarios")
 @app.get("/api/scenarios")
-async def get_live_4q_scenarios():
-    """Resolves Audit Item #26: Generates dynamic rolling 4-quarter labels & evaluates live FRED/Market trigger distances."""
-    quarters = generate_dynamic_forward_quarters(4)
-    liq = LiquidityEngine.build_complete_liquidity_payload()
-    bond = liq["bond_stress_and_accord"]
-    glob = liq["global_liquidity"]
-    us_nl = liq["us_net_liquidity"]
+async def get_live_4q_scenarios(force: bool = False):
+    """Generates dynamic rolling 4-quarter macro scenarios, live triggers, real rates, and central bank sentiment."""
+    try:
+        from app.quant_engine.scenarios_engine import ScenariosEngine
+    except ImportError:
+        from backend.app.quant_engine.scenarios_engine import ScenariosEngine
 
-    growth_live = compute_growth_nowcast()
-    inf_live = compute_inflation_nowcast()
-    quads_live = compute_quads_and_base_effects(growth_live["real_gdp_yoy"], inf_live["headline_cpi_nowcast_yoy"])
-    fwd_quads = quads_live["forward_4q_quad_count"]
+    payload = ScenariosEngine.build_scenarios_payload(force=force)
+    return _sanitize_floats(payload)
 
-    cpi_s = fetch_fred_series_live("CPIAUCSL", limit=15)
-    cpi_yoy = round(((float(cpi_s.iloc[-1]) / float(cpi_s.iloc[-13])) - 1.0) * 100.0, 2) if len(cpi_s) >= 13 else inf_live["headline_cpi_nowcast_yoy"]
 
-    res_payrolls = fetch_fred_series_live("CES2023610001", limit=36)
-    res_dd_pct = growth_live["housing_recession_alert"]["drawdown_pct"]
-    if len(res_payrolls) >= 12:
-        peak_res = float(res_payrolls.max())
-        curr_res = float(res_payrolls.iloc[-1])
-        res_dd_pct = round(((curr_res / max(1.0, peak_res)) - 1.0) * 100.0, 2)
+@app.get("/api/v1/central-bank/speeches")
+@app.get("/api/central-bank/speeches")
+async def get_central_bank_speeches_main():
+    """Returns the central bank speeches ledger and 8-week sentiment consensus matrix."""
+    try:
+        from app.quant_engine.scenarios_engine import ScenariosEngine
+    except ImportError:
+        from backend.app.quant_engine.scenarios_engine import ScenariosEngine
 
-    q0_quad = fwd_quads[0]["quad"].replace("_", " ") if len(fwd_quads) > 0 else "QUAD 3"
-    q1_quad = fwd_quads[1]["quad"].replace("_", " ") if len(fwd_quads) > 1 else "QUAD 4"
-    q2_quad = fwd_quads[2]["quad"].replace("_", " ") if len(fwd_quads) > 2 else "QUAD 4"
-    q3_quad = fwd_quads[3]["quad"].replace("_", " ") if len(fwd_quads) > 3 else "QUAD 2"
+    return _sanitize_floats(ScenariosEngine.get_central_bank_sentiment_ledger())
 
-    scenarios = [
-        {
-            "quarter": f"{quarters[0]} (Current Quarter — {q0_quad})",
-            "headline": f"{q0_quad} Stagflation/Deflation Tension vs. Credit Spread Watch",
-            "baseProb": "60%",
-            "altProb": "40%",
-            "scenario_name": f"Base Case (60%): {q0_quad} Sticky Inflation & Real-Rate Tension | Alt Case (40%): Credit Spread RORO Air-Pocket",
-            "live_trigger_telemetry": (
-                f"Live CPI YoY: {cpi_yoy}% (Trigger >3.5%) | "
-                f"HY OAS: {bond['hy_oas_pct']}% ({bond['hy_oas_60d_change_bps']:+.1f} bps 60D, Trigger >+50 bps) | "
-                f"Live MOVE: {bond['move_index']} (Trigger >115)"
-            ),
-            "trigger_status": "ACTIVE WATCH" if (cpi_yoy >= 3.3 or bond["move_index"] >= 95 or q0_quad == "QUAD 3") else "CONTAINED",
-            "asset_directions": "Base: Defensive Sectors ($XLV/$XLP), Energy ($XLE/$TPL), Gold ($GLDM) & Cash ($USFR) Outperform | Alt: $USFR Cash & Short Vol Hedges",
-            "policy_and_market_result": (
-                f"Treasury relies on T-Bill issuance ({bond['tbill_issuance_share_pct']}% share) while FOMC holds EFFR at {bond['effr_pct']}% unless ^MOVE ({bond['move_index']}) breaks >115."
-            ),
-            "baseScenario": {
-                "title": f"Base Case: {q0_quad} Growth Deceleration with Sticky Inflation (Proj GDP {fwd_quads[0]['projected_growth_yoy']}%, CPI {fwd_quads[0]['projected_inflation_yoy']}%)",
-                "description": (
-                    f"US Growth RoC decelerates ({fwd_quads[0]['growth_roc_delta']:+.2f}%) while inflation impulse remains positive ({fwd_quads[0]['inflation_roc_delta']:+.2f}%). "
-                    f"US Net Liquidity sits at ${us_nl['net_liquidity_usd_bn']}B ({us_nl['roc_4w_bn']:+.1f}B 4W), favoring defensive quality, energy royalties, and floating-rate cash."
-                ),
-                "assetMatrix": [
-                    {"asset": "Floating Rate Cash ($USFR / $TBIL)", "direction": f"CORE BUFFER (~{bond['effr_pct']}% Yield)", "color": "text-emerald-400"},
-                    {"asset": "Health Care & Staples ($XLV / $XLP)", "direction": "VAMS BULLISH OUTPERFORM (+5% to +9%)", "color": "text-emerald-400"},
-                    {"asset": "Physical Gold & Streamers ($GLDM / $WPM)", "direction": "INFLATION HEDGE (+6% to +12%)", "color": "text-amber-400"},
-                    {"asset": "Energy & Permian Royalties ($XLE / $TPL)", "direction": "BULLISH REAL ASSET (+8%)", "color": "text-emerald-400"},
-                    {"asset": "High-Multiple Tech ($XLK / $XLC)", "direction": "VAMS BEARISH / CONSOLIDATING", "color": "text-rose-400"},
-                    {"asset": "Long Treasuries ($TLT)", "direction": f"UNDERWEIGHT (10Y Real at {bond['real_10y_tips_yield_pct']}%)", "color": "text-rose-400"},
-                ],
-                "triggers": [
-                    f"Headline CPI Nowcast holds near {inf_live['headline_cpi_nowcast_yoy']}% YoY while SuperCore services run at {inf_live['prometheus_decomposition']['sticky_services_pressure']}%",
-                    f"US Net Liquidity holds near ${us_nl['net_liquidity_usd_bn']}B with TGA at ${us_nl['tga_wtregen_bn']}B",
-                    f"Residential Construction Payrolls drawdown stays above -5% (currently {res_dd_pct:+.2f}%)",
-                ],
-                "prerequisites": [
-                    f"HY Credit Spreads ({bond['hy_oas_pct']}%) remain contained below 4.00%",
-                    f"Treasury T-Bill share ({bond['tbill_issuance_share_pct']}%) absorbs long-end supply pressure",
-                ],
-            },
-            "altScenario": {
-                "title": "Alternative Case: Credit Spread Widening & Deflationary De-Grossing (Quad 4)",
-                "description": (
-                    f"With 42 Macro CACRI Risk-Off at 68.7%, a spike in ^MOVE above 115 or HY OAS widening >50 bps triggers broader institutional de-leveraging."
-                ),
-                "triggers": [
-                    "HY OAS widens >50 bps over 60 trading days",
-                    "^MOVE breaks above 115 while ^VIX crosses 25",
-                    "Initial Claims spike >10% YoY",
-                ],
-                "assetDirection": "100% $USFR Cash and defensive utilities ($XLU) outperform; high-beta equities re-test 200D SMA.",
-                "policyResponse": "Fed signals accelerated rate cuts and halts quantitative tightening (QT) runoff.",
-            },
-        },
-        {
-            "quarter": f"{quarters[1]} (Quarter + 1 — {q1_quad})",
-            "headline": f"Fed-Treasury Accord 2.0 Watch & {q1_quad} Transition",
-            "baseProb": "55%",
-            "altProb": "45%",
-            "scenario_name": "Base Case (55%): Fed-Treasury Accord 2.0 & SLR Deregulation | Alt Case (45%): Hawkish Credibility Tightening",
-            "live_trigger_telemetry": (
-                f"Live 10Y Nominal Yield: {bond['nominal_10y_yield_pct']}% (Accord Trigger: 4.75%–5.00%) | "
-                f"Real-Rate Share of Yield Change: {bond['real_rate_share_of_yield_change_pct']}% | "
-                f"Accord 2.0 Probability Gauge: {bond['accord_2_0_probability_pct']}%"
-            ),
-            "trigger_status": bond["accord_status"],
-            "asset_directions": "Base: Equities ($VT/$IWM), Financials ($XLF), Gold ($GLDM) & Bitcoin ($IBIT) Surge Up; 10Y Yields Capped",
-            "policy_and_market_result": "150 bps bank SLR relief + Fed RMP Treasury bill absorption caps real yields and triggers a high-conviction equity & hard-asset melt-up.",
-            "baseScenario": {
-                "title": f"Base Case: Accord 2.0 Liquidity Injection (Proj GDP {fwd_quads[1]['projected_growth_yoy']}%, CPI {fwd_quads[1]['projected_inflation_yoy']}%)",
-                "description": (
-                    f"Because {bond['real_rate_share_of_yield_change_pct']}% of the 60D 10Y yield change is driven by real rates ({bond['real_10y_tips_yield_pct']}% TIPS), "
-                    f"Treasury and the Fed coordinate bank SLR exemptions and T-Bill absorption to cap 10Y yields below 4.75%."
-                ),
-                "assetMatrix": [
-                    {"asset": "Money-Center & Regional Banks ($XLF / $JPM)", "direction": "SLR RELIEF SURGE (+10% to +15%)", "color": "text-emerald-400"},
-                    {"asset": "Physical Bullion ($GLDM / $WPM)", "direction": "REAL-RATE CAP BREAKOUT (+12%)", "color": "text-amber-400"},
-                    {"asset": "High-FCF Quality ($FCTE / $QUAL)", "direction": "OUTPERFORM (+8% to +12%)", "color": "text-emerald-400"},
-                    {"asset": "Bitcoin ($IBIT / $FBTC)", "direction": "LIQUIDITY BETA SURGE (+20%)", "color": "text-indigo-400"},
-                    {"asset": "10Y Nominal Treasuries ($IEF)", "direction": "YIELD CAPPED / STABILIZING", "color": "text-cyan-300"},
-                    {"asset": "US Dollar Index ($UUP)", "direction": "MODERATE SOFTENING (-3%)", "color": "text-rose-400"},
-                ],
-                "triggers": [
-                    f"10Y Real TIPS yield ({bond['real_10y_tips_yield_pct']}%) approaches 2.25%–2.50% intervention zone",
-                    f"Accord 2.0 Probability Gauge ({bond['accord_2_0_probability_pct']}%) crosses 60% threshold",
-                    "Bank SLR exemption for US Treasury holdings announced by Federal Reserve",
-                ],
-                "prerequisites": [
-                    "Net marketable Treasury borrowing exceeds $12T NTM",
-                    "Inflation expectations (10Y Breakeven) remain anchored near 2.3%–2.5%",
-                ],
-            },
-            "altScenario": {
-                "title": "Alternative Case: Unchecked Term-Premium Tantrum",
-                "description": "Fed delays balance-sheet support while long-end coupon auctions tail, pushing 10Y nominal yields toward 4.85%+.",
-                "triggers": [
-                    "10Y Nominal Yield breaks above 4.85% without Fed intervention",
-                    "30Y Treasury auction tails >4 bps",
-                ],
-                "assetDirection": "$USFR Cash and $PDBC commodities outperform; duration-sensitive equities ($XLRE, $IWM) correct.",
-                "policyResponse": "Treasury shifts even more issuance into 4W–26W T-Bills above 24% share.",
-            },
-        },
-        {
-            "quarter": f"{quarters[2]} (Quarter + 2 — {q2_quad})",
-            "headline": f"Housing Payroll Cycle Check & {q2_quad} Positioning",
-            "baseProb": "60%",
-            "altProb": "40%",
-            "scenario_name": "Base Case (60%): Resilient Labor & Quality Compounding | Alt Case (40%): Housing & Labor Scare (Quad 4)",
-            "live_trigger_telemetry": (
-                f"Live 3Fourteen Residential Construction Payrolls Drawdown from Peak: {res_dd_pct:+.2f}% "
-                "(Recession Trigger Threshold: -5.0% to -8.0%)"
-            ),
-            "trigger_status": "NO RECESSION SIGNAL (Housing Payrolls Resilient)" if res_dd_pct > -4.0 else "WARNING: CONSTRUCTION PAYROLLS CONTRACTING",
-            "asset_directions": "Base: Small Caps ($AVUV/$IWM), Industrials ($XLI) & Quality ($FCTE) Outperform | Alt (Quad 4): Long Bonds ($TLT) & Utilities ($XLU) Up",
-            "policy_and_market_result": "So long as Residential Construction Payrolls remain above -5% drawdown, fade recession scares and stay overweight cyclical compounders.",
-            "baseScenario": {
-                "title": f"Base Case: Non-Recessionary Mid-Cycle Reset (Proj GDP {fwd_quads[2]['projected_growth_yoy']}%, CPI {fwd_quads[2]['projected_inflation_yoy']}%)",
-                "description": (
-                    f"With 3Fourteen Residential Construction Payrolls drawdown at {res_dd_pct:+.2f}% (well above the -5% hard-landing threshold) "
-                    f"and Kalecki-Levy household savings at {growth_live['kalecki_levy_profit_impulse']['savings_rate_level']}%, the economy avoids a credit recession."
-                ),
-                "assetMatrix": [
-                    {"asset": "3Fourteen FCTE Core 20 ($FCTE)", "direction": "CYCLE LEADER (+10% to +14%)", "color": "text-emerald-400"},
-                    {"asset": "AI Data Center Networking & Power ($ANET / $CEG)", "direction": "OUTPERFORM (+12%)", "color": "text-emerald-400"},
-                    {"asset": "Industrials & Reshoring ($XLI / $GWW)", "direction": "BULLISH (+8%)", "color": "text-emerald-400"},
-                    {"asset": "Short-Intermediate Treasuries ($SHY / $IEF)", "direction": "POSITIVE CARRY (+4%)", "color": "text-cyan-300"},
-                    {"asset": "Physical Gold ($GLDM)", "direction": "STEADY ACCUMULATION (+6%)", "color": "text-amber-400"},
-                ],
-                "triggers": [
-                    f"CES2023610001 Residential Construction Payrolls hold above {round(growth_live['housing_recession_alert']['peak_level'] * 0.95, 1)}k (-5% threshold)",
-                    f"Shelter CPI vector decays toward {inf_live['three_fourteen_vectors']['shelter_vector']['projected_shelter_roc']}% YoY",
-                    "Corporate profitability spread remains above +584 bps historical mean",
-                ],
-                "prerequisites": [
-                    "Mortgage rates stabilize below 6.75%",
-                    "Hyperscaler AI capex commitments remain intact",
-                ],
-            },
-            "altScenario": {
-                "title": "Alternative Case: Housing-Led Hard Landing (Quad 4 Deflation)",
-                "description": "Residential construction payrolls contract >5% from cycle peak, triggering the classic 3Fourteen recession sequence.",
-                "triggers": [
-                    "CES2023610001 drawdown crosses -5.0% from cycle peak",
-                    "ISM New Orders drop below 45.0",
-                ],
-                "assetDirection": "Long Treasuries ($TLT), Utilities ($XLU), and $USFR outperform; cyclical equities draw down -15%.",
-                "policyResponse": "FOMC initiates aggressive 150 bps cutting cycle back toward 2.50%.",
-            },
-        },
-        {
-            "quarter": f"{quarters[3]} (Quarter + 3 — {q3_quad})",
-            "headline": f"Paradigm C Debasement & {q3_quad} Reflation Re-Acceleration",
-            "baseProb": "55%",
-            "altProb": "45%",
-            "scenario_name": "Base Case (55%): Paradigm C Debasement Melt-Up | Alt Case (45%): Sovereign NIIP Capital Outflow Shock",
-            "live_trigger_telemetry": (
-                f"Live Global Liquidity: ${glob['global_liquidity_usd_tn']}T | "
-                f"US Debt-to-Liquidity: {glob['us_debt_to_liquidity_pct']}% | "
-                f"US NIIP: ${glob['us_niip_deficit_usd_tn']}T"
-            ),
-            "trigger_status": "SECULAR DEBASEMENT TREND ACTIVE",
-            "asset_directions": "Base: Hard Assets ($GLDM, $IBIT, $SRUUF, $COPX, $TPL) & Quality Equities Up; Long Fiat Debt Underperforms",
-            "policy_and_market_result": "Validates 42 Macro KISS (60% $VT / 30% $GLDM / 10% $FBTC / 0% Long Bonds) and 3Fourteen Debasement allocation.",
-            "baseScenario": {
-                "title": f"Base Case: {q3_quad} Reflation & Hard-Asset Supercycle (Proj GDP {fwd_quads[3]['projected_growth_yoy']}%, CPI {fwd_quads[3]['projected_inflation_yoy']}%)",
-                "description": (
-                    f"Global Liquidity (${glob['global_liquidity_usd_tn']}T) and US Public Debt (${glob['us_public_debt_bn']}B, {glob['us_debt_to_liquidity_pct']}% of domestic liquidity) "
-                    f"drive a structural re-acceleration in nominal growth and physical scarcity assets."
-                ),
-                "assetMatrix": [
-                    {"asset": "Uranium & Nuclear Baseload ($SRUUF / $CCJ / $CEG)", "direction": "SUPERCYCLE (+18% to +25%)", "color": "text-emerald-400"},
-                    {"asset": "Copper & Critical Minerals ($COPX / $FCX)", "direction": "MAX BULL (+16%)", "color": "text-emerald-400"},
-                    {"asset": "Gold & Bitcoin ($GLDM / $IBIT)", "direction": "MONETARY DEBASEMENT LEADERS", "color": "text-amber-400"},
-                    {"asset": "Global Equities ($VT / $SPY)", "direction": "NOMINAL BOOM (+10% to +14%)", "color": "text-emerald-400"},
-                    {"asset": "Long Nominal Sovereign Debt ($TLT)", "direction": "STRUCTURAL UNDERPERFORM", "color": "text-rose-400"},
-                ],
-                "triggers": [
-                    f"Global Central Bank + Broad M2 Liquidity expands beyond ${glob['global_liquidity_usd_tn']}T",
-                    f"US Debt-to-Domestic Liquidity ratio stays above {glob['us_debt_to_liquidity_pct']}%",
-                    "Forward Q+3 growth & inflation base effects both turn positive (ΔG+ ΔI+)",
-                ],
-                "prerequisites": [
-                    "AI data-center power grid expansion accelerates physical commodity demand",
-                    "Foreign official institutions continue rotating FX reserves into Gold",
-                ],
-            },
-            "altScenario": {
-                "title": "Alternative Case: Foreign Capital Repatriation & NIIP Shock",
-                "description": f"Foreign creditors reduce holdings of US assets amid a ${glob['us_niip_deficit_usd_tn']}T US NIIP deficit, pressuring the USD and US multiples.",
-                "triggers": [
-                    "DXY drops >6% while 10Y Treasury yields rise simultaneously",
-                    "Foreign official Treasury holdings decline >$150B in a quarter",
-                ],
-                "assetDirection": "International hard-asset exporters ($EWC, $EWA) and Gold ($GLDM) strongly outperform US Mega-Caps.",
-                "policyResponse": "Fed expands standing swap lines and permanent repo operations.",
-            },
-        },
-    ]
 
-    res = {
-        "status": "ok",
-        "as_of_utc": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
-        "quarters": quarters,
-        "scenarios": scenarios,
-    }
-    return _sanitize_floats(res)
+@app.get("/api/v1/macro/real-rates")
+@app.get("/api/macro/real-rates")
+async def get_macro_real_rates_main():
+    """Returns sovereign real interest rate comparisons, r - g spread, and debt sustainability."""
+    try:
+        from app.quant_engine.scenarios_engine import ScenariosEngine
+    except ImportError:
+        from backend.app.quant_engine.scenarios_engine import ScenariosEngine
+
+    return _sanitize_floats(ScenariosEngine.compute_real_interest_rates_and_debt_squeeze())
 
 
 # ==============================================================================
