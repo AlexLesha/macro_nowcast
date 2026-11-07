@@ -81,27 +81,27 @@ export default function LiquidityAllocationPage() {
     {
       id: "SECTORS",
       title: "US Equity Sectors",
-      description: "11 GICS Select Sector SPDRs & SPY Benchmark",
+      description: "11 GICS Select Sector SPDRs, SMH, XBI, XME & ITA Leaders",
     },
     {
       id: "FACTORS",
       title: "US Equity Style Factors",
-      description: "Smart Beta, Low Volatility, High Beta, Quality & Momentum",
+      description: "Smart Beta, Low Volatility, FCF Cash Cows, Quality & Small-Cap Alpha",
     },
     {
       id: "GLOBAL",
-      title: "Global Equities & Regions",
-      description: "Developed & Emerging Market Country Quad Proxies",
+      title: "Global Equities & Regions (G20+)",
+      description: "G20 Economies, Developed & Emerging Market Country Quad Proxies",
     },
     {
       id: "BONDS",
       title: "Fixed Income & Sovereign Debt",
-      description: "Duration, Credit Spreads, Mortgages & TIPS Inflation Plumbing",
+      description: "Duration, Floating Rate USFR, Muni & TIPS Inflation Plumbing",
     },
     {
       id: "COMMODITIES",
       title: "Commodities, Currencies & Digital Assets",
-      description: "Monetary Metals, Energy, Agriculture, Currencies & Bitcoin",
+      description: "Gold, Copper, Energy, Agriculture, Currencies & Digital Assets",
     },
   ];
 
@@ -168,7 +168,7 @@ export default function LiquidityAllocationPage() {
     return (
       <div
         key={idx}
-        className={`p-2 rounded-lg border transition shadow-sm w-[130px] sm:w-[140px] shrink-0 text-xs font-mono space-y-1 ${
+        className={`p-2 rounded-lg border transition shadow-sm w-[130px] sm:w-[136px] shrink-0 font-mono space-y-1 ${
           isPositive
             ? "bg-[#0b1622] border-emerald-900/60 hover:border-emerald-500/60"
             : isNegative
@@ -177,7 +177,7 @@ export default function LiquidityAllocationPage() {
         }`}
       >
         <div className="flex items-center justify-between">
-          <span className="font-bold text-slate-100">${f.ticker}</span>
+          <span className="font-bold text-slate-100 text-xs">${f.ticker}</span>
           <span
             className={`px-1 py-0.2 rounded text-xs font-bold ${
               isPositive
@@ -191,19 +191,19 @@ export default function LiquidityAllocationPage() {
           </span>
         </div>
 
-        <div className="text-slate-400 truncate text-xs" title={f.name}>
+        <div className="text-slate-400 truncate text-[10.5px] leading-tight" title={f.name}>
           {f.name || f.ticker}
         </div>
 
-        <div className="flex items-center justify-between pt-0.5 border-t border-slate-800/60 text-xs">
+        <div className="flex items-center justify-between pt-0.5 border-t border-slate-800/60 text-[10px] leading-tight">
           <span
-            className={`font-bold ${
+            className={`font-bold uppercase tracking-tight ${
               isPositive ? "text-emerald-400" : isNegative ? "text-rose-400" : "text-slate-400"
             }`}
           >
             {isPositive ? "LONG" : isNegative ? "SHORT" : "NEUTRAL"}
           </span>
-          <span className="text-slate-300">
+          <span className="text-slate-300 tracking-tight">
             Exp:{" "}
             <strong
               className={
@@ -216,7 +216,7 @@ export default function LiquidityAllocationPage() {
           </span>
         </div>
 
-        <div className={`text-xs truncate font-medium pt-0.5 ${rsiInfo.color}`}>
+        <div className={`text-[10px] truncate font-medium tracking-tight pt-0.5 leading-tight ${rsiInfo.color}`}>
           {rsiInfo.text}
         </div>
       </div>
@@ -625,7 +625,7 @@ export default function LiquidityAllocationPage() {
             { id: "ALL", label: "All Universes" },
             { id: "SECTORS", label: "US Sectors" },
             { id: "FACTORS", label: "Equity Factors" },
-            { id: "GLOBAL", label: "Global Equities" },
+            { id: "GLOBAL", label: "Global Equities (G20+)" },
             { id: "BONDS", label: "Fixed Income" },
             { id: "COMMODITIES", label: "Commodities & FX" },
           ].map((cat) => (
@@ -705,11 +705,29 @@ export default function LiquidityAllocationPage() {
                 return vA - vB;
               });
 
-            // Neutral placement logic:
-            // "Place them on top of eachother if there are a few Neutral cards. If there are more Neutral that anything else, place them into 2 rows."
-            const isMoreNeutralThanOthers =
-              neutralCards.length > negativeCards.length && neutralCards.length > positiveCards.length;
-            const useTwoRowsForNeutral = isMoreNeutralThanOthers || neutralCards.length >= 4;
+            // Compute dynamic target row count across the 3 groups to organize space neatly and tidy:
+            const maxGroupCount = Math.max(negativeCards.length, neutralCards.length, positiveCards.length);
+            const totalCount = filteredGroupItems.length;
+
+            let targetRows = 2;
+            if (maxGroupCount >= 7 || totalCount >= 16) {
+              targetRows = 3;
+            }
+            if (maxGroupCount >= 11 || totalCount >= 24) {
+              targetRows = 4;
+            }
+            if (totalCount <= 4 && maxGroupCount <= 2) {
+              targetRows = 1;
+            }
+
+            const rowClass =
+              targetRows === 1
+                ? "grid-rows-1"
+                : targetRows === 2
+                ? "grid-rows-2"
+                : targetRows === 3
+                ? "grid-rows-3"
+                : "grid-rows-4";
 
             return (
               <div key={grp.id} className="p-3.5 rounded-xl bg-[#090f1a] border border-slate-800/80 space-y-2.5">
@@ -725,29 +743,33 @@ export default function LiquidityAllocationPage() {
                   </div>
                 </div>
 
-                {/* 3 Groups Canvas: Negative (Left) | Neutral (Center Stack/2-Row) | Positive (Right) */}
-                <div className="flex flex-col md:flex-row items-center justify-center gap-2.5 min-h-[90px] w-full">
-                  {/* Left Group: Negative VAMS (more negative further left, closer to 0 closer to center) */}
-                  <div className="flex-1 w-full md:w-auto flex flex-wrap items-center justify-end content-center gap-2">
-                    {negativeCards.map((f: any, idx: number) => renderDrMoCard(f, idx))}
+                {/* 3 Groups Canvas: Negative (Left) | Neutral (Center Stack/Dynamic Rows) | Positive (Right) */}
+                <div className="flex flex-col md:flex-row items-center justify-center gap-2.5 min-h-[90px] w-full overflow-x-auto pb-1">
+                  {/* Left Group: Negative VAMS (aligned toward center) */}
+                  <div className="flex-1 w-full md:w-auto flex items-center justify-end">
+                    {negativeCards.length > 0 && (
+                      <div className={`grid ${rowClass} grid-flow-col gap-2`}>
+                        {negativeCards.map((f: any, idx: number) => renderDrMoCard(f, idx))}
+                      </div>
+                    )}
                   </div>
 
-                  {/* Center Group: Neutral Cards (stacked vertically if a few, or in 2 rows if more) */}
+                  {/* Center Group: Neutral Cards (organic dynamic rows) */}
                   {neutralCards.length > 0 && (
-                    <div
-                      className={`shrink-0 items-center justify-center gap-2 self-center px-1 ${
-                        useTwoRowsForNeutral
-                          ? "grid grid-rows-2 grid-flow-col"
-                          : "flex flex-col"
-                      }`}
-                    >
-                      {neutralCards.map((f: any, idx: number) => renderDrMoCard(f, idx))}
+                    <div className="shrink-0 flex items-center justify-center px-1">
+                      <div className={`grid ${rowClass} grid-flow-col gap-2`}>
+                        {neutralCards.map((f: any, idx: number) => renderDrMoCard(f, idx))}
+                      </div>
                     </div>
                   )}
 
-                  {/* Right Group: Positive VAMS (closer to 0 closer to center, more positive further right) */}
-                  <div className="flex-1 w-full md:w-auto flex flex-wrap items-center justify-start content-center gap-2">
-                    {positiveCards.map((f: any, idx: number) => renderDrMoCard(f, idx))}
+                  {/* Right Group: Positive VAMS (aligned from center outward) */}
+                  <div className="flex-1 w-full md:w-auto flex items-center justify-start">
+                    {positiveCards.length > 0 && (
+                      <div className={`grid ${rowClass} grid-flow-col gap-2`}>
+                        {positiveCards.map((f: any, idx: number) => renderDrMoCard(f, idx))}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
