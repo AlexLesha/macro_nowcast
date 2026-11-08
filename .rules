@@ -5,3 +5,4 @@
 4. TARGETED DIFFS: Apply surgical inline changes. Do not re-write or re-output entire files.
 5. NO AUTO-TESTING: Do not run builds, linter suites, or spawn headless browser sessions for visual checks unless explicitly requested.
 6. Run in Turbo mode. Do not spawn browser sessions or visual verification. Apply the styling updates directly, and exit.
+7. SEPARATE APK/MOBILE FROM WEB: All Android APK work files, Capacitor configurations, and mobile build outputs must remain exclusively in the local `android_app/` container. Exclude from Git, Cloudflare Pages, and pure web-project workflows. Never add mobile files or native dependencies to `frontend/`.

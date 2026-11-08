@@ -40,3 +40,9 @@ yarn-error.log*
 Thumbs.db
 .vscode/
 .idea/
+
+# Mobile / Android App Container & APKs (Local Only - Excluded from Git, Cloudflare & Pure Web Builds)
+android_app/
+mobile_app/
+*.apk
+

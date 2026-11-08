@@ -1,0 +1,7 @@
+# Cloudflare Pages / Web Build Ignore
+android_app/
+mobile_app/
+*.apk
+backend/
+.env*
+

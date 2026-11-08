@@ -23,6 +23,44 @@ import {
 
 type ViewMode = "BOTH" | "GRAPHS" | "TABLE";
 
+function renderAttributionTextWithLinks(text: string) {
+  if (!text) return null;
+  // Match markdown links: [link_text](url)
+  const linkRegex = /\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g;
+  const parts: React.ReactNode[] = [];
+  let lastIndex = 0;
+  let match;
+
+  while ((match = linkRegex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(text.substring(lastIndex, match.index));
+    }
+    const label = match[1];
+    const url = match[2];
+    parts.push(
+      <a
+        key={match.index}
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center gap-1 text-xs font-mono px-1.5 py-0.5 mx-0.5 rounded bg-slate-900 border border-cyan-500/40 text-cyan-300 hover:text-cyan-200 hover:bg-slate-800 transition-colors"
+      >
+        <span>[{label}]</span>
+        <svg className="w-3 h-3 inline opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+        </svg>
+      </a>
+    );
+    lastIndex = match.index + match[0].length;
+  }
+
+  if (lastIndex < text.length) {
+    parts.push(text.substring(lastIndex));
+  }
+
+  return parts.length > 0 ? <>{parts}</> : text;
+}
+
 export default function SingleStockAnalysisPage() {
   const [tickerInput, setTickerInput] = useState<string>("");
   const [activeTicker, setActiveTicker] = useState<string>("");
@@ -37,6 +75,10 @@ export default function SingleStockAnalysisPage() {
   const [activeRegimeName, setActiveRegimeName] = useState<string>("STAGFLATION");
   const [simShiftPct, setSimShiftPct] = useState<number>(0);
   const [dossierMode, setDossierMode] = useState<1 | 2>(1);
+  const [hotNewsViewMode, setHotNewsViewMode] = useState<"BOTH" | "OPTION_A" | "OPTION_B">("BOTH");
+  const [optionBOverride, setOptionBOverride] = useState<any>(null);
+  const [loadingOptionB, setLoadingOptionB] = useState<boolean>(false);
+  const [showPromptDetails, setShowPromptDetails] = useState<boolean>(false);
 
   useEffect(() => {
     fetch(getApiUrl("/api/v1/executive-summary"), { cache: "no-store" })
@@ -147,6 +189,22 @@ export default function SingleStockAnalysisPage() {
     }
   };
 
+  const handleRefreshOptionB = async () => {
+    if (!activeTicker) return;
+    setLoadingOptionB(true);
+    try {
+      const res = await fetch(getApiUrl(`/api/v1/stock/analysis/${activeTicker}/hot-news/option-b?refresh=true`), { cache: "no-store" });
+      if (res.ok) {
+        const json = await res.json();
+        setOptionBOverride(json);
+      }
+    } catch (err) {
+      console.warn("Option B refresh error:", err);
+    } finally {
+      setLoadingOptionB(false);
+    }
+  };
+
   const dossier = data?.forensic_dossier || data?.groq_dossier || data?.verdict;
   const quant = data?.quant_xray || data;
   const ribbon = data?.header_ribbon;
@@ -156,6 +214,22 @@ export default function SingleStockAnalysisPage() {
   const groqDossier = data?.groq_dossier;
   const briefExecSummary = data?.brief_executive_summary || groqDossier?.brief_executive_summary;
   const hotNews = data?.hot_news;
+  const optionB = optionBOverride || hotNews?.option_b;
+
+  useEffect(() => {
+    if (activeTicker && !optionB && !loadingOptionB && !optionBOverride && data) {
+      setLoadingOptionB(true);
+      fetch(getApiUrl(`/api/v1/stock/analysis/${activeTicker}/hot-news/option-b`))
+        .then((r) => (r.ok ? r.json() : null))
+        .then((json) => {
+          if (json && json.status === "ok") {
+            setOptionBOverride(json);
+          }
+        })
+        .catch((err) => console.warn("Background Option B fetch note:", err))
+        .finally(() => setLoadingOptionB(false));
+    }
+  }, [activeTicker, optionB, loadingOptionB, optionBOverride, data]);
   const factor = quant?.factor_and_sector_dna || data?.factor_and_sector_dna;
   const rate = quant?.interest_rate_and_earnings_sensitivity || data?.interest_rate_and_earnings_sensitivity;
   const pods = quant?.hedgeye_3_pods || data?.hedgeye_3_pods;
@@ -537,190 +611,619 @@ export default function SingleStockAnalysisPage() {
         {/* SECTIONS 1 TO 6: RENDERED ONLY WHEN DATA IS LOADED */}
         {data && (
           <>
-          {/* HOT NEWS: 2-WEEK WORKING DAYS INTELLIGENCE & PRICE IMPACT TABLE */}
-          {hotNews && (hotNews?.columns || (hotNews?.days && hotNews.days.length > 0)) && (
-            <section className="bg-slate-900/60 border border-slate-800 rounded-lg p-4 space-y-3.5">
-              <div className="flex flex-wrap items-center justify-between pb-2.5 border-b border-slate-800/80 gap-2">
+          {/* HOT NEWS: DUAL-TRACK INTELLIGENCE (OPTION A: 2-WEEK DAILY & OPTION B: 4-WEEK LLM ATTRIBUTION) */}
+          {((hotNews && (hotNews?.columns || (hotNews?.days && hotNews.days.length > 0))) || optionB || loadingOptionB) && (
+            <section className="bg-slate-900/60 border border-slate-800 rounded-lg p-4 space-y-4">
+              {/* SECTION HEADER & VIEW CONTROLS */}
+              <div className="flex flex-wrap items-center justify-between pb-3 border-b border-slate-800/80 gap-3">
                 <div>
-                  <div className="flex flex-wrap items-center gap-2 mb-1">
+                  <div className="flex flex-wrap items-center gap-2 mb-1.5">
                     <span className="text-xs font-mono font-bold uppercase tracking-wider text-amber-400">
                       Hot News Intelligence
                     </span>
-                    <span className="text-xs font-mono px-2 py-0.5 rounded bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 font-semibold">
-                      {hotNews?.source === "GROQ_LLAMA_3_3_70B" ? "GROQ LLAMA-3.3 70B AI" : "FINNHUB & MASSIVE REAL-TIME"}
-                    </span>
-                    <span className="text-xs font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300">
-                      {hotNews?.time_window || "Last 2 Working Weeks (10 Trading Days)"}
-                    </span>
-                    <span className={`text-xs font-mono px-2 py-0.5 rounded border font-semibold ${
-                      hotNews?.overall_sentiment === "BULLISH"
-                        ? "bg-emerald-950/40 border-emerald-500/40 text-emerald-300"
-                        : hotNews?.overall_sentiment === "BEARISH"
-                        ? "bg-rose-950/40 border-rose-500/40 text-rose-300"
-                        : "bg-amber-950/40 border-amber-500/40 text-amber-300"
-                    }`}>
-                      Sentiment: {hotNews?.overall_sentiment || "MIXED"}
+                    <span className="text-xs font-mono px-2 py-0.5 rounded bg-amber-950/50 border border-amber-500/40 text-amber-300 font-semibold">
+                      DUAL-TRACK: OPTION A (DAILY 2W) & OPTION B (LLM 4W ATTRIBUTION)
                     </span>
                   </div>
-                  <h2 className="text-base font-bold font-mono text-slate-100">
-                    Hot News: 2-Week Working Days Intelligence: {data?.company_name || activeTicker} ({activeTicker})
+                  <h2 className="text-base font-bold font-mono text-slate-100 flex items-center gap-2">
+                    Hot News Intelligence: {data?.company_name || activeTicker} ({activeTicker})
                   </h2>
                 </div>
 
-                {hotNews?.net_price_change_pct != null && (
-                  <div className="flex items-center gap-2 bg-slate-950 px-2.5 py-1.5 rounded-lg border border-slate-800 text-xs font-mono">
-                    <span className="text-slate-400">Net 2-Week Move:</span>
-                    <span className={`font-bold ${hotNews.net_price_change_pct >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
-                      {hotNews.net_price_change_pct >= 0 ? "+" : ""}{hotNews.net_price_change_pct}%
-                    </span>
+                <div className="flex flex-wrap items-center gap-2">
+                  {hotNews?.net_price_change_pct != null && (
+                    <div className="flex items-center gap-1.5 bg-slate-950 px-2.5 py-1 rounded-lg border border-slate-800 text-xs font-mono">
+                      <span className="text-slate-400">Net 2W:</span>
+                      <span className={`font-bold ${hotNews.net_price_change_pct >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                        {hotNews.net_price_change_pct >= 0 ? "+" : ""}{hotNews.net_price_change_pct}%
+                      </span>
+                    </div>
+                  )}
+
+                  {optionB?.volatility_assessment?.net_price_change_pct != null && (
+                    <div className="flex items-center gap-1.5 bg-slate-950 px-2.5 py-1 rounded-lg border border-slate-800 text-xs font-mono">
+                      <span className="text-slate-400">Net 4W:</span>
+                      <span className={`font-bold ${optionB.volatility_assessment.net_price_change_pct >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                        {optionB.volatility_assessment.net_price_change_pct >= 0 ? "+" : ""}{optionB.volatility_assessment.net_price_change_pct}%
+                      </span>
+                    </div>
+                  )}
+
+                  {/* View Mode Switcher */}
+                  <div className="flex items-center rounded-lg bg-slate-950 p-0.5 border border-slate-800 text-xs font-mono">
+                    <button
+                      type="button"
+                      onClick={() => setHotNewsViewMode("BOTH")}
+                      className={`px-2.5 py-1 rounded transition-colors ${
+                        hotNewsViewMode === "BOTH" ? "bg-amber-500/20 text-amber-300 font-bold border border-amber-500/40" : "text-slate-400 hover:text-slate-200"
+                      }`}
+                    >
+                      All Views
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setHotNewsViewMode("OPTION_A")}
+                      className={`px-2.5 py-1 rounded transition-colors ${
+                        hotNewsViewMode === "OPTION_A" ? "bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/40" : "text-slate-400 hover:text-slate-200"
+                      }`}
+                    >
+                      Option A (2-Week Daily)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setHotNewsViewMode("OPTION_B")}
+                      className={`px-2.5 py-1 rounded transition-colors ${
+                        hotNewsViewMode === "OPTION_B" ? "bg-purple-500/20 text-purple-300 font-bold border border-purple-500/40" : "text-slate-400 hover:text-slate-200"
+                      }`}
+                    >
+                      Option B (4-Week Pure LLM)
+                    </button>
                   </div>
-                )}
+                </div>
               </div>
 
-              {/* WEEKLY EXECUTIVE TAKEAWAY BANNER */}
-              {hotNews?.weekly_takeaway && (
-                <div className="rounded-lg border border-amber-500/30 bg-slate-950/80 p-3 space-y-1">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-mono font-bold uppercase tracking-wide text-amber-400">
-                      2-Week Market Moving Catalysts & Positioning
-                    </span>
+              {/* ========================================================================= */}
+              {/* OPTION A: 2-WEEK WORKING DAYS INTELLIGENCE & PRICE IMPACT TABLE */}
+              {/* ========================================================================= */}
+              {(hotNewsViewMode === "BOTH" || hotNewsViewMode === "OPTION_A") && hotNews && (hotNews?.columns || (hotNews?.days && hotNews.days.length > 0)) && (
+                <div className="space-y-3">
+                  <div className="flex flex-wrap items-center justify-between pb-1 gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-xs font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-cyan-950/60 border border-cyan-500/40 text-cyan-300">
+                        Option A: 2-Week Working Days Daily Intelligence & Price Impact Table
+                      </span>
+                      <span className="text-xs font-mono px-2 py-0.5 rounded bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 font-semibold">
+                        {hotNews?.source === "GROQ_LLAMA_3_3_70B" ? "GROQ LLAMA-3.3 70B AI" : "FINNHUB & MASSIVE REAL-TIME"}
+                      </span>
+                      <span className="text-xs font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300">
+                        {hotNews?.time_window || "Last 2 Working Weeks (10 Trading Days)"}
+                      </span>
+                      <span className={`text-xs font-mono px-2 py-0.5 rounded border font-semibold ${
+                        hotNews?.overall_sentiment === "BULLISH"
+                          ? "bg-emerald-950/40 border-emerald-500/40 text-emerald-300"
+                          : hotNews?.overall_sentiment === "BEARISH"
+                          ? "bg-rose-950/40 border-rose-500/40 text-rose-300"
+                          : "bg-amber-950/40 border-amber-500/40 text-amber-300"
+                      }`}>
+                        Sentiment: {hotNews?.overall_sentiment || "MIXED"}
+                      </span>
+                    </div>
                     <span className="text-xs font-mono text-slate-400">
                       Working Days (Mon – Fri)
                     </span>
                   </div>
-                  <p className="text-xs text-slate-200 leading-relaxed font-sans">
-                    {hotNews.weekly_takeaway}
-                  </p>
+
+                  {/* WEEKLY EXECUTIVE TAKEAWAY BANNER */}
+                  {hotNews?.weekly_takeaway && (
+                    <div className="rounded-lg border border-cyan-500/30 bg-slate-950/80 p-3 space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-mono font-bold uppercase tracking-wide text-cyan-400">
+                          2-Week Market Moving Catalysts & Positioning
+                        </span>
+                        <span className="text-xs font-mono text-slate-400">
+                          Daily Trading Sessions Breakdown
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-200 leading-relaxed font-sans">
+                        {hotNews.weekly_takeaway}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* COMPACT 2-COLUMN TABLE (WEEK 1 vs WEEK 2 WORKING DAYS) */}
+                  {(() => {
+                    const weekCurrentDays = hotNews?.columns?.week_current?.days || (hotNews?.days ? hotNews.days.slice(0, 5) : []);
+                    const weekPriorDays = hotNews?.columns?.week_prior?.days || (hotNews?.days ? hotNews.days.slice(5, 10) : []);
+
+                    const renderTradingDayCell = (dayItem: any, idx: number) => {
+                      const pa = dayItem.price_action || {};
+                      const isTraded = pa.traded === true;
+                      const chgPct = pa.change_pct ?? 0.0;
+                      const rawBullets: any[] = Array.isArray(dayItem.bullet_points)
+                        ? dayItem.bullet_points
+                        : (dayItem.bullet_points ? [dayItem.bullet_points] : (dayItem.summary ? [dayItem.summary] : ["No events"]));
+                      const cleanedBullets = rawBullets.filter((b: any) => {
+                        if (!b || typeof b !== "string") return false;
+                        const s = b.trim();
+                        if (!s) return false;
+                        if (/^Stock (?:advanced|declined|held flat)/i.test(s)) return false;
+                        if (/^Regular trading session logged/i.test(s)) return false;
+                        return true;
+                      });
+                      const bullets = cleanedBullets.length > 0 ? cleanedBullets : ["No events"];
+                      const tags = dayItem.tags || (dayItem.catalyst_type ? [dayItem.catalyst_type] : []);
+
+                      return (
+                        <div key={dayItem.date || idx} className="p-3 space-y-1.5 transition-colors hover:bg-slate-900/40">
+                          <div className="flex flex-wrap items-center justify-between gap-1.5">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <span className="text-xs font-mono font-bold text-cyan-300">
+                                {dayItem.date} <span className="text-slate-400 font-normal">({dayItem.day_name?.slice(0, 3)})</span>
+                              </span>
+                              {tags.map((tag: string, tIdx: number) => (
+                                <span
+                                  key={tIdx}
+                                  className={`text-xs font-mono px-1.5 py-0.5 rounded font-semibold border ${
+                                    tag === "EARNINGS"
+                                      ? "bg-purple-950/50 border-purple-500/40 text-purple-300"
+                                      : tag === "C-LEVEL"
+                                      ? "bg-amber-950/50 border-amber-500/40 text-amber-300"
+                                      : tag === "LEGAL"
+                                      ? "bg-rose-950/50 border-rose-500/40 text-rose-300"
+                                      : tag === "M&A"
+                                      ? "bg-blue-950/50 border-blue-500/40 text-blue-300"
+                                      : tag === "ANALYST"
+                                      ? "bg-emerald-950/50 border-emerald-500/40 text-emerald-300"
+                                      : "bg-slate-900 border-slate-800 text-slate-300"
+                                  }`}
+                                >
+                                  {tag}
+                                </span>
+                              ))}
+                            </div>
+
+                            <div className="text-xs font-mono">
+                              {isTraded && pa.close != null ? (
+                                <span className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-300 flex items-center gap-1.5">
+                                  {pa.open != null && <span>O: ${Number(pa.open).toFixed(2)}</span>}
+                                  <span>C: ${Number(pa.close).toFixed(2)}</span>
+                                  <span className={`font-bold ${chgPct >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                                    ({chgPct >= 0 ? "+" : ""}{chgPct}%)
+                                  </span>
+                                  {pa.volume_str && pa.volume_str !== "—" && (
+                                    <span className="text-slate-400">Vol: {pa.volume_str}</span>
+                                  )}
+                                </span>
+                              ) : (
+                                <span className="px-2 py-0.5 rounded bg-slate-900/60 border border-slate-800 text-slate-400">
+                                  Active Trading
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          <ul className="space-y-1 text-xs text-slate-300 font-sans pt-0.5">
+                            {bullets.map((pt: string, pIdx: number) => (
+                              <li key={pIdx} className="flex items-start gap-1.5 leading-snug">
+                                <span className="text-cyan-400 select-none font-bold mt-0.5">•</span>
+                                <span className={pt === "No events" ? "text-slate-500 italic" : "text-slate-200"}>
+                                  {pt}
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      );
+                    };
+
+                    return (
+                      <div className="rounded-lg border border-slate-800 bg-slate-950/70 overflow-hidden font-mono text-xs">
+                        <div className="grid grid-cols-1 lg:grid-cols-2 border-b border-slate-800 bg-slate-900/90 divide-y lg:divide-y-0 lg:divide-x divide-slate-800">
+                          <div className="px-3.5 py-2 flex items-center justify-between">
+                            <span className="font-bold text-cyan-400 uppercase tracking-wider">
+                              Current Week (Last 5 Trading Days)
+                            </span>
+                            <span className="text-slate-400 text-xs">Week 1</span>
+                          </div>
+                          <div className="px-3.5 py-2 flex items-center justify-between">
+                            <span className="font-bold text-slate-300 uppercase tracking-wider">
+                              Prior Week (Preceding 5 Trading Days)
+                            </span>
+                            <span className="text-slate-400 text-xs">Week 2</span>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-slate-800">
+                          <div className="divide-y divide-slate-800/60">
+                            {weekCurrentDays.length > 0 ? (
+                              weekCurrentDays.map(renderTradingDayCell)
+                            ) : (
+                              <div className="p-4 text-center text-slate-500 italic text-xs">No trading sessions recorded</div>
+                            )}
+                          </div>
+                          <div className="divide-y divide-slate-800/60">
+                            {weekPriorDays.length > 0 ? (
+                              weekPriorDays.map(renderTradingDayCell)
+                            ) : (
+                              <div className="p-4 text-center text-slate-500 italic text-xs">No trading sessions recorded</div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
 
-              {/* COMPACT 2-COLUMN TABLE (WEEK 1 vs WEEK 2 WORKING DAYS) */}
-              {(() => {
-                const weekCurrentDays = hotNews?.columns?.week_current?.days || (hotNews?.days ? hotNews.days.slice(0, 5) : []);
-                const weekPriorDays = hotNews?.columns?.week_prior?.days || (hotNews?.days ? hotNews.days.slice(5, 10) : []);
-
-                const renderTradingDayCell = (dayItem: any, idx: number) => {
-                  const pa = dayItem.price_action || {};
-                  const isTraded = pa.traded === true;
-                  const chgPct = pa.change_pct ?? 0.0;
-                  const rawBullets: any[] = Array.isArray(dayItem.bullet_points)
-                    ? dayItem.bullet_points
-                    : (dayItem.bullet_points ? [dayItem.bullet_points] : (dayItem.summary ? [dayItem.summary] : ["No events"]));
-                  const cleanedBullets = rawBullets.filter((b: any) => {
-                    if (!b || typeof b !== "string") return false;
-                    const s = b.trim();
-                    if (!s) return false;
-                    if (/^Stock (?:advanced|declined|held flat)/i.test(s)) return false;
-                    if (/^Regular trading session logged/i.test(s)) return false;
-                    return true;
-                  });
-                  const bullets = cleanedBullets.length > 0 ? cleanedBullets : ["No events"];
-                  const tags = dayItem.tags || (dayItem.catalyst_type ? [dayItem.catalyst_type] : []);
-
-                  return (
-                    <div key={dayItem.date || idx} className="p-3 space-y-1.5 transition-colors hover:bg-slate-900/40">
-                      {/* Compact Header: Date/Day + Tags + Metrics Pill */}
-                      <div className="flex flex-wrap items-center justify-between gap-1.5">
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          <span className="text-xs font-mono font-bold text-cyan-300">
-                            {dayItem.date} <span className="text-slate-400 font-normal">({dayItem.day_name?.slice(0, 3)})</span>
+              {/* ========================================================================= */}
+              {/* OPTION B: PURE LLM 4-WEEK ATTRIBUTION & FORWARD VOLATILITY OUTLOOK */}
+              {/* ========================================================================= */}
+              {(hotNewsViewMode === "BOTH" || hotNewsViewMode === "OPTION_B") && (
+                <div className={`space-y-3.5 ${hotNewsViewMode === "BOTH" ? "pt-4 border-t border-slate-800/80" : ""}`}>
+                  {/* Option B Header Banner */}
+                  <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-950/80 p-3 rounded-lg border border-purple-500/30">
+                    <div className="space-y-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-xs font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-purple-950/60 border border-purple-500/50 text-purple-300">
+                          Option B: 4-Week Pure LLM Attribution & Forward Outlook
+                        </span>
+                        <span className="text-xs font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300">
+                          {optionB?.time_window || "Recent 4 Weeks (28 Days)"}
+                        </span>
+                        {optionB?.volatility_assessment && (
+                          <span className={`text-xs font-mono px-2 py-0.5 rounded border font-semibold ${
+                            optionB.volatility_assessment.has_significant_volatility
+                              ? "bg-rose-950/60 border-rose-500/50 text-rose-300"
+                              : "bg-emerald-950/60 border-emerald-500/50 text-emerald-300"
+                          }`}>
+                            {optionB.volatility_assessment.has_significant_volatility ? "⚠️ SIGNIFICANT VOLATILITY SCRUTINIZED" : "⚡ NORMAL / LOW VOLATILITY REPORT"}
                           </span>
-                          {tags.map((tag: string, tIdx: number) => (
-                            <span
-                              key={tIdx}
-                              className={`text-xs font-mono px-1.5 py-0.5 rounded font-semibold border ${
-                                tag === "EARNINGS"
-                                  ? "bg-purple-950/50 border-purple-500/40 text-purple-300"
-                                  : tag === "C-LEVEL"
-                                  ? "bg-amber-950/50 border-amber-500/40 text-amber-300"
-                                  : tag === "LEGAL"
-                                  ? "bg-rose-950/50 border-rose-500/40 text-rose-300"
-                                  : tag === "M&A"
-                                  ? "bg-blue-950/50 border-blue-500/40 text-blue-300"
-                                  : tag === "ANALYST"
-                                  ? "bg-emerald-950/50 border-emerald-500/40 text-emerald-300"
-                                  : "bg-slate-900 border-slate-800 text-slate-300"
-                              }`}
-                            >
-                              {tag}
-                            </span>
-                          ))}
-                        </div>
-
-                        {/* Metrics Pill (Open, Close, Change %, Volume) */}
-                        <div className="text-xs font-mono">
-                          {isTraded && pa.close != null ? (
-                            <span className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-300 flex items-center gap-1.5">
-                              {pa.open != null && <span>O: ${Number(pa.open).toFixed(2)}</span>}
-                              <span>C: ${Number(pa.close).toFixed(2)}</span>
-                              <span className={`font-bold ${chgPct >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
-                                ({chgPct >= 0 ? "+" : ""}{chgPct}%)
-                              </span>
-                              {pa.volume_str && pa.volume_str !== "—" && (
-                                <span className="text-slate-400">Vol: {pa.volume_str}</span>
-                              )}
-                            </span>
-                          ) : (
-                            <span className="px-2 py-0.5 rounded bg-slate-900/60 border border-slate-800 text-slate-400">
-                              Active Trading
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* 3-5 Sharp, Concise Bullet Points (No Day Title) */}
-                      <ul className="space-y-1 text-xs text-slate-300 font-sans pt-0.5">
-                        {bullets.map((pt: string, pIdx: number) => (
-                          <li key={pIdx} className="flex items-start gap-1.5 leading-snug">
-                            <span className="text-cyan-400 select-none font-bold mt-0.5">•</span>
-                            <span className={pt === "No events" ? "text-slate-500 italic" : "text-slate-200"}>
-                              {pt}
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  );
-                };
-
-                return (
-                  <div className="rounded-lg border border-slate-800 bg-slate-950/70 overflow-hidden font-mono text-xs">
-                    {/* 2-Column Table Headers */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 border-b border-slate-800 bg-slate-900/90 divide-y lg:divide-y-0 lg:divide-x divide-slate-800">
-                      <div className="px-3.5 py-2 flex items-center justify-between">
-                        <span className="font-bold text-cyan-400 uppercase tracking-wider">
-                          Current Week (Last 5 Trading Days)
+                        )}
+                        <span className="text-xs font-mono px-2 py-0.5 rounded bg-purple-950/40 border border-purple-500/30 text-purple-300">
+                          {optionB?.source === "GROQ_LLAMA_3_3_70B" ? "GROQ LLAMA-3.3 70B AI" : "GROUNDED DATA + LLM"}
                         </span>
-                        <span className="text-slate-400 text-xs">Week 1</span>
                       </div>
-                      <div className="px-3.5 py-2 flex items-center justify-between">
-                        <span className="font-bold text-slate-300 uppercase tracking-wider">
-                          Prior Week (Preceding 5 Trading Days)
-                        </span>
-                        <span className="text-slate-400 text-xs">Week 2</span>
-                      </div>
+                      <p className="text-xs text-slate-400 font-sans">
+                        Pure LLM institutional attribution across 4 mandatory pillars, terminal valuation shifts with source links, and scheduled 4-week volatility triggers.
+                      </p>
                     </div>
 
-                    {/* 2-Column Table Body */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-slate-800">
-                      <div className="divide-y divide-slate-800/60">
-                        {weekCurrentDays.length > 0 ? (
-                          weekCurrentDays.map(renderTradingDayCell)
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setShowPromptDetails(!showPromptDetails)}
+                        className="text-xs font-mono px-2.5 py-1 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 flex items-center gap-1.5 transition-colors"
+                        title="Inspect the exact prompt sent to the LLM"
+                      >
+                        <span>Prompt Details</span>
+                        <span>{showPromptDetails ? "▲" : "▼"}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleRefreshOptionB}
+                        disabled={loadingOptionB}
+                        className="text-xs font-mono px-2.5 py-1 rounded bg-purple-600/30 hover:bg-purple-600/50 border border-purple-500/50 text-purple-200 font-semibold flex items-center gap-1.5 transition-colors disabled:opacity-50"
+                      >
+                        {loadingOptionB ? (
+                          <>
+                            <span className="animate-spin inline-block">↻</span>
+                            <span>Running LLM...</span>
+                          </>
                         ) : (
-                          <div className="p-4 text-center text-slate-500 italic text-xs">No trading sessions recorded</div>
+                          <>
+                            <span>↻</span>
+                            <span>Refresh Option B</span>
+                          </>
                         )}
-                      </div>
-                      <div className="divide-y divide-slate-800/60">
-                        {weekPriorDays.length > 0 ? (
-                          weekPriorDays.map(renderTradingDayCell)
-                        ) : (
-                          <div className="p-4 text-center text-slate-500 italic text-xs">No trading sessions recorded</div>
-                        )}
-                      </div>
+                      </button>
                     </div>
                   </div>
-                );
-              })()}
+
+                  {/* COLLAPSIBLE PROMPT DETAILS */}
+                  {showPromptDetails && (
+                    <div className="p-3.5 rounded-lg border border-purple-500/20 bg-slate-950 space-y-2 font-mono text-xs">
+                      <div className="flex items-center justify-between text-purple-300 font-bold border-b border-slate-800/80 pb-1.5">
+                        <span>INSTITUTIONAL PROMPT SENT TO LLM GATEWAY:</span>
+                        <span className="text-slate-400 font-normal">[Ticker/Asset] &rarr; {data?.company_name || activeTicker} ({activeTicker})</span>
+                      </div>
+                      <pre className="p-2.5 rounded bg-slate-900/90 text-slate-200 whitespace-pre-wrap font-mono text-xs leading-relaxed border border-slate-800 selection:bg-purple-500/30">
+                        {optionB?.prompt_sent || `Analyze the recent 4 weeks price moves in ${data?.company_name || activeTicker} (${activeTicker}) and if there was a significant price volatility, scrutinize every aspect of the request below. If there was no significant price volatility in the last 4 weeks, then simply report about the below points - no need to spend too much tokens analysing the request.
+Break down your attribution analysis across four mandatory pillars:
+1. Balance sheet & fundamental earnings mechanics
+2. Macro, commodity, and market structure/liquidity flows
+3. Sub-national, state, or federal political, regulatory, and permitting shocks
+4. Non-consensus tail risks or sentiment reversals.
+Do not merge these categories. If there was no significant news or updates in the category - omit it rather than posting small news, keep the news presentation clean and tidy.
+Beyond the categories mentioned above, what other internal or external developments occurred over the last 4 weeks that altered the terminal valuation or timeline of ${data?.company_name || activeTicker} (${activeTicker})? Provide links as  [Link] to a source with every significant piece of news.
+Next question: is there any scheduled report or will there be any other expected internal or external update that could trigger price volatility of ${data?.company_name || activeTicker} (${activeTicker}) in the next 4 weeks?`}
+                      </pre>
+                    </div>
+                  )}
+
+                  {/* LOADING STATE */}
+                  {loadingOptionB && !optionB && (
+                    <div className="p-8 rounded-lg border border-purple-500/20 bg-slate-950/60 text-center space-y-2.5">
+                      <div className="inline-block w-6 h-6 border-2 border-purple-400 border-t-transparent rounded-full animate-spin"></div>
+                      <p className="text-xs font-mono text-purple-300 font-bold">Executing Pure LLM 4-Week Attribution & Risk Analysis...</p>
+                      <p className="text-xs text-slate-400 font-sans max-w-lg mx-auto">
+                        Evaluating 4-week price volatility, balance sheet mechanics, macro/liquidity flows, regulatory shocks, non-consensus tail risks, and upcoming volatility catalysts.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* OPTION B BODY */}
+                  {optionB && (
+                    <div className="space-y-3 font-sans">
+                      {/* 1. 4-WEEK VOLATILITY DIAGNOSIS CARD */}
+                      {optionB.volatility_assessment && (
+                        <div className="p-3.5 rounded-lg border border-slate-800 bg-slate-950/70 space-y-2">
+                          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/60 pb-2">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-mono font-bold uppercase text-purple-300">
+                                4-Week Price Trajectory & Volatility Diagnosis
+                              </span>
+                              <span className={`text-xs font-mono px-2 py-0.5 rounded font-bold ${
+                                optionB.volatility_assessment.has_significant_volatility
+                                  ? "bg-rose-950/50 text-rose-300 border border-rose-500/40"
+                                  : "bg-emerald-950/50 text-emerald-300 border border-emerald-500/40"
+                              }`}>
+                                {optionB.volatility_assessment.volatility_label || (optionB.volatility_assessment.has_significant_volatility ? "SIGNIFICANT VOLATILITY" : "MODERATE VOLATILITY")}
+                              </span>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-3 text-xs font-mono">
+                              {optionB.volatility_assessment.start_price != null && (
+                                <span className="text-slate-400">
+                                  4W Range: <strong className="text-slate-200">${optionB.volatility_assessment.start_price} &rarr; ${optionB.volatility_assessment.end_price}</strong>
+                                </span>
+                              )}
+                              {optionB.volatility_assessment.net_price_change_pct != null && (
+                                <span className="text-slate-400">
+                                  Net Move: <strong className={optionB.volatility_assessment.net_price_change_pct >= 0 ? "text-emerald-400" : "text-rose-400"}>
+                                    {optionB.volatility_assessment.net_price_change_pct >= 0 ? "+" : ""}{optionB.volatility_assessment.net_price_change_pct}%
+                                  </strong>
+                                </span>
+                              )}
+                              {optionB.volatility_assessment.price_range_pct != null && (
+                                <span className="text-slate-400">
+                                  High-Low Swing: <strong className="text-cyan-300">{optionB.volatility_assessment.price_range_pct}%</strong>
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <p className="text-xs text-slate-200 leading-relaxed font-sans">
+                            {optionB.volatility_assessment.summary}
+                          </p>
+                        </div>
+                      )}
+
+                      {/* 2. THE 4 MANDATORY PILLARS (Cleanly omit categories with no news) */}
+                      {(() => {
+                        const pillarConfigs = [
+                          {
+                            key: "balance_sheet_earnings",
+                            defaultTitle: "1. Balance Sheet & Fundamental Earnings Mechanics",
+                            accentBorder: "border-purple-500/40",
+                            accentHeader: "text-purple-300",
+                            badgeBg: "bg-purple-950/60 border-purple-500/40 text-purple-300",
+                          },
+                          {
+                            key: "macro_market_structure",
+                            defaultTitle: "2. Macro, Commodity, & Market Structure/Liquidity Flows",
+                            accentBorder: "border-cyan-500/40",
+                            accentHeader: "text-cyan-300",
+                            badgeBg: "bg-cyan-950/60 border-cyan-500/40 text-cyan-300",
+                          },
+                          {
+                            key: "political_regulatory_permitting",
+                            defaultTitle: "3. Sub-national, State, or Federal Political, Regulatory & Permitting Shocks",
+                            accentBorder: "border-amber-500/40",
+                            accentHeader: "text-amber-300",
+                            badgeBg: "bg-amber-950/60 border-amber-500/40 text-amber-300",
+                          },
+                          {
+                            key: "tail_risks_sentiment",
+                            defaultTitle: "4. Non-consensus Tail Risks or Sentiment Reversals",
+                            accentBorder: "border-rose-500/40",
+                            accentHeader: "text-rose-300",
+                            badgeBg: "bg-rose-950/60 border-rose-500/40 text-rose-300",
+                          },
+                        ];
+
+                        const activePillars = pillarConfigs.filter((cfg) => {
+                          const p = optionB.pillars?.[cfg.key];
+                          return p && (p.has_news === true || (Array.isArray(p.items) && p.items.length > 0));
+                        });
+
+                        return (
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between text-xs font-mono text-slate-400 px-0.5">
+                              <span className="font-bold text-slate-300 uppercase tracking-wide">
+                                4 Mandatory Attribution Pillars ({activePillars.length} of 4 Active)
+                              </span>
+                              <span className="text-slate-400 italic">
+                                *Categories without significant updates are omitted to maintain clean presentation
+                              </span>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                              {activePillars.map((cfg) => {
+                                const p = optionB.pillars[cfg.key];
+                                const items: any[] = p.items || [];
+                                return (
+                                  <div
+                                    key={cfg.key}
+                                    className={`rounded-lg border ${cfg.accentBorder} bg-slate-950/80 p-3.5 space-y-2.5 flex flex-col justify-between`}
+                                  >
+                                    <div className="space-y-2">
+                                      <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
+                                        <h3 className={`text-xs font-mono font-bold uppercase tracking-wider ${cfg.accentHeader}`}>
+                                          {p.title || cfg.defaultTitle}
+                                        </h3>
+                                        <span className={`text-xs font-mono px-1.5 py-0.5 rounded border font-semibold ${cfg.badgeBg}`}>
+                                          {items.length} {items.length === 1 ? "Event" : "Events"}
+                                        </span>
+                                      </div>
+
+                                      <div className="space-y-2">
+                                        {items.map((item: any, itIdx: number) => (
+                                          <div key={itIdx} className="p-2.5 rounded bg-slate-900/60 border border-slate-800/80 space-y-1.5">
+                                            <div className="flex flex-wrap items-center justify-between gap-2">
+                                              <span className="text-xs font-bold text-slate-100 font-sans">
+                                                {item.headline}
+                                              </span>
+                                              {item.link_url && (
+                                                <a
+                                                  href={item.link_url}
+                                                  target="_blank"
+                                                  rel="noopener noreferrer"
+                                                  className="inline-flex items-center gap-1 text-xs font-mono px-2 py-0.5 rounded bg-slate-950 hover:bg-slate-800 border border-slate-700 hover:border-cyan-500/40 text-cyan-300 hover:text-cyan-200 transition-colors"
+                                                  title="Open source verification link"
+                                                >
+                                                  <span>[Link: {item.source_name || "Source"}]</span>
+                                                  <svg className="w-3 h-3 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                                  </svg>
+                                                </a>
+                                              )}
+                                            </div>
+                                            {item.detail && (
+                                              <p className="text-xs text-slate-300 leading-relaxed font-sans">
+                                                {renderAttributionTextWithLinks(item.detail)}
+                                              </p>
+                                            )}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })()}
+
+                      {/* 3. TERMINAL VALUATION & TIMELINE DEVELOPMENTS */}
+                      {optionB.terminal_valuation_developments && (optionB.terminal_valuation_developments.has_developments || (optionB.terminal_valuation_developments.items && optionB.terminal_valuation_developments.items.length > 0)) && (
+                        <div className="p-3.5 rounded-lg border border-indigo-500/30 bg-slate-950/70 space-y-2.5">
+                          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-2">
+                            <span className="text-xs font-mono font-bold uppercase tracking-wide text-indigo-300">
+                              Terminal Valuation & Operational Timeline Developments (Last 4 Weeks)
+                            </span>
+                            <span className="text-xs font-mono text-slate-400">
+                              Structural & Horizon Catalysts
+                            </span>
+                          </div>
+                          {optionB.terminal_valuation_developments.summary && (
+                            <p className="text-xs text-slate-200 leading-relaxed font-sans">
+                              {renderAttributionTextWithLinks(optionB.terminal_valuation_developments.summary)}
+                            </p>
+                          )}
+                          {optionB.terminal_valuation_developments.items && optionB.terminal_valuation_developments.items.length > 0 && (
+                            <div className="space-y-2 pt-1">
+                              {optionB.terminal_valuation_developments.items.map((item: any, iIdx: number) => (
+                                <div key={iIdx} className="p-2.5 rounded bg-slate-900/60 border border-slate-800/80 space-y-1">
+                                  <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <span className="text-xs font-bold text-slate-100 font-sans">{item.headline}</span>
+                                    {item.link_url && (
+                                      <a
+                                        href={item.link_url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-1 text-xs font-mono px-2 py-0.5 rounded bg-slate-950 hover:bg-slate-800 border border-slate-700 text-indigo-300 hover:text-indigo-200 transition-colors"
+                                      >
+                                        <span>[Link: {item.source_name || "Source"}]</span>
+                                        <svg className="w-3 h-3 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                        </svg>
+                                      </a>
+                                    )}
+                                  </div>
+                                  {item.detail && (
+                                    <p className="text-xs text-slate-300 leading-relaxed font-sans">
+                                      {renderAttributionTextWithLinks(item.detail)}
+                                    </p>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* 4. UPCOMING 4-WEEK VOLATILITY TRIGGERS & EXPECTED REPORTS */}
+                      {optionB.forward_catalysts_next_4w && (
+                        <div className="p-3.5 rounded-lg border border-cyan-500/30 bg-slate-950/70 space-y-2.5">
+                          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-2">
+                            <span className="text-xs font-mono font-bold uppercase tracking-wide text-cyan-300">
+                              Expected Reports & Volatility Triggers (Next 4 Weeks)
+                            </span>
+                            <span className="text-xs font-mono text-slate-400">
+                              Forward Event Calendar
+                            </span>
+                          </div>
+                          {optionB.forward_catalysts_next_4w.summary && (
+                            <p className="text-xs text-slate-200 leading-relaxed font-sans">
+                              {renderAttributionTextWithLinks(optionB.forward_catalysts_next_4w.summary)}
+                            </p>
+                          )}
+                          {optionB.forward_catalysts_next_4w.events && optionB.forward_catalysts_next_4w.events.length > 0 && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 pt-1">
+                              {optionB.forward_catalysts_next_4w.events.map((ev: any, eIdx: number) => (
+                                <div key={eIdx} className="p-2.5 rounded bg-slate-900/60 border border-slate-800/80 space-y-1.5 flex flex-col justify-between">
+                                  <div className="space-y-1">
+                                    <div className="flex flex-wrap items-center justify-between gap-1.5">
+                                      <span className="text-xs font-bold text-slate-100 font-sans">{ev.event_name}</span>
+                                      <div className="flex items-center gap-1.5">
+                                        {ev.expected_date && (
+                                          <span className="text-xs font-mono px-2 py-0.5 rounded bg-slate-950 border border-slate-800 text-cyan-300">
+                                            {ev.expected_date}
+                                          </span>
+                                        )}
+                                        {ev.potential_impact && (
+                                          <span className={`text-xs font-mono px-1.5 py-0.5 rounded font-bold border ${
+                                            ev.potential_impact === "HIGH"
+                                              ? "bg-rose-950/60 border-rose-500/50 text-rose-300"
+                                              : ev.potential_impact === "MEDIUM"
+                                              ? "bg-amber-950/60 border-amber-500/50 text-amber-300"
+                                              : "bg-slate-900 border-slate-800 text-slate-300"
+                                          }`}>
+                                            {ev.potential_impact}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                    {ev.description && (
+                                      <p className="text-xs text-slate-300 leading-relaxed font-sans">
+                                        {renderAttributionTextWithLinks(ev.description)}
+                                      </p>
+                                    )}
+                                  </div>
+                                  {ev.link_url && (
+                                    <div className="pt-1 border-t border-slate-800/60 mt-1">
+                                      <a
+                                        href={ev.link_url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-1 text-xs font-mono text-cyan-400 hover:text-cyan-300 transition-colors"
+                                      >
+                                        <span>[Link: Event Verification]</span>
+                                        <svg className="w-3 h-3 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                        </svg>
+                                      </a>
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </section>
           )}
 
