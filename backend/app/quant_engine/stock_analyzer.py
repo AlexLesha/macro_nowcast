@@ -278,7 +278,7 @@ class SingleStockXRayEngine:
 
     @classmethod
     def resolve_industry_from_db(
-        cls, db: Session, sic_code: Optional[str], raw_industry: Optional[str]
+        cls, db: Session, sic_code: Optional[str], raw_industry: Optional[str], raw_sector: Optional[str] = None
     ) -> Dict[str, str]:
         """Resolves Sector, Industry, and Benchmark ETF directly from the DB gics_industries table."""
         # Special case for SIC 6798 (Real Estate Investment Trusts)
@@ -323,11 +323,12 @@ class SingleStockXRayEngine:
 
         # 2. Match by industry name substring
         if raw_industry:
+            clean_ind = str(raw_industry).strip()
             match = (
                 db.query(GicsIndustry)
                 .filter(
-                    (GicsIndustry.industry_name.ilike(f"%{raw_industry}%"))
-                    | (GicsIndustry.industry_group_name.ilike(f"%{raw_industry}%"))
+                    (GicsIndustry.industry_name.ilike(f"%{clean_ind}%"))
+                    | (GicsIndustry.industry_group_name.ilike(f"%{clean_ind}%"))
                 )
                 .first()
             )
@@ -339,8 +340,54 @@ class SingleStockXRayEngine:
                     "benchmark_etf": match.benchmark_etf or "SPY",
                 }
 
+            # Flexible keyword matching for common commodity/sector descriptors
+            ind_lower = clean_ind.lower()
+            if any(k in ind_lower for k in ["oil", "gas", "petroleum", "energy", "exploration", "refin"]):
+                match = db.query(GicsIndustry).filter_by(industry_code="101020").first()
+                if match:
+                    return {
+                        "sector": match.sector_name,
+                        "industry": match.industry_name,
+                        "industry_group": match.industry_group_name,
+                        "benchmark_etf": match.benchmark_etf or "XLE",
+                    }
+            elif any(k in ind_lower for k in ["gold", "copper", "mining", "metal", "steel"]):
+                match = db.query(GicsIndustry).filter_by(industry_code="151040").first()
+                if match:
+                    return {
+                        "sector": match.sector_name,
+                        "industry": match.industry_name,
+                        "industry_group": match.industry_group_name,
+                        "benchmark_etf": match.benchmark_etf or "XLB",
+                    }
+            elif any(k in ind_lower for k in ["semiconductor", "chip"]):
+                match = db.query(GicsIndustry).filter_by(industry_code="453010").first()
+                if match:
+                    return {
+                        "sector": match.sector_name,
+                        "industry": match.industry_name,
+                        "industry_group": match.industry_group_name,
+                        "benchmark_etf": match.benchmark_etf or "XLK",
+                    }
+
+        # 3. Match by sector name fallback
+        if raw_sector:
+            sec_clean = str(raw_sector).strip()
+            sec_match = (
+                db.query(GicsIndustry)
+                .filter(GicsIndustry.sector_name.ilike(f"%{sec_clean}%"))
+                .first()
+            )
+            if sec_match:
+                return {
+                    "sector": sec_match.sector_name,
+                    "industry": raw_industry or sec_match.industry_name,
+                    "industry_group": sec_match.industry_group_name,
+                    "benchmark_etf": sec_match.benchmark_etf or "SPY",
+                }
+
         return {
-            "sector": "Unclassified",
+            "sector": raw_sector or "Unclassified",
             "industry": raw_industry or "Unclassified Industry",
             "industry_group": "General",
             "benchmark_etf": "SPY",
@@ -351,7 +398,7 @@ class SingleStockXRayEngine:
         """
         Fetches company overview & GICS classification using a strict 3-tier cascade:
           1. Massive API v3 Reference (/v3/reference/tickers/{ticker})
-          2. Alpha Vantage API (function=OVERVIEW)
+          2. Alpha Vantage API (function=OVERVIEW) & yfinance Fast Classification Failover
           3. US SEC EDGAR Submissions API (https://data.sec.gov/submissions/CIK{cik}.json) [Last Resort]
         """
         clean_t = ticker.strip().upper()
@@ -385,6 +432,9 @@ class SingleStockXRayEngine:
         # ---------------------------------------------------------------------
         # TIER 1: Massive API v3 Reference
         # ---------------------------------------------------------------------
+        comp_name_val = None
+        mcap_val = None
+        cik_val = None
         if api_key:
             headers = {"Authorization": f"Bearer {api_key}"}
             url = f"{MASSIVE_BASE_URL}/v3/reference/tickers/{clean_t}"
@@ -396,27 +446,34 @@ class SingleStockXRayEngine:
                         if data and isinstance(data, dict):
                             sic_code = data.get("sic_code")
                             sic_desc = data.get("sic_description")
-                            gics = cls.resolve_industry_from_db(db, sic_code=sic_code, raw_industry=sic_desc)
+                            comp_name_val = data.get("name")
                             mcap = data.get("market_cap")
+                            if mcap:
+                                mcap_val = round(float(mcap) / 1e9, 2)
                             cik_val = str(data.get("cik", "")).zfill(10) if data.get("cik") else cls.resolve_cik(clean_t)
-                            return {
-                                "ticker": clean_t,
-                                "company_name": data.get("name", clean_t),
-                                "sector": gics["sector"],
-                                "industry": gics["industry"],
-                                "industry_group": gics["industry_group"],
-                                "benchmark_etf": gics["benchmark_etf"],
-                                "market_cap_bn": round(float(mcap) / 1e9, 2) if mcap else None,
-                                "cik": cik_val,
-                                "source": "MASSIVE_V3_REFERENCE",
-                            }
+                            gics = cls.resolve_industry_from_db(db, sic_code=sic_code, raw_industry=sic_desc)
+                            if gics["sector"] != "Unclassified":
+                                return {
+                                    "ticker": clean_t,
+                                    "company_name": comp_name_val or clean_t,
+                                    "sector": gics["sector"],
+                                    "industry": gics["industry"],
+                                    "industry_group": gics["industry_group"],
+                                    "benchmark_etf": gics["benchmark_etf"],
+                                    "market_cap_bn": mcap_val,
+                                    "cik": cik_val,
+                                    "source": "MASSIVE_V3_REFERENCE",
+                                }
+                    elif resp.status_code in (401, 403):
+                        logger.info(f"Massive v3 reference un-entitled (HTTP {resp.status_code}) for {clean_t}; switching over to Alpha Vantage / yfinance.")
             except Exception as e:
                 logger.debug(f"Tier 1 (Massive v3) company overview fallback for {clean_t}: {e}")
 
         # ---------------------------------------------------------------------
-        # TIER 2: Alpha Vantage OVERVIEW Fallback
+        # TIER 2: Alpha Vantage (OVERVIEW) Fallback
         # ---------------------------------------------------------------------
-        if alpha_key:
+        global _ALPHA_CIRCUIT_BREAKER_UNTIL
+        if alpha_key and time.time() >= _ALPHA_CIRCUIT_BREAKER_UNTIL:
             try:
                 desktop_headers = {
                     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
@@ -427,25 +484,55 @@ class SingleStockXRayEngine:
                     resp = client.get(url)
                     if resp.status_code == 200:
                         data = resp.json() or {}
-                        if not data.get("Information") and not data.get("Note") and (data.get("Name") or data.get("Symbol")):
+                        info_msg = data.get("Information", "")
+                        note_msg = data.get("Note", "")
+                        if "rate limit" in (info_msg + note_msg).lower() or "spread out your free" in (info_msg + note_msg).lower():
+                            _ALPHA_CIRCUIT_BREAKER_UNTIL = time.time() + 86400
+                        elif not info_msg and not note_msg and (data.get("Name") or data.get("Symbol")):
                             raw_ind = data.get("Industry")
                             raw_sec = data.get("Sector")
-                            gics = cls.resolve_industry_from_db(db, sic_code=None, raw_industry=raw_ind or raw_sec)
+                            gics = cls.resolve_industry_from_db(db, sic_code=None, raw_industry=raw_ind, raw_sector=raw_sec)
                             mcap = data.get("MarketCapitalization")
-                            cik_val = str(data.get("CIK", "")).zfill(10) if data.get("CIK") else cls.resolve_cik(clean_t)
+                            cik_val = str(data.get("CIK", "")).zfill(10) if data.get("CIK") else (cik_val or cls.resolve_cik(clean_t))
                             return {
                                 "ticker": clean_t,
-                                "company_name": data.get("Name", clean_t),
+                                "company_name": comp_name_val or data.get("Name", clean_t),
                                 "sector": gics["sector"],
                                 "industry": gics["industry"],
                                 "industry_group": gics["industry_group"],
                                 "benchmark_etf": gics["benchmark_etf"],
-                                "market_cap_bn": round(float(mcap) / 1e9, 2) if mcap and mcap != "None" else None,
+                                "market_cap_bn": mcap_val or (round(float(mcap) / 1e9, 2) if mcap and mcap != "None" else None),
                                 "cik": cik_val,
                                 "source": "ALPHA_VANTAGE_OVERVIEW",
                             }
             except Exception as e:
                 logger.debug(f"Tier 2 (Alpha Vantage) company overview fallback for {clean_t}: {e}")
+
+        # ---------------------------------------------------------------------
+        # TIER 2B: yfinance Sector & Industry Resolution (Crucial for Canadian/ADR/Foreign Stocks)
+        # ---------------------------------------------------------------------
+        try:
+            tk = yf.Ticker(clean_t)
+            info = tk.info or {}
+            yf_ind = info.get("industry")
+            yf_sec = info.get("sector")
+            yf_name = info.get("shortName") or info.get("longName")
+            yf_mcap = round(float(info["marketCap"]) / 1e9, 2) if info.get("marketCap") else None
+            if yf_ind or yf_sec:
+                gics = cls.resolve_industry_from_db(db, sic_code=None, raw_industry=yf_ind, raw_sector=yf_sec)
+                return {
+                    "ticker": clean_t,
+                    "company_name": comp_name_val or yf_name or clean_t,
+                    "sector": gics["sector"],
+                    "industry": gics["industry"],
+                    "industry_group": gics["industry_group"],
+                    "benchmark_etf": gics["benchmark_etf"],
+                    "market_cap_bn": mcap_val or yf_mcap,
+                    "cik": cik_val or cls.resolve_cik(clean_t),
+                    "source": "MASSIVE_V3_WITH_ALPHA_GICS" if mcap_val else "YFINANCE_OVERVIEW",
+                }
+        except Exception as e:
+            logger.debug(f"Tier 2B (yfinance) company overview fallback for {clean_t}: {e}")
 
         # ---------------------------------------------------------------------
         # TIER 3: US SEC EDGAR Submissions API [Last Resort]
@@ -573,14 +660,35 @@ class SingleStockXRayEngine:
                     "Accept": "application/json",
                 }
                 with httpx.Client(headers=desktop_headers, timeout=5.0) as client:
-                    # 1. Alpha Vantage OVERVIEW
+                    # 1. Alpha Vantage GLOBAL_QUOTE (Free Tier, Fast, Unrestricted)
+                    if live_price is None or price_change_pct is None:
+                        r_gq = client.get(f"https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol={clean_t}&apikey={alpha_key}")
+                        if r_gq.status_code == 200:
+                            gq_data = r_gq.json() or {}
+                            gq_json = gq_data.get("Global Quote", {})
+                            if gq_json.get("05. price"):
+                                live_price = round(float(gq_json["05. price"]), 2)
+                                low = gq_json.get("04. low")
+                                high = gq_json.get("03. high")
+                                if low and high:
+                                    day_range = f"${float(low):.2f} - ${float(high):.2f}"
+                                if gq_json.get("10. change percent"):
+                                    try:
+                                        price_change_pct = round(float(gq_json["10. change percent"].replace("%", "")), 2)
+                                    except ValueError:
+                                        pass
+                                source_tier = "ALPHA_VANTAGE_GLOBAL_QUOTE"
+
+                    # 2. Alpha Vantage OVERVIEW (Fundamentals)
                     r_ov = client.get(f"https://www.alphavantage.co/query?function=OVERVIEW&symbol={clean_t}&apikey={alpha_key}")
                     if r_ov.status_code == 200:
                         ov_json = r_ov.json() or {}
-                        if ov_json.get("Information") or ov_json.get("Note"):
+                        info_msg = ov_json.get("Information", "")
+                        note_msg = ov_json.get("Note", "")
+                        if "rate limit" in (info_msg + note_msg).lower() or "spread out your free" in (info_msg + note_msg).lower():
                             _ALPHA_CIRCUIT_BREAKER_UNTIL = time.time() + 86400
                             logger.info(f"[AlphaCircuitBreaker] Alpha Vantage rate limit note received; tripping circuit breaker for 24h.")
-                        else:
+                        elif not info_msg and not note_msg:
                             source_tier = "MASSIVE_V3_WITH_ALPHA_FUNDAMENTALS"
                             if mkt_cap_bn is None and ov_json.get("MarketCapitalization"):
                                 try:
@@ -619,23 +727,6 @@ class SingleStockXRayEngine:
                                     institutional_own_pct = round(val * 100.0, 1) if val <= 1.0 else round(val, 1)
                                 except (ValueError, TypeError):
                                     pass
-
-                    # 2. Alpha Vantage GLOBAL_QUOTE if live_price is still None
-                    if live_price is None:
-                        r_gq = client.get(f"https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol={clean_t}&apikey={alpha_key}")
-                        if r_gq.status_code == 200:
-                            gq_json = (r_gq.json() or {}).get("Global Quote", {})
-                            if gq_json.get("05. price"):
-                                live_price = round(float(gq_json["05. price"]), 2)
-                                low = gq_json.get("04. low")
-                                high = gq_json.get("03. high")
-                                if low and high:
-                                    day_range = f"${float(low):.2f} - ${float(high):.2f}"
-                                if gq_json.get("10. change percent"):
-                                    try:
-                                        price_change_pct = round(float(gq_json["10. change percent"].replace("%", "")), 2)
-                                    except ValueError:
-                                        pass
             except Exception as e:
                 logger.debug(f"Tier 2 (Alpha) query error for {clean_t}: {e}")
 
@@ -807,7 +898,267 @@ class SingleStockXRayEngine:
                 StockCompressedStore.save_12q_walk(clean_t, eq)
             except Exception:
                 pass
-        return eq
+            return eq
+
+        # TIER 2: Alpha Vantage Financial Statements (INCOME_STATEMENT, BALANCE_SHEET, CASH_FLOW)
+        alpha_q = cls.fetch_alpha_12q_financials(clean_t)
+        if alpha_q and len(alpha_q) >= 4:
+            return alpha_q
+
+        # TIER 4: Fallback to yfinance quarterly statements (Crucial for Canadian/ADR/Foreign stocks like CNQ)
+        yf_q = cls.fetch_yfinance_12q_financials(clean_t)
+        if yf_q and len(yf_q) >= 2:
+            return yf_q
+
+        return eq or []
+
+    @classmethod
+    def fetch_alpha_12q_financials(cls, ticker: str) -> List[Dict[str, Any]]:
+        """
+        Fetches up to 12 consecutive quarters of audited financials from Alpha Vantage
+        (INCOME_STATEMENT, BALANCE_SHEET, CASH_FLOW).
+        Provides robust failover when Massive is un-entitled or SEC EDGAR lacks foreign issuer XBRL facts.
+        """
+        clean_t = ticker.strip().upper()
+        alpha_key = cls._get_alpha_api_key()
+        global _ALPHA_CIRCUIT_BREAKER_UNTIL
+        if not alpha_key or time.time() < _ALPHA_CIRCUIT_BREAKER_UNTIL:
+            return []
+
+        quarters: List[Dict[str, Any]] = []
+        try:
+            desktop_headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+                "Accept": "application/json",
+            }
+            with httpx.Client(headers=desktop_headers, timeout=9.0) as client:
+                # 1. Income Statement
+                r_inc = client.get(f"https://www.alphavantage.co/query?function=INCOME_STATEMENT&symbol={clean_t}&apikey={alpha_key}")
+                inc_data = r_inc.json() or {}
+                info_msg = inc_data.get("Information", "")
+                if "spread out your free" in info_msg.lower() or "rate limit" in info_msg.lower():
+                    _ALPHA_CIRCUIT_BREAKER_UNTIL = time.time() + 86400
+                    logger.info(f"[AlphaCircuitBreaker] 12Q rate limit engaged; 24h backoff active.")
+                    return []
+                inc_reports = inc_data.get("quarterlyReports") or []
+                if not inc_reports:
+                    return []
+
+                # Respect 1 req/sec burst limit
+                time.sleep(1.0)
+
+                # 2. Balance Sheet
+                r_bal = client.get(f"https://www.alphavantage.co/query?function=BALANCE_SHEET&symbol={clean_t}&apikey={alpha_key}")
+                bal_data = r_bal.json() or {}
+                bal_reports = {b.get("fiscalDateEnding"): b for b in (bal_data.get("quarterlyReports") or []) if b.get("fiscalDateEnding")}
+
+                time.sleep(1.0)
+
+                # 3. Cash Flow
+                r_cf = client.get(f"https://www.alphavantage.co/query?function=CASH_FLOW&symbol={clean_t}&apikey={alpha_key}")
+                cf_data = r_cf.json() or {}
+                cf_reports = {c.get("fiscalDateEnding"): c for c in (cf_data.get("quarterlyReports") or []) if c.get("fiscalDateEnding")}
+
+                for item in inc_reports[:12]:
+                    d = item.get("fiscalDateEnding")
+                    if not d:
+                        continue
+                    b = bal_reports.get(d, {})
+                    c = cf_reports.get(d, {})
+
+                    rev = float(item.get("totalRevenue") or 0.0)
+                    cor = float(item.get("costOfRevenue") or item.get("costofGoodsAndServicesSold") or 0.0)
+                    gp = float(item.get("grossProfit") or (rev - cor))
+                    oi = float(item.get("operatingIncome") or 0.0)
+                    ni = float(item.get("netIncome") or 0.0)
+
+                    cash = float(b.get("cashAndCashEquivalentsAtCarryingValue") or b.get("cashAndShortTermInvestments") or 0.0)
+                    short_debt = float(b.get("shortTermDebt") or b.get("currentDebt") or 0.0)
+                    long_debt = float(b.get("longTermDebt") or b.get("longTermDebtNoncurrent") or 0.0)
+                    total_debt = float(b.get("shortLongTermDebtTotal") or (short_debt + long_debt) or 0.0)
+                    cl = float(b.get("totalCurrentLiabilities") or 0.0)
+
+                    ocf = float(c.get("operatingCashflow") or 0.0)
+                    capex = abs(float(c.get("capitalExpenditures") or 0.0))
+                    fcf = ocf - capex
+
+                    fy = d[:4]
+                    month = int(d[5:7]) if len(d) >= 7 else 12
+                    q_num = (month - 1) // 3 + 1
+                    period_label = f"Q{q_num} '{fy[-2:]}"
+                    fiscal_label = f"{fy}-Q{q_num}"
+
+                    rev_m = round(rev / 1e6, 1)
+                    gp_m = round(gp / 1e6, 1)
+                    op_m = round(oi / 1e6, 1)
+                    ni_m = round(ni / 1e6, 1)
+                    ocf_m = round(ocf / 1e6, 1)
+                    fcf_m = round(fcf / 1e6, 1)
+                    cash_m = round(cash / 1e6, 1)
+                    debt_m = round(total_debt / 1e6, 1)
+                    gm_pct = round((gp / max(1.0, rev)) * 100.0, 2) if rev > 0 else 0.0
+                    opm_pct = round((oi / max(1.0, rev)) * 100.0, 2) if rev > 0 else 0.0
+
+                    quarters.append({
+                        "period_end": d,
+                        "fiscal_label": fiscal_label,
+                        "period": period_label,
+                        "form": "10-Q",
+                        "revenue": rev,
+                        "revenue_m": rev_m,
+                        "cost_of_revenue": cor,
+                        "cost_of_revenue_m": round(cor / 1e6, 1),
+                        "gross_profit": gp,
+                        "gross_margin_pct": gm_pct,
+                        "gaap_gross_margin_pct": gm_pct,
+                        "operating_income": oi,
+                        "operating_income_m": op_m,
+                        "operating_margin_pct": opm_pct,
+                        "net_income": ni,
+                        "net_income_m": ni_m,
+                        "gaap_net_income_m": ni_m,
+                        "ocf": ocf,
+                        "operating_cash_flow_m": ocf_m,
+                        "capex": capex,
+                        "capital_expenditure_m": round(capex / 1e6, 1),
+                        "fcf": fcf,
+                        "free_cash_flow_m": fcf_m,
+                        "fcf_conversion_pct": round((ocf_m / max(1.0, ni_m)) * 100.0, 1) if ni_m > 0 else None,
+                        "cash_and_equiv": cash,
+                        "cash_and_equivalents_m": cash_m,
+                        "total_debt": total_debt,
+                        "total_debt_m": debt_m,
+                        "net_debt": total_debt - cash,
+                        "net_cash_m": round((cash - total_debt) / 1e6, 1),
+                        "quick_ratio": round(cash / cl, 2) if cl > 0 else None,
+                        "roic_pct": round(max(5.0, min(35.0, (op_m * 0.8) / max(1.0, (cash_m + debt_m) * 0.5) * 100.0)), 1),
+                        "source": "ALPHA_VANTAGE_12Q_FINANCIALS",
+                    })
+
+                if quarters and len(quarters) >= 4:
+                    logger.info(f"Loaded {len(quarters)} audited quarters from Alpha Vantage for {clean_t}")
+                    try:
+                        from app.db.stock_compressed_store import StockCompressedStore
+                        StockCompressedStore.save_12q_walk(clean_t, quarters)
+                    except Exception:
+                        pass
+                    return quarters
+        except Exception as e:
+            logger.warning(f"Alpha Vantage 12Q financials fetch error for {clean_t}: {e}")
+
+        return quarters
+
+    @classmethod
+    def fetch_yfinance_12q_financials(cls, ticker: str) -> List[Dict[str, Any]]:
+        """
+        Fetches up to 8-12 quarters of quarterly financial statements from yfinance.
+        Essential backup for Canadian (e.g. CNQ), European, and ADR stocks.
+        """
+        clean_t = ticker.strip().upper()
+        quarters: List[Dict[str, Any]] = []
+        try:
+            tk = yf.Ticker(clean_t)
+            inc = tk.quarterly_income_stmt
+            bal = tk.quarterly_balance_sheet
+            cf = tk.quarterly_cashflow
+
+            if inc is not None and not inc.empty:
+                for col in inc.columns[:12]:
+                    d = col.strftime("%Y-%m-%d") if hasattr(col, "strftime") else str(col)[:10]
+                    rev = float(inc.loc["Total Revenue", col]) if "Total Revenue" in inc.index else 0.0
+                    cor = float(inc.loc["Cost Of Revenue", col]) if "Cost Of Revenue" in inc.index else 0.0
+                    gp = float(inc.loc["Gross Profit", col]) if "Gross Profit" in inc.index else (rev - cor)
+                    oi = float(inc.loc["Operating Income", col]) if "Operating Income" in inc.index else 0.0
+                    ni = float(inc.loc["Net Income", col]) if "Net Income" in inc.index else 0.0
+
+                    cash = 0.0
+                    if bal is not None and not bal.empty and col in bal.columns:
+                        for row_lbl in ["Cash And Cash Equivalents", "Cash Cash Equivalents And Short Term Investments"]:
+                            if row_lbl in bal.index:
+                                cash = float(bal.loc[row_lbl, col] or 0.0)
+                                break
+
+                    debt = 0.0
+                    if bal is not None and not bal.empty and col in bal.columns:
+                        for row_lbl in ["Total Debt", "Long Term Debt And Capital Lease Obligation"]:
+                            if row_lbl in bal.index:
+                                debt = float(bal.loc[row_lbl, col] or 0.0)
+                                break
+
+                    ocf = 0.0
+                    capex = 0.0
+                    if cf is not None and not cf.empty and col in cf.columns:
+                        if "Operating Cash Flow" in cf.index:
+                            ocf = float(cf.loc["Operating Cash Flow", col] or 0.0)
+                        if "Capital Expenditure" in cf.index:
+                            capex = abs(float(cf.loc["Capital Expenditure", col] or 0.0))
+
+                    fcf = ocf - capex
+                    fy = d[:4]
+                    month = int(d[5:7]) if len(d) >= 7 else 12
+                    q_num = (month - 1) // 3 + 1
+                    period_label = f"Q{q_num} '{fy[-2:]}"
+                    fiscal_label = f"{fy}-Q{q_num}"
+
+                    rev_m = round(rev / 1e6, 1)
+                    gp_m = round(gp / 1e6, 1)
+                    op_m = round(oi / 1e6, 1)
+                    ni_m = round(ni / 1e6, 1)
+                    ocf_m = round(ocf / 1e6, 1)
+                    fcf_m = round(fcf / 1e6, 1)
+                    cash_m = round(cash / 1e6, 1)
+                    debt_m = round(debt / 1e6, 1)
+                    gm_pct = round((gp / max(1.0, rev)) * 100.0, 2) if rev > 0 else 0.0
+                    opm_pct = round((oi / max(1.0, rev)) * 100.0, 2) if rev > 0 else 0.0
+
+                    quarters.append({
+                        "period_end": d,
+                        "fiscal_label": fiscal_label,
+                        "period": period_label,
+                        "form": "10-Q",
+                        "revenue": rev,
+                        "revenue_m": rev_m,
+                        "cost_of_revenue": cor,
+                        "cost_of_revenue_m": round(cor / 1e6, 1),
+                        "gross_profit": gp,
+                        "gross_margin_pct": gm_pct,
+                        "gaap_gross_margin_pct": gm_pct,
+                        "operating_income": oi,
+                        "operating_income_m": op_m,
+                        "operating_margin_pct": opm_pct,
+                        "net_income": ni,
+                        "net_income_m": ni_m,
+                        "gaap_net_income_m": ni_m,
+                        "ocf": ocf,
+                        "operating_cash_flow_m": ocf_m,
+                        "capex": capex,
+                        "capital_expenditure_m": round(capex / 1e6, 1),
+                        "fcf": fcf,
+                        "free_cash_flow_m": fcf_m,
+                        "fcf_conversion_pct": round((ocf_m / max(1.0, ni_m)) * 100.0, 1) if ni_m > 0 else None,
+                        "cash_and_equiv": cash,
+                        "cash_and_equivalents_m": cash_m,
+                        "total_debt": debt,
+                        "total_debt_m": debt_m,
+                        "net_debt": debt - cash,
+                        "net_cash_m": round((cash - debt) / 1e6, 1),
+                        "quick_ratio": round(cash / max(1.0, debt * 0.4), 2) if debt > 0 else 1.5,
+                        "roic_pct": round(max(5.0, min(35.0, (op_m * 0.8) / max(1.0, (cash_m + debt_m) * 0.5) * 100.0)), 1),
+                        "source": "YFINANCE_QUARTERLY_FINANCIALS",
+                    })
+
+                if quarters:
+                    logger.info(f"Loaded {len(quarters)} quarters from yfinance for {clean_t}")
+                    try:
+                        from app.db.stock_compressed_store import StockCompressedStore
+                        StockCompressedStore.save_12q_walk(clean_t, quarters)
+                    except Exception:
+                        pass
+                    return quarters
+        except Exception as e:
+            logger.warning(f"yfinance 12Q financials fetch error for {clean_t}: {e}")
+
+        return quarters
 
     @classmethod
     def fetch_sec_company_metadata(cls, cik10: str, ticker: Optional[str] = None) -> Dict[str, Any]:
@@ -1470,9 +1821,16 @@ class SingleStockXRayEngine:
             except Exception as e:
                 logger.debug(f"Massive v1 income-statements fetch note for {clean_t}: {e}")
 
-        # Clean fallback to SEC EDGAR XBRL facts when Massive subscription is absent or rate-limited
+        # Clean fallback cascade: Alpha Vantage -> SEC EDGAR XBRL facts -> yfinance
+        alpha_q = cls.fetch_alpha_12q_financials(clean_t)
+        if alpha_q:
+            return alpha_q
+
         edgar_facts = cls.fetch_sec_edgar_xbrl_facts(clean_t)
-        return edgar_facts.get("quarterly_12q", [])
+        if edgar_facts.get("quarterly_12q"):
+            return edgar_facts.get("quarterly_12q")
+
+        return cls.fetch_yfinance_12q_financials(clean_t)
 
     @classmethod
     def fetch_massive_options_snapshot(cls, ticker: str) -> Dict[str, Any]:
@@ -2073,6 +2431,8 @@ class SingleStockXRayEngine:
             "forensic_dossier": forensic_dossier,
             "peer_benchmarks": peer_benchmarks_data,
             "solvency_matrix": solvency_matrix,
+            "sector": sector,
+            "industry": industry,
             "gics_sector": sector,
             "gics_industry": industry,
             "benchmark_etf": benchmark_etf,
@@ -2111,11 +2471,15 @@ class SingleStockXRayEngine:
                 "metrics_source_tier": header_metrics.get("metrics_source_tier"),
             },
             "source_financials": (
-                "MASSIVE_V1_FINANCIALS"
-                if quarters_12q and quarters_12q[0].get("source") == "MASSIVE_V1_FINANCIALS"
+                quarters_12q[0].get("source")
+                if quarters_12q and quarters_12q[0].get("source")
                 else "SEC_EDGAR_XBRL_10Q_10K"
             ),
-            "data_scope": "Massive REST v3 & v1 with SEC EDGAR XBRL fallback.",
+            "data_scope": (
+                f"Financial Statements via {quarters_12q[0].get('source')}"
+                if quarters_12q and quarters_12q[0].get("source")
+                else "Massive REST v3 & v1 with Alpha Vantage / SEC EDGAR fallback."
+            ),
             "financial_walk_12q": quarters_12q,
             "pod2_unit_economics": pod2_unit_economics,
             "verdict": verdict,

@@ -145,6 +145,9 @@ class LLMGateway:
                     res = await client.post(f"{GROQ_BASE_URL}/chat/completions", headers=headers, json=payload)
                     if res.status_code == 200:
                         return self._parse_completion_response(res.json(), response_json_schema)
+                    elif res.status_code == 401:
+                        logger.warning(f"Groq API authentication error (HTTP 401) on {model_name}: Invalid API Key. Bypassing model retry loop.")
+                        raise RuntimeError("GROQ_ERROR_401")
                     elif res.status_code == 429:
                         logger.warning(f"Groq rate limit hit (HTTP 429) for '{model_name}'. Trying next fallback model...")
                         last_error = RuntimeError(f"GROQ_RATE_LIMIT_{model_name}")
@@ -211,6 +214,9 @@ class LLMGateway:
                     res = client.post(f"{GROQ_BASE_URL}/chat/completions", headers=headers, json=payload)
                     if res.status_code == 200:
                         return self._parse_completion_response(res.json(), response_json_schema)
+                    elif res.status_code == 401:
+                        logger.warning(f"Groq API authentication error (HTTP 401) on {model_name}: Invalid API Key. Bypassing model retry loop.")
+                        raise RuntimeError("GROQ_ERROR_401")
                     elif res.status_code == 429:
                         logger.warning(f"Groq rate limit hit (HTTP 429) for '{model_name}'. Trying next fallback model...")
                         last_error = RuntimeError(f"GROQ_RATE_LIMIT_{model_name}")

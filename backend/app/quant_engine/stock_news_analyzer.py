@@ -162,10 +162,12 @@ class StockHotNewsEngine:
                                 "day_range": f"${low_px:.2f} - ${high_px:.2f}",
                             }
                         logger.info(f"Loaded {len(bars_by_date)} daily bars from Massive for {clean_t}")
+                    elif resp.status_code in (401, 403):
+                        logger.info(f"Massive bars un-entitled (HTTP {resp.status_code}) for {clean_t}; switching over to Alpha Vantage.")
             except Exception as e:
                 logger.warning(f"Massive bars fetch error for {clean_t}: {e}")
 
-        # 2. Alpha Vantage TIME_SERIES_DAILY Fallback (Protected by 24h Circuit Breaker)
+        # 2. Alpha Vantage TIME_SERIES_DAILY Fallback (Protected by Circuit Breaker)
         global _ALPHA_CIRCUIT_BREAKER_UNTIL
         if not bars_by_date and settings.ALPHA_API_KEY and time.time() >= _ALPHA_CIRCUIT_BREAKER_UNTIL:
             try:
@@ -177,7 +179,9 @@ class StockHotNewsEngine:
                     resp = client.get(url)
                     if resp.status_code == 200:
                         data = resp.json() or {}
-                        if data.get("Note") or data.get("Information"):
+                        info_msg = data.get("Information", "")
+                        note_msg = data.get("Note", "")
+                        if "rate limit" in (info_msg + note_msg).lower() or "spread out your free" in (info_msg + note_msg).lower():
                             _ALPHA_CIRCUIT_BREAKER_UNTIL = time.time() + 86400
                             logger.info(f"[AlphaCircuitBreaker] Bars rate limit tripped; 24h backoff active.")
                         else:
