@@ -1380,20 +1380,19 @@ async def fetch_polygon_12q_financials(ticker: str) -> List[Dict[str, Any]]:
         except Exception as e:
             logger.warning(f"Massive 12Q financials fetch failed for {ticker}: {e}")
 
-    # Automatic SEC EDGAR XBRL 12Q Fallback (`SingleStockXRayEngine.fetch_sec_edgar_12q_financials`)
+    # Automatic Unified 12Q Fallback (DB Cache -> Massive -> SEC EDGAR -> Alpha Vantage -> yfinance)
     if len(records) < 4:
         try:
             try:
                 from backend.app.quant_engine.stock_analyzer import SingleStockXRayEngine
             except ImportError:
                 from app.quant_engine.stock_analyzer import SingleStockXRayEngine
-            edgar_res = await asyncio.to_thread(SingleStockXRayEngine.fetch_sec_edgar_12q_financials, ticker)
-            edgar_quarters_desc = edgar_res.get("quarters", [])
-            if len(edgar_quarters_desc) >= 4:
-                # Ascending chronological order for Recharts 12Q charts, preserving all audited XBRL fields
-                records = list(reversed(edgar_quarters_desc))
+            unified_quarters = await asyncio.to_thread(SingleStockXRayEngine.fetch_12q_financials, ticker, None)
+            if unified_quarters and len(unified_quarters) >= 2:
+                # Ensure ascending chronological order for charts
+                records = list(reversed(unified_quarters)) if unified_quarters[0].get("period_end", "") > unified_quarters[-1].get("period_end", "") else unified_quarters
         except Exception as e:
-            logger.debug(f"SEC EDGAR XBRL 12Q fetch note for {ticker}: {e}")
+            logger.debug(f"Unified 12Q fetch note for {ticker}: {e}")
 
     if len(records) < 4:
         records = _get_fallback_12q(ticker)

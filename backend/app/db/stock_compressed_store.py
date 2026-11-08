@@ -54,147 +54,145 @@ class StockCompressedStore:
             try:
                 import psycopg2
                 dsn = _get_pg_dsn(db_url)
-                conn = psycopg2.connect(dsn)
-                cursor = conn.cursor()
-                cursor.execute("""
-                    CREATE TABLE IF NOT EXISTS stock_payload_cache (
-                        ticker VARCHAR(20) PRIMARY KEY,
-                        gics_industry VARCHAR(150),
-                        header_strip_json TEXT NOT NULL,
-                        solvency_matrix_json TEXT NOT NULL,
-                        hedgeye_pods_json TEXT NOT NULL,
-                        historical_12q_json TEXT NOT NULL,
-                        options_surface_json TEXT NOT NULL,
-                        forensic_dossier_json TEXT NOT NULL,
-                        full_payload_json TEXT,
-                        is_earnings_season BOOLEAN DEFAULT FALSE,
-                        last_earnings_date VARCHAR(30),
-                        next_earnings_date VARCHAR(30),
-                        updated_at TIMESTAMP WITH TIME ZONE NOT NULL
-                    );
-                """)
-                cursor.execute("""
-                    CREATE TABLE IF NOT EXISTS sector_llm_cache (
-                        gics_industry VARCHAR(150) PRIMARY KEY,
-                        moat_analysis_json TEXT NOT NULL,
-                        regulatory_trends_json TEXT NOT NULL,
-                        updated_at TIMESTAMP WITH TIME ZONE NOT NULL
-                    );
-                """)
-                cursor.execute("""
-                    CREATE TABLE IF NOT EXISTS stock_12q_walk_cache (
-                        ticker VARCHAR(32) PRIMARY KEY,
-                        quarters_payload_json TEXT NOT NULL,
-                        updated_at BIGINT NOT NULL
-                    );
-                """)
-                cursor.execute("""
-                    CREATE TABLE IF NOT EXISTS stock_daily_news_cache (
-                        ticker VARCHAR(32) NOT NULL,
-                        date DATE NOT NULL,
-                        day_name VARCHAR(16),
-                        price_action_json TEXT,
-                        bullet_points_json TEXT,
-                        tags_json TEXT,
-                        catalyst_type VARCHAR(32),
-                        sentiment VARCHAR(16),
-                        articles_count INTEGER DEFAULT 0,
-                        source VARCHAR(64),
-                        updated_at BIGINT NOT NULL,
-                        PRIMARY KEY (ticker, date)
-                    );
-                """)
-                cursor.execute("""
-                    CREATE TABLE IF NOT EXISTS sec_company_metadata (
-                        ticker VARCHAR(32) PRIMARY KEY,
-                        cik10 VARCHAR(10) NOT NULL,
-                        entity_name VARCHAR(256),
-                        sic_code VARCHAR(16),
-                        sic_description VARCHAR(256),
-                        gics_sector VARCHAR(128),
-                        gics_industry VARCHAR(128),
-                        updated_at BIGINT NOT NULL
-                    );
-                """)
-                cursor.execute("""
-                    CREATE TABLE IF NOT EXISTS options_microstructure (
-                        ticker VARCHAR(32) NOT NULL,
-                        date DATE NOT NULL,
-                        total_gex DOUBLE PRECISION,
-                        zero_dte_heat_ratio DOUBLE PRECISION,
-                        gamma_flip_level DOUBLE PRECISION,
-                        call_wall DOUBLE PRECISION,
-                        put_wall DOUBLE PRECISION,
-                        skew_25d DOUBLE PRECISION,
-                        put_call_vol_ratio DOUBLE PRECISION,
-                        crowding_z DOUBLE PRECISION,
-                        PRIMARY KEY (ticker, date)
-                    );
-                    CREATE TABLE IF NOT EXISTS macro_liquidity_cache (
-                        cache_key VARCHAR(64) PRIMARY KEY,
-                        payload_json TEXT NOT NULL,
-                        updated_at TIMESTAMP WITH TIME ZONE NOT NULL
-                    );
-                    CREATE TABLE IF NOT EXISTS global_grid_historical_records (
-                        country VARCHAR(64) NOT NULL,
-                        ticker VARCHAR(16) NOT NULL,
-                        period VARCHAR(16) NOT NULL,
-                        frequency VARCHAR(16) NOT NULL,
-                        region VARCHAR(32) NOT NULL,
-                        gdp_yoy DOUBLE PRECISION,
-                        gdp_roc_bps INTEGER,
-                        inflation_yoy DOUBLE PRECISION,
-                        inf_roc_bps INTEGER,
-                        regime VARCHAR(32) NOT NULL,
-                        quad VARCHAR(16) NOT NULL,
-                        grid_zero BOOLEAN DEFAULT FALSE,
-                        equity_ret_pct DOUBLE PRECISION,
-                        bonds_ret_pct DOUBLE PRECISION,
-                        commodities_ret_pct DOUBLE PRECISION,
-                        fx_ret_pct DOUBLE PRECISION,
-                        is_anomaly BOOLEAN DEFAULT FALSE,
-                        anomaly_title VARCHAR(128),
-                        challenge_details TEXT,
-                        updated_at TIMESTAMP WITH TIME ZONE NOT NULL,
-                        PRIMARY KEY (country, period)
-                    );
-                    CREATE TABLE IF NOT EXISTS global_grid_forward_forecasts (
-                        country VARCHAR(64) NOT NULL,
-                        ticker VARCHAR(16) NOT NULL,
-                        forward_period VARCHAR(16) NOT NULL,
-                        horizon_steps INTEGER NOT NULL,
-                        projected_gdp_yoy DOUBLE PRECISION,
-                        projected_gdp_roc_bps INTEGER,
-                        projected_inf_yoy DOUBLE PRECISION,
-                        projected_inf_roc_bps INTEGER,
-                        projected_regime VARCHAR(32) NOT NULL,
-                        projected_quad VARCHAR(16) NOT NULL,
-                        confidence_pct DOUBLE PRECISION,
-                        leading_drivers TEXT,
-                        asset_implication TEXT,
-                        updated_at TIMESTAMP WITH TIME ZONE NOT NULL,
-                        PRIMARY KEY (country, forward_period)
-                    );
-                    CREATE TABLE IF NOT EXISTS central_bank_speeches (
-                        id VARCHAR(128) PRIMARY KEY,
-                        institution VARCHAR(32) NOT NULL,
-                        speaker VARCHAR(128) NOT NULL,
-                        speaker_role VARCHAR(128),
-                        speech_date VARCHAR(32) NOT NULL,
-                        speech_title VARCHAR(512) NOT NULL,
-                        source_url VARCHAR(512),
-                        hawkish_dovish_score DOUBLE PRECISION NOT NULL,
-                        tone_label VARCHAR(64) NOT NULL,
-                        key_quote TEXT,
-                        balance_sheet_stance VARCHAR(64),
-                        liquidity_implication TEXT,
-                        is_liquidity_provider BOOLEAN DEFAULT FALSE,
-                        updated_at TIMESTAMP WITH TIME ZONE NOT NULL
-                    );
-                """)
-                conn.commit()
-                cursor.close()
-                conn.close()
+                with psycopg2.connect(dsn) as conn:
+                    with conn.cursor() as cursor:
+                        cursor.execute("""
+                            CREATE TABLE IF NOT EXISTS stock_payload_cache (
+                                ticker VARCHAR(20) PRIMARY KEY,
+                                gics_industry VARCHAR(150),
+                                header_strip_json TEXT NOT NULL,
+                                solvency_matrix_json TEXT NOT NULL,
+                                hedgeye_pods_json TEXT NOT NULL,
+                                historical_12q_json TEXT NOT NULL,
+                                options_surface_json TEXT NOT NULL,
+                                forensic_dossier_json TEXT NOT NULL,
+                                full_payload_json TEXT,
+                                is_earnings_season BOOLEAN DEFAULT FALSE,
+                                last_earnings_date VARCHAR(30),
+                                next_earnings_date VARCHAR(30),
+                                updated_at TIMESTAMP WITH TIME ZONE NOT NULL
+                            );
+                        """)
+                        cursor.execute("""
+                            CREATE TABLE IF NOT EXISTS sector_llm_cache (
+                                gics_industry VARCHAR(150) PRIMARY KEY,
+                                moat_analysis_json TEXT NOT NULL,
+                                regulatory_trends_json TEXT NOT NULL,
+                                updated_at TIMESTAMP WITH TIME ZONE NOT NULL
+                            );
+                        """)
+                        cursor.execute("""
+                            CREATE TABLE IF NOT EXISTS stock_12q_walk_cache (
+                                ticker VARCHAR(32) PRIMARY KEY,
+                                quarters_payload_json TEXT NOT NULL,
+                                updated_at BIGINT NOT NULL
+                            );
+                        """)
+                        cursor.execute("""
+                            CREATE TABLE IF NOT EXISTS stock_daily_news_cache (
+                                ticker VARCHAR(32) NOT NULL,
+                                date DATE NOT NULL,
+                                day_name VARCHAR(16),
+                                price_action_json TEXT,
+                                bullet_points_json TEXT,
+                                tags_json TEXT,
+                                catalyst_type VARCHAR(32),
+                                sentiment VARCHAR(16),
+                                articles_count INTEGER DEFAULT 0,
+                                source VARCHAR(64),
+                                updated_at BIGINT NOT NULL,
+                                PRIMARY KEY (ticker, date)
+                            );
+                        """)
+                        cursor.execute("""
+                            CREATE TABLE IF NOT EXISTS sec_company_metadata (
+                                ticker VARCHAR(32) PRIMARY KEY,
+                                cik10 VARCHAR(10) NOT NULL,
+                                entity_name VARCHAR(256),
+                                sic_code VARCHAR(16),
+                                sic_description VARCHAR(256),
+                                gics_sector VARCHAR(128),
+                                gics_industry VARCHAR(128),
+                                updated_at BIGINT NOT NULL
+                            );
+                        """)
+                        cursor.execute("""
+                            CREATE TABLE IF NOT EXISTS options_microstructure (
+                                ticker VARCHAR(32) NOT NULL,
+                                date DATE NOT NULL,
+                                total_gex DOUBLE PRECISION,
+                                zero_dte_heat_ratio DOUBLE PRECISION,
+                                gamma_flip_level DOUBLE PRECISION,
+                                call_wall DOUBLE PRECISION,
+                                put_wall DOUBLE PRECISION,
+                                skew_25d DOUBLE PRECISION,
+                                put_call_vol_ratio DOUBLE PRECISION,
+                                crowding_z DOUBLE PRECISION,
+                                PRIMARY KEY (ticker, date)
+                            );
+                            CREATE TABLE IF NOT EXISTS macro_liquidity_cache (
+                                cache_key VARCHAR(64) PRIMARY KEY,
+                                payload_json TEXT NOT NULL,
+                                updated_at TIMESTAMP WITH TIME ZONE NOT NULL
+                            );
+                            CREATE TABLE IF NOT EXISTS global_grid_historical_records (
+                                country VARCHAR(64) NOT NULL,
+                                ticker VARCHAR(16) NOT NULL,
+                                period VARCHAR(16) NOT NULL,
+                                frequency VARCHAR(16) NOT NULL,
+                                region VARCHAR(32) NOT NULL,
+                                gdp_yoy DOUBLE PRECISION,
+                                gdp_roc_bps INTEGER,
+                                inflation_yoy DOUBLE PRECISION,
+                                inf_roc_bps INTEGER,
+                                regime VARCHAR(32) NOT NULL,
+                                quad VARCHAR(16) NOT NULL,
+                                grid_zero BOOLEAN DEFAULT FALSE,
+                                equity_ret_pct DOUBLE PRECISION,
+                                bonds_ret_pct DOUBLE PRECISION,
+                                commodities_ret_pct DOUBLE PRECISION,
+                                fx_ret_pct DOUBLE PRECISION,
+                                is_anomaly BOOLEAN DEFAULT FALSE,
+                                anomaly_title VARCHAR(128),
+                                challenge_details TEXT,
+                                updated_at TIMESTAMP WITH TIME ZONE NOT NULL,
+                                PRIMARY KEY (country, period)
+                            );
+                            CREATE TABLE IF NOT EXISTS global_grid_forward_forecasts (
+                                country VARCHAR(64) NOT NULL,
+                                ticker VARCHAR(16) NOT NULL,
+                                forward_period VARCHAR(16) NOT NULL,
+                                horizon_steps INTEGER NOT NULL,
+                                projected_gdp_yoy DOUBLE PRECISION,
+                                projected_gdp_roc_bps INTEGER,
+                                projected_inf_yoy DOUBLE PRECISION,
+                                projected_inf_roc_bps INTEGER,
+                                projected_regime VARCHAR(32) NOT NULL,
+                                projected_quad VARCHAR(16) NOT NULL,
+                                confidence_pct DOUBLE PRECISION,
+                                leading_drivers TEXT,
+                                asset_implication TEXT,
+                                updated_at TIMESTAMP WITH TIME ZONE NOT NULL,
+                                PRIMARY KEY (country, forward_period)
+                            );
+                            CREATE TABLE IF NOT EXISTS central_bank_speeches (
+                                id VARCHAR(128) PRIMARY KEY,
+                                institution VARCHAR(32) NOT NULL,
+                                speaker VARCHAR(128) NOT NULL,
+                                speaker_role VARCHAR(128),
+                                speech_date VARCHAR(32) NOT NULL,
+                                speech_title VARCHAR(512) NOT NULL,
+                                source_url VARCHAR(512),
+                                hawkish_dovish_score DOUBLE PRECISION NOT NULL,
+                                tone_label VARCHAR(64) NOT NULL,
+                                key_quote TEXT,
+                                balance_sheet_stance VARCHAR(64),
+                                liquidity_implication TEXT,
+                                is_liquidity_provider BOOLEAN DEFAULT FALSE,
+                                updated_at TIMESTAMP WITH TIME ZONE NOT NULL
+                            );
+                        """)
+                        conn.commit()
                 logger.info("[StockCompressedStore] Postgres tables verified on Neon (OPT-1 through OPT-5).")
             except Exception as e:
                 logger.warning(f"[StockCompressedStore] Postgres init note: {e}")
@@ -352,17 +350,16 @@ class StockCompressedStore:
             try:
                 import psycopg2
                 dsn = _get_pg_dsn(db_url)
-                conn = psycopg2.connect(dsn)
-                cursor = conn.cursor()
-                cursor.execute("""
-                    SELECT header_strip_json, solvency_matrix_json, hedgeye_pods_json,
-                           historical_12q_json, options_surface_json, forensic_dossier_json,
-                           full_payload_json, is_earnings_season, updated_at, gics_industry
-                    FROM stock_payload_cache WHERE ticker = %s;
-                """, (clean_t,))
-                row = cursor.fetchone()
-                cursor.close()
-                conn.close()
+                row = None
+                with psycopg2.connect(dsn) as conn:
+                    with conn.cursor() as cursor:
+                        cursor.execute("""
+                            SELECT header_strip_json, solvency_matrix_json, hedgeye_pods_json,
+                                   historical_12q_json, options_surface_json, forensic_dossier_json,
+                                   full_payload_json, is_earnings_season, updated_at, gics_industry
+                            FROM stock_payload_cache WHERE ticker = %s;
+                        """, (clean_t,))
+                        row = cursor.fetchone()
                 if row:
                     return cls._format_payload(row, clean_t, max_age_days)
             except Exception as e:
@@ -413,29 +410,27 @@ class StockCompressedStore:
             try:
                 import psycopg2
                 dsn = _get_pg_dsn(db_url)
-                conn = psycopg2.connect(dsn)
-                cursor = conn.cursor()
-                cursor.execute("""
-                    INSERT INTO stock_payload_cache (
-                        ticker, gics_industry, header_strip_json, solvency_matrix_json,
-                        hedgeye_pods_json, historical_12q_json, options_surface_json,
-                        forensic_dossier_json, full_payload_json, is_earnings_season, updated_at
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    ON CONFLICT (ticker) DO UPDATE SET
-                        gics_industry = EXCLUDED.gics_industry,
-                        header_strip_json = EXCLUDED.header_strip_json,
-                        solvency_matrix_json = EXCLUDED.solvency_matrix_json,
-                        hedgeye_pods_json = EXCLUDED.hedgeye_pods_json,
-                        historical_12q_json = EXCLUDED.historical_12q_json,
-                        options_surface_json = EXCLUDED.options_surface_json,
-                        forensic_dossier_json = EXCLUDED.forensic_dossier_json,
-                        full_payload_json = EXCLUDED.full_payload_json,
-                        is_earnings_season = EXCLUDED.is_earnings_season,
-                        updated_at = EXCLUDED.updated_at;
-                """, (clean_t, gics_industry, h_json, s_json, p_json, hist_json, opt_json, dos_json, full_json, is_earnings_season, now_dt))
-                conn.commit()
-                cursor.close()
-                conn.close()
+                with psycopg2.connect(dsn) as conn:
+                    with conn.cursor() as cursor:
+                        cursor.execute("""
+                            INSERT INTO stock_payload_cache (
+                                ticker, gics_industry, header_strip_json, solvency_matrix_json,
+                                hedgeye_pods_json, historical_12q_json, options_surface_json,
+                                forensic_dossier_json, full_payload_json, is_earnings_season, updated_at
+                            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                            ON CONFLICT (ticker) DO UPDATE SET
+                                gics_industry = EXCLUDED.gics_industry,
+                                header_strip_json = EXCLUDED.header_strip_json,
+                                solvency_matrix_json = EXCLUDED.solvency_matrix_json,
+                                hedgeye_pods_json = EXCLUDED.hedgeye_pods_json,
+                                historical_12q_json = EXCLUDED.historical_12q_json,
+                                options_surface_json = EXCLUDED.options_surface_json,
+                                forensic_dossier_json = EXCLUDED.forensic_dossier_json,
+                                full_payload_json = EXCLUDED.full_payload_json,
+                                is_earnings_season = EXCLUDED.is_earnings_season,
+                                updated_at = EXCLUDED.updated_at;
+                        """, (clean_t, gics_industry, h_json, s_json, p_json, hist_json, opt_json, dos_json, full_json, is_earnings_season, now_dt))
+                        conn.commit()
                 logger.info(f"[StockCompressedStore] Successfully saved compressed snapshot for {clean_t} into Postgres.")
             except Exception as e:
                 logger.warning(f"[StockCompressedStore] Postgres write error for {clean_t}: {e}")

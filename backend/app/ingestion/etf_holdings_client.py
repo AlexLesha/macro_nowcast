@@ -300,9 +300,18 @@ class EtfHoldingsClient:
             delta_raa.timestamp_utc = now
             delta_raa.extracted_json = json.dumps({"raa_allocations": raa})
 
-        db.commit()
-        return {
-            "fcte_count": len(fcte),
-            "raa_count": len(raa),
-            "affected_tickers": affected_tickers,
-        }
+        try:
+            db.commit()
+            return {
+                "fcte_count": len(fcte),
+                "raa_count": len(raa),
+                "affected_tickers": affected_tickers,
+            }
+        except Exception as e:
+            db.rollback()
+            logger.error(f"Error persisting ETF holdings: {e}")
+            return {
+                "fcte_count": len(fcte),
+                "raa_count": len(raa),
+                "affected_tickers": affected_tickers,
+            }

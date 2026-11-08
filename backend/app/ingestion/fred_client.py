@@ -169,9 +169,14 @@ class FredClient:
                 db.add(db_item)
             inserted_count += 1
 
-        db.commit()
-        logger.info(f"Successfully ingested {inserted_count} records for FRED series {series_id}")
-        return inserted_count
+        try:
+            db.commit()
+            logger.info(f"Successfully ingested {inserted_count} records for FRED series {series_id}")
+            return inserted_count
+        except Exception as e:
+            db.rollback()
+            logger.error(f"Error persisting FRED records for {series_id}: {e}")
+            return 0
 
     def ingest_all_series(self, db: Session, series_list: Optional[List[str]] = None, limit_records: int = 120) -> Dict[str, int]:
         """Ingests all configured FRED macro series."""

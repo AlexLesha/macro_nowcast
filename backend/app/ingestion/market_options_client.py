@@ -38,31 +38,29 @@ class MarketOptionsClient:
     """Ingests daily OHLCV, calculates risk ranges & VAMS scores, and computes GEX option analytics."""
 
     def __init__(self):
-        self.http_client = httpx.Client(
-            headers={"User-Agent": "MacroPulseAlpha/1.0"},
-            timeout=20.0
-        )
+        self.headers = {"User-Agent": "MacroPulseAlpha/1.0"}
 
     def fetch_cboe_vix(self) -> Optional[pd.DataFrame]:
         """Fetches historical delayed VIX data directly from CBOE JSON endpoint."""
         try:
-            res = self.http_client.get(CBOE_VIX_URL)
-            if res.status_code == 200:
-                data = res.json().get("data", [])
-                # CBOE JSON format: [[timestamp_or_date, open, high, low, close], ...]
-                if data:
-                    records = []
-                    for row in data:
-                        if len(row) >= 5:
-                            records.append({
-                                "date": pd.to_datetime(row[0]),
-                                "open": float(row[1]),
-                                "high": float(row[2]),
-                                "low": float(row[3]),
-                                "close": float(row[4]),
-                            })
-                    df = pd.DataFrame(records).set_index("date").sort_index()
-                    return df
+            with httpx.Client(headers=self.headers, timeout=20.0) as client:
+                res = client.get(CBOE_VIX_URL)
+                if res.status_code == 200:
+                    data = res.json().get("data", [])
+                    # CBOE JSON format: [[timestamp_or_date, open, high, low, close], ...]
+                    if data:
+                        records = []
+                        for row in data:
+                            if len(row) >= 5:
+                                records.append({
+                                    "date": pd.to_datetime(row[0]),
+                                    "open": float(row[1]),
+                                    "high": float(row[2]),
+                                    "low": float(row[3]),
+                                    "close": float(row[4]),
+                                })
+                        df = pd.DataFrame(records).set_index("date").sort_index()
+                        return df
         except Exception as e:
             logger.warning(f"CBOE VIX fetch failed: {e}")
         return None
@@ -184,9 +182,14 @@ class MarketOptionsClient:
 
                 total_ingested += 1
 
-        db.commit()
-        logger.info(f"Finished market ingestion: {total_ingested} records")
-        return total_ingested
+        try:
+            db.commit()
+            logger.info(f"Finished market ingestion: {total_ingested} records")
+            return total_ingested
+        except Exception as e:
+            db.rollback()
+            logger.error(f"Error persisting market daily records: {e}")
+            return total_ingested
 
     def analyze_options_chain(self, ticker: str) -> Optional[Dict[str, Any]]:
         """Fetches full option chain for a ticker and calculates GEX, Flip Level, Walls, and 25d Skew."""
@@ -356,5 +359,10 @@ class MarketOptionsClient:
 
             ingested += 1
 
-        db.commit()
-        return ingested
+        try:
+            db.commit()
+            return ingested
+        except Exception as e:
+            db.rollback()
+            logger.error(f"Error persisting options microstructure records: {e}")
+            return 0

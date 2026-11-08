@@ -14,10 +14,7 @@ class TreasuryClient:
     """Client for fetching live TGA and Treasury deficit outlays from US Fiscal Data API."""
 
     def __init__(self):
-        self.client = httpx.Client(
-            headers={"User-Agent": "MacroPulseAlpha/1.0"},
-            timeout=30.0,
-        )
+        self.headers = {"User-Agent": "MacroPulseAlpha/1.0"}
 
     def fetch_tga_cash_balance(self, page_size: int = 100) -> List[Dict[str, Any]]:
         """Fetches daily Treasury General Account (TGA) cash balances from operating_cash_balance.
@@ -30,29 +27,30 @@ class TreasuryClient:
             "page[size]": page_size,
         }
         try:
-            res = self.client.get(url, params=params)
-            res.raise_for_status()
-            data = res.json()
-            records = data.get("data", [])
-            
-            by_date: Dict[date, float] = {}
-            for item in records:
-                acc_type = str(item.get("account_type", "")).lower()
-                # Focus on TGA closing or opening balance
-                if "treasury general account" in acc_type or "federal reserve account" in acc_type or "closing balance" in acc_type:
-                    c_bal = item.get("close_today_bal")
-                    o_bal = item.get("open_today_bal")
-                    bal_str = c_bal if (c_bal and str(c_bal).lower() != "null") else o_bal
-                    if bal_str and str(bal_str).lower() != "null":
-                        try:
-                            val_millions = float(str(bal_str).replace(",", ""))
-                            val_billions = val_millions / 1000.0  # Convert to USD Billions
-                            rec_date = datetime.strptime(item["record_date"], "%Y-%m-%d").date()
-                            if rec_date not in by_date:
-                                by_date[rec_date] = val_billions
-                        except (ValueError, TypeError):
-                            continue
-            return [{"date": d, "value": v, "source": "US_TREASURY_DTS"} for d, v in by_date.items()]
+            with httpx.Client(headers=self.headers, timeout=20.0) as client:
+                res = client.get(url, params=params)
+                res.raise_for_status()
+                data = res.json()
+                records = data.get("data", [])
+                
+                by_date: Dict[date, float] = {}
+                for item in records:
+                    acc_type = str(item.get("account_type", "")).lower()
+                    # Focus on TGA closing or opening balance
+                    if "treasury general account" in acc_type or "federal reserve account" in acc_type or "closing balance" in acc_type:
+                        c_bal = item.get("close_today_bal")
+                        o_bal = item.get("open_today_bal")
+                        bal_str = c_bal if (c_bal and str(c_bal).lower() != "null") else o_bal
+                        if bal_str and str(bal_str).lower() != "null":
+                            try:
+                                val_millions = float(str(bal_str).replace(",", ""))
+                                val_billions = val_millions / 1000.0  # Convert to USD Billions
+                                rec_date = datetime.strptime(item["record_date"], "%Y-%m-%d").date()
+                                if rec_date not in by_date:
+                                    by_date[rec_date] = val_billions
+                            except (ValueError, TypeError):
+                                continue
+                return [{"date": d, "value": v, "source": "US_TREASURY_DTS"} for d, v in by_date.items()]
         except Exception as e:
             logger.error(f"Error fetching TGA cash balance from Treasury API: {e}")
             return []
@@ -68,24 +66,25 @@ class TreasuryClient:
             "page[size]": page_size,
         }
         try:
-            res = self.client.get(url, params=params)
-            res.raise_for_status()
-            data = res.json()
-            records = data.get("data", [])
+            with httpx.Client(headers=self.headers, timeout=20.0) as client:
+                res = client.get(url, params=params)
+                res.raise_for_status()
+                data = res.json()
+                records = data.get("data", [])
 
-            by_date: Dict[date, float] = {}
-            for item in records:
-                rec_date_str = item.get("record_date")
-                outlay_str = item.get("current_month_gross_outly_amt") or item.get("current_month_dfct_sur_amt")
-                if rec_date_str and outlay_str and str(outlay_str).lower() != "null":
-                    try:
-                        val_amt = float(str(outlay_str).replace(",", "")) / 1e9  # Convert to billions
-                        rec_date = datetime.strptime(rec_date_str, "%Y-%m-%d").date()
-                        if rec_date not in by_date:
-                            by_date[rec_date] = val_amt
-                    except (ValueError, TypeError):
-                        continue
-            return [{"date": d, "value": v, "source": "US_TREASURY_MTS"} for d, v in by_date.items()]
+                by_date: Dict[date, float] = {}
+                for item in records:
+                    rec_date_str = item.get("record_date")
+                    outlay_str = item.get("current_month_gross_outly_amt") or item.get("current_month_dfct_sur_amt")
+                    if rec_date_str and outlay_str and str(outlay_str).lower() != "null":
+                        try:
+                            val_amt = float(str(outlay_str).replace(",", "")) / 1e9  # Convert to billions
+                            rec_date = datetime.strptime(rec_date_str, "%Y-%m-%d").date()
+                            if rec_date not in by_date:
+                                by_date[rec_date] = val_amt
+                        except (ValueError, TypeError):
+                            continue
+                return [{"date": d, "value": v, "source": "US_TREASURY_MTS"} for d, v in by_date.items()]
         except Exception as e:
             logger.error(f"Error fetching MTS deficits from Treasury API: {e}")
             return []
@@ -134,6 +133,11 @@ class TreasuryClient:
                 ))
             counts["MTS_NET_OUTLAYS"] += 1
 
-        db.commit()
-        logger.info(f"Ingested Treasury metrics: {counts}")
-        return counts
+        try:
+            db.commit()
+            logger.info(f"Ingested Treasury metrics: {counts}")
+            return counts
+        except Exception as e:
+            db.rollback()
+            logger.error(f"Error persisting Treasury data: {e}")
+            return counts

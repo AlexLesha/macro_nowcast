@@ -273,17 +273,20 @@ async def run_refresh_pipeline_stream() -> AsyncGenerator[str, None]:
             yield f"data: {json.dumps(p1)}\n\n"
 
             # Ingest external market and macro feeds
+            db_ingest = None
             try:
                 db_ingest = SessionLocal()
-                try:
-                    FredClient().ingest_all_series(db_ingest, limit_records=60)
-                    TreasuryClient().ingest_treasury_data(db_ingest)
-                    MarketOptionsClient().ingest_market_data(db_ingest, days_back=60)
-                    EtfHoldingsClient().ingest_holdings(db_ingest)
-                finally:
-                    db_ingest.close()
+                FredClient().ingest_all_series(db_ingest, limit_records=60)
+                TreasuryClient().ingest_treasury_data(db_ingest)
+                MarketOptionsClient().ingest_market_data(db_ingest, days_back=60)
+                EtfHoldingsClient().ingest_holdings(db_ingest)
             except Exception as e:
+                if db_ingest:
+                    db_ingest.rollback()
                 logger.warning(f"[Pipeline Ingestion non-fatal]: {e}")
+            finally:
+                if db_ingest:
+                    db_ingest.close()
 
             # Execute real LiquidityEngine live calculation
             try:
@@ -421,6 +424,7 @@ async def run_refresh_pipeline_stream() -> AsyncGenerator[str, None]:
             structured_delta = await synthesizer.synthesize(raw_sweep, current_math_snapshot)
 
             # Stage 5: Commit to Database & Broadcast
+            db = None
             try:
                 db = SessionLocal()
                 today = datetime.now(timezone.utc).date()
@@ -459,9 +463,13 @@ async def run_refresh_pipeline_stream() -> AsyncGenerator[str, None]:
                     delta_rec.extracted_json = json.dumps(author_item.model_dump())
 
                 db.commit()
-                db.close()
             except Exception as db_err:
+                if db:
+                    db.rollback()
                 logger.warning(f"[Orchestrator] Database commit warning: {db_err}")
+            finally:
+                if db:
+                    db.close()
 
             result_diff = {
                 "summary": structured_delta.what_changed_summary_markdown,
