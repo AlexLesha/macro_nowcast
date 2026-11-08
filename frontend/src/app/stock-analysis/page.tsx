@@ -43,10 +43,11 @@ function renderAttributionTextWithLinks(text: string) {
         href={url}
         target="_blank"
         rel="noopener noreferrer"
-        className="inline-flex items-center gap-1 text-xs font-mono px-1.5 py-0.5 mx-0.5 rounded bg-slate-900 border border-cyan-500/40 text-cyan-300 hover:text-cyan-200 hover:bg-slate-800 transition-colors"
+        className="text-cyan-400 hover:text-cyan-200 inline-flex items-center gap-0.5 mx-0.5 transition-colors underline decoration-cyan-500/40 text-xs font-mono"
+        title={label}
       >
-        <span>[{label}]</span>
-        <svg className="w-3 h-3 inline opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <span>{label}</span>
+        <svg className="w-3 h-3 inline opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
         </svg>
       </a>
@@ -856,68 +857,87 @@ export default function SingleStockAnalysisPage() {
               )}
 
               {/* ========================================================================= */}
-              {/* OPTION B: PURE LLM 4-WEEK ATTRIBUTION & FORWARD VOLATILITY OUTLOOK */}
+              {/* OPTION B: 4-WEEK PRICE TRAJECTORY & UNIFIED NEWS FLOW */}
               {/* ========================================================================= */}
               {(hotNewsViewMode === "BOTH" || hotNewsViewMode === "OPTION_B") && (
-                <div className={`space-y-3.5 ${hotNewsViewMode === "BOTH" ? "pt-4 border-t border-slate-800/80" : ""}`}>
-                  {/* Option B Header Banner */}
-                  <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-950/80 p-3 rounded-lg border border-purple-500/30">
-                    <div className="space-y-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-xs font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-purple-950/60 border border-purple-500/50 text-purple-300">
-                          Option B: 4-Week Pure LLM Attribution & Forward Outlook
-                        </span>
-                        <span className="text-xs font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300">
-                          {optionB?.time_window || "Recent 4 Weeks (28 Days)"}
-                        </span>
-                        {optionB?.volatility_assessment && (
-                          <span className={`text-xs font-mono px-2 py-0.5 rounded border font-semibold ${
-                            optionB.volatility_assessment.has_significant_volatility
-                              ? "bg-rose-950/60 border-rose-500/50 text-rose-300"
-                              : "bg-emerald-950/60 border-emerald-500/50 text-emerald-300"
-                          }`}>
-                            {optionB.volatility_assessment.has_significant_volatility ? "⚠️ SIGNIFICANT VOLATILITY SCRUTINIZED" : "⚡ NORMAL / LOW VOLATILITY REPORT"}
+                <div className={`space-y-3 ${hotNewsViewMode === "BOTH" ? "pt-3 border-t border-slate-800/80" : ""}`}>
+                  {/* 1. 4-WEEK PRICE TRAJECTORY & VOLATILITY DIAGNOSIS (HEADER WITH PROMPT SUMMARY) */}
+                  {optionB && (
+                    <div className="p-3.5 rounded-lg border border-slate-800 bg-slate-950/80 space-y-2.5">
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/70 pb-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-xs font-mono font-bold uppercase text-purple-300">
+                            4-Week Price Trajectory & Volatility Diagnosis
                           </span>
-                        )}
-                        <span className="text-xs font-mono px-2 py-0.5 rounded bg-purple-950/40 border border-purple-500/30 text-purple-300">
-                          {optionB?.source === "GROQ_LLAMA_3_3_70B" ? "GROQ LLAMA-3.3 70B AI" : "GROUNDED DATA + LLM"}
-                        </span>
+                          {optionB.volatility_assessment && (
+                            <span className={`text-xs font-mono px-2 py-0.5 rounded font-bold border ${
+                              optionB.volatility_assessment.has_significant_volatility
+                                ? "bg-rose-950/60 text-rose-300 border-rose-500/50"
+                                : "bg-emerald-950/60 text-emerald-300 border-emerald-500/50"
+                            }`}>
+                              {optionB.volatility_assessment.volatility_label || (optionB.volatility_assessment.has_significant_volatility ? "SIGNIFICANT VOLATILITY" : "MODERATE VOLATILITY")}
+                            </span>
+                          )}
+                          <span className="text-xs font-mono px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-400">
+                            {optionB.time_window || "Recent 4 Weeks (28 Days)"}
+                          </span>
+                        </div>
+
+                        {/* Weekly & 4-Week Price Movement Metrics + Actions */}
+                        <div className="flex flex-wrap items-center gap-2">
+                          {optionB.volatility_assessment?.start_price != null && (
+                            <div className="flex flex-wrap items-center gap-2 text-xs font-mono bg-slate-900/90 px-2.5 py-1 rounded border border-slate-800">
+                              <span className="text-slate-400">4W Move:</span>
+                              <span className="text-slate-200">${optionB.volatility_assessment.start_price} &rarr; ${optionB.volatility_assessment.end_price}</span>
+                              {optionB.volatility_assessment.net_price_change_pct != null && (
+                                <span className={`font-bold ${optionB.volatility_assessment.net_price_change_pct >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                                  ({optionB.volatility_assessment.net_price_change_pct >= 0 ? "+" : ""}{optionB.volatility_assessment.net_price_change_pct}%
+                                </span>
+                              )}
+                              {optionB.volatility_assessment.price_range_pct != null && (
+                                <span className="text-slate-400 border-l border-slate-800 pl-2">
+                                  Range: <strong className="text-cyan-300">{optionB.volatility_assessment.price_range_pct}%</strong>
+                                </span>
+                              )}
+                            </div>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => setShowPromptDetails(!showPromptDetails)}
+                            className="text-xs font-mono px-2.5 py-1 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 flex items-center gap-1 transition-colors"
+                            title="Inspect prompt"
+                          >
+                            <span>Prompt Details</span>
+                            <span>{showPromptDetails ? "▲" : "▼"}</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleRefreshOptionB}
+                            disabled={loadingOptionB}
+                            className="text-xs font-mono px-2.5 py-1 rounded bg-purple-600/30 hover:bg-purple-600/50 border border-purple-500/50 text-purple-200 font-semibold flex items-center gap-1 transition-colors disabled:opacity-50"
+                          >
+                            {loadingOptionB ? (
+                              <>
+                                <span className="animate-spin inline-block">↻</span>
+                                <span>Running...</span>
+                              </>
+                            ) : (
+                              <>
+                                <span>↻</span>
+                                <span>Refresh</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
                       </div>
-                      <p className="text-xs text-slate-400 font-sans">
-                        Pure LLM institutional attribution across 4 mandatory pillars, terminal valuation shifts with source links, and scheduled 4-week volatility triggers.
+
+                      {/* Executive summary of all news flow in the last 4 weeks */}
+                      <p className="text-xs text-slate-200 leading-relaxed font-sans">
+                        {optionB.executive_summary || optionB.volatility_assessment?.summary}
                       </p>
                     </div>
-
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setShowPromptDetails(!showPromptDetails)}
-                        className="text-xs font-mono px-2.5 py-1 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 flex items-center gap-1.5 transition-colors"
-                        title="Inspect the exact prompt sent to the LLM"
-                      >
-                        <span>Prompt Details</span>
-                        <span>{showPromptDetails ? "▲" : "▼"}</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleRefreshOptionB}
-                        disabled={loadingOptionB}
-                        className="text-xs font-mono px-2.5 py-1 rounded bg-purple-600/30 hover:bg-purple-600/50 border border-purple-500/50 text-purple-200 font-semibold flex items-center gap-1.5 transition-colors disabled:opacity-50"
-                      >
-                        {loadingOptionB ? (
-                          <>
-                            <span className="animate-spin inline-block">↻</span>
-                            <span>Running LLM...</span>
-                          </>
-                        ) : (
-                          <>
-                            <span>↻</span>
-                            <span>Refresh Option B</span>
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  </div>
+                  )}
 
                   {/* COLLAPSIBLE PROMPT DETAILS */}
                   {showPromptDetails && (
@@ -933,291 +953,182 @@ Break down your attribution analysis across four mandatory pillars:
 2. Macro, commodity, and market structure/liquidity flows
 3. Sub-national, state, or federal political, regulatory, and permitting shocks
 4. Non-consensus tail risks or sentiment reversals.
-Do not merge these categories. If there was no significant news or updates in the category - omit it rather than posting small news, keep the news presentation clean and tidy.
-Beyond the categories mentioned above, what other internal or external developments occurred over the last 4 weeks that altered the terminal valuation or timeline of ${data?.company_name || activeTicker} (${activeTicker})? Provide links as  [Link] to a source with every significant piece of news.
-Next question: is there any scheduled report or will there be any other expected internal or external update that could trigger price volatility of ${data?.company_name || activeTicker} (${activeTicker}) in the next 4 weeks?`}
+Do not merge these categories when analysing but present all of them as a one flow, no need to show the categories or split them. If there was no significant news or updates in the category - omit it rather than posting small news, keep the news presentation clean and tidy. 
+Beyond the categories mentioned above, what other internal or external developments occurred over the last 4 weeks that altered the terminal valuation or timeline of ${data?.company_name || activeTicker} (${activeTicker})? Put links to the source as a small icon with every significant piece of news. If you can associate a price move of the ${data?.company_name || activeTicker} (${activeTicker}) with a particualr piece of news - put % size of the price move next to the news header in Red (price down) or Green (price up)
+Put a short executive summary of all news flow in the last 4 weeks at the top. Next question: is there any scheduled report or will there be any other expected internal or external update that could trigger price volatility of ${data?.company_name || activeTicker} (${activeTicker}) in the next 4 weeks?`}
                       </pre>
                     </div>
                   )}
 
                   {/* LOADING STATE */}
                   {loadingOptionB && !optionB && (
-                    <div className="p-8 rounded-lg border border-purple-500/20 bg-slate-950/60 text-center space-y-2.5">
-                      <div className="inline-block w-6 h-6 border-2 border-purple-400 border-t-transparent rounded-full animate-spin"></div>
+                    <div className="p-6 rounded-lg border border-purple-500/20 bg-slate-950/60 text-center space-y-2">
+                      <div className="inline-block w-5 h-5 border-2 border-purple-400 border-t-transparent rounded-full animate-spin"></div>
                       <p className="text-xs font-mono text-purple-300 font-bold">Executing Pure LLM 4-Week Attribution & Risk Analysis...</p>
-                      <p className="text-xs text-slate-400 font-sans max-w-lg mx-auto">
-                        Evaluating 4-week price volatility, balance sheet mechanics, macro/liquidity flows, regulatory shocks, non-consensus tail risks, and upcoming volatility catalysts.
+                      <p className="text-xs text-slate-400 font-sans">
+                        Synthesizing 4-week unified news flow, price moves, and upcoming volatility triggers.
                       </p>
                     </div>
                   )}
 
-                  {/* OPTION B BODY */}
-                  {optionB && (
-                    <div className="space-y-3 font-sans">
-                      {/* 1. 4-WEEK VOLATILITY DIAGNOSIS CARD */}
-                      {optionB.volatility_assessment && (
-                        <div className="p-3.5 rounded-lg border border-slate-800 bg-slate-950/70 space-y-2">
-                          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/60 pb-2">
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs font-mono font-bold uppercase text-purple-300">
-                                4-Week Price Trajectory & Volatility Diagnosis
-                              </span>
-                              <span className={`text-xs font-mono px-2 py-0.5 rounded font-bold ${
-                                optionB.volatility_assessment.has_significant_volatility
-                                  ? "bg-rose-950/50 text-rose-300 border border-rose-500/40"
-                                  : "bg-emerald-950/50 text-emerald-300 border border-emerald-500/40"
-                              }`}>
-                                {optionB.volatility_assessment.volatility_label || (optionB.volatility_assessment.has_significant_volatility ? "SIGNIFICANT VOLATILITY" : "MODERATE VOLATILITY")}
-                              </span>
-                            </div>
-                            <div className="flex flex-wrap items-center gap-3 text-xs font-mono">
-                              {optionB.volatility_assessment.start_price != null && (
-                                <span className="text-slate-400">
-                                  4W Range: <strong className="text-slate-200">${optionB.volatility_assessment.start_price} &rarr; ${optionB.volatility_assessment.end_price}</strong>
-                                </span>
-                              )}
-                              {optionB.volatility_assessment.net_price_change_pct != null && (
-                                <span className="text-slate-400">
-                                  Net Move: <strong className={optionB.volatility_assessment.net_price_change_pct >= 0 ? "text-emerald-400" : "text-rose-400"}>
-                                    {optionB.volatility_assessment.net_price_change_pct >= 0 ? "+" : ""}{optionB.volatility_assessment.net_price_change_pct}%
-                                  </strong>
-                                </span>
-                              )}
-                              {optionB.volatility_assessment.price_range_pct != null && (
-                                <span className="text-slate-400">
-                                  High-Low Swing: <strong className="text-cyan-300">{optionB.volatility_assessment.price_range_pct}%</strong>
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                          <p className="text-xs text-slate-200 leading-relaxed font-sans">
-                            {optionB.volatility_assessment.summary}
-                          </p>
-                        </div>
-                      )}
-
-                      {/* 2. THE 4 MANDATORY PILLARS (Cleanly omit categories with no news) */}
-                      {(() => {
-                        const pillarConfigs = [
-                          {
-                            key: "balance_sheet_earnings",
-                            defaultTitle: "1. Balance Sheet & Fundamental Earnings Mechanics",
-                            accentBorder: "border-purple-500/40",
-                            accentHeader: "text-purple-300",
-                            badgeBg: "bg-purple-950/60 border-purple-500/40 text-purple-300",
-                          },
-                          {
-                            key: "macro_market_structure",
-                            defaultTitle: "2. Macro, Commodity, & Market Structure/Liquidity Flows",
-                            accentBorder: "border-cyan-500/40",
-                            accentHeader: "text-cyan-300",
-                            badgeBg: "bg-cyan-950/60 border-cyan-500/40 text-cyan-300",
-                          },
-                          {
-                            key: "political_regulatory_permitting",
-                            defaultTitle: "3. Sub-national, State, or Federal Political, Regulatory & Permitting Shocks",
-                            accentBorder: "border-amber-500/40",
-                            accentHeader: "text-amber-300",
-                            badgeBg: "bg-amber-950/60 border-amber-500/40 text-amber-300",
-                          },
-                          {
-                            key: "tail_risks_sentiment",
-                            defaultTitle: "4. Non-consensus Tail Risks or Sentiment Reversals",
-                            accentBorder: "border-rose-500/40",
-                            accentHeader: "text-rose-300",
-                            badgeBg: "bg-rose-950/60 border-rose-500/40 text-rose-300",
-                          },
-                        ];
-
-                        const activePillars = pillarConfigs.filter((cfg) => {
-                          const p = optionB.pillars?.[cfg.key];
-                          return p && (p.has_news === true || (Array.isArray(p.items) && p.items.length > 0));
+                  {/* 2. UNIFIED 4-WEEK ATTRIBUTION NEWS FLOW (ONE LIST, NO COLUMNS) */}
+                  {(() => {
+                    const allNewsItems: any[] = (() => {
+                      if (!optionB) return [];
+                      if (Array.isArray(optionB.news_items) && optionB.news_items.length > 0) {
+                        return optionB.news_items;
+                      }
+                      const list: any[] = [];
+                      if (optionB.pillars) {
+                        Object.values(optionB.pillars).forEach((p: any) => {
+                          if (p && Array.isArray(p.items)) {
+                            list.push(...p.items);
+                          }
                         });
+                      }
+                      if (optionB.terminal_valuation_developments?.items) {
+                        list.push(...optionB.terminal_valuation_developments.items);
+                      }
+                      return list;
+                    })();
 
-                        return (
-                          <div className="space-y-2">
-                            <div className="flex items-center justify-between text-xs font-mono text-slate-400 px-0.5">
-                              <span className="font-bold text-slate-300 uppercase tracking-wide">
-                                4 Mandatory Attribution Pillars ({activePillars.length} of 4 Active)
-                              </span>
-                              <span className="text-slate-400 italic">
-                                *Categories without significant updates are omitted to maintain clean presentation
-                              </span>
-                            </div>
+                    if (allNewsItems.length === 0) return null;
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                              {activePillars.map((cfg) => {
-                                const p = optionB.pillars[cfg.key];
-                                const items: any[] = p.items || [];
-                                return (
-                                  <div
-                                    key={cfg.key}
-                                    className={`rounded-lg border ${cfg.accentBorder} bg-slate-950/80 p-3.5 space-y-2.5 flex flex-col justify-between`}
-                                  >
-                                    <div className="space-y-2">
-                                      <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
-                                        <h3 className={`text-xs font-mono font-bold uppercase tracking-wider ${cfg.accentHeader}`}>
-                                          {p.title || cfg.defaultTitle}
-                                        </h3>
-                                        <span className={`text-xs font-mono px-1.5 py-0.5 rounded border font-semibold ${cfg.badgeBg}`}>
-                                          {items.length} {items.length === 1 ? "Event" : "Events"}
-                                        </span>
-                                      </div>
+                    return (
+                      <div className="rounded-lg border border-slate-800 bg-slate-950/70 overflow-hidden font-sans">
+                        <div className="px-3.5 py-2 border-b border-slate-800 bg-slate-900/90 flex flex-wrap items-center justify-between gap-2 text-xs font-mono">
+                          <span className="font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
+                            <span>4-Week Attribution News Flow</span>
+                            <span className="text-slate-400 font-normal">({allNewsItems.length} Key Developments)</span>
+                          </span>
+                          <span className="text-slate-400 text-xs italic">
+                            Unified flow across fundamentals, macro, regulatory, tail risks & terminal timeline
+                          </span>
+                        </div>
 
-                                      <div className="space-y-2">
-                                        {items.map((item: any, itIdx: number) => (
-                                          <div key={itIdx} className="p-2.5 rounded bg-slate-900/60 border border-slate-800/80 space-y-1.5">
-                                            <div className="flex flex-wrap items-center justify-between gap-2">
-                                              <span className="text-xs font-bold text-slate-100 font-sans">
-                                                {item.headline}
-                                              </span>
-                                              {item.link_url && (
-                                                <a
-                                                  href={item.link_url}
-                                                  target="_blank"
-                                                  rel="noopener noreferrer"
-                                                  className="inline-flex items-center gap-1 text-xs font-mono px-2 py-0.5 rounded bg-slate-950 hover:bg-slate-800 border border-slate-700 hover:border-cyan-500/40 text-cyan-300 hover:text-cyan-200 transition-colors"
-                                                  title="Open source verification link"
-                                                >
-                                                  <span>[Link: {item.source_name || "Source"}]</span>
-                                                  <svg className="w-3 h-3 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                                                  </svg>
-                                                </a>
-                                              )}
-                                            </div>
-                                            {item.detail && (
-                                              <p className="text-xs text-slate-300 leading-relaxed font-sans">
-                                                {renderAttributionTextWithLinks(item.detail)}
-                                              </p>
-                                            )}
-                                          </div>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        );
-                      })()}
+                        <div className="divide-y divide-slate-800/60">
+                          {allNewsItems.map((item: any, idx: number) => {
+                            const hasPriceMove = item.price_move_pct != null;
+                            const moveVal = item.price_move_pct;
+                            const isUp = moveVal >= 0;
 
-                      {/* 3. TERMINAL VALUATION & TIMELINE DEVELOPMENTS */}
-                      {optionB.terminal_valuation_developments && (optionB.terminal_valuation_developments.has_developments || (optionB.terminal_valuation_developments.items && optionB.terminal_valuation_developments.items.length > 0)) && (
-                        <div className="p-3.5 rounded-lg border border-indigo-500/30 bg-slate-950/70 space-y-2.5">
-                          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-2">
-                            <span className="text-xs font-mono font-bold uppercase tracking-wide text-indigo-300">
-                              Terminal Valuation & Operational Timeline Developments (Last 4 Weeks)
-                            </span>
-                            <span className="text-xs font-mono text-slate-400">
-                              Structural & Horizon Catalysts
-                            </span>
-                          </div>
-                          {optionB.terminal_valuation_developments.summary && (
-                            <p className="text-xs text-slate-200 leading-relaxed font-sans">
-                              {renderAttributionTextWithLinks(optionB.terminal_valuation_developments.summary)}
-                            </p>
-                          )}
-                          {optionB.terminal_valuation_developments.items && optionB.terminal_valuation_developments.items.length > 0 && (
-                            <div className="space-y-2 pt-1">
-                              {optionB.terminal_valuation_developments.items.map((item: any, iIdx: number) => (
-                                <div key={iIdx} className="p-2.5 rounded bg-slate-900/60 border border-slate-800/80 space-y-1">
-                                  <div className="flex flex-wrap items-center justify-between gap-2">
-                                    <span className="text-xs font-bold text-slate-100 font-sans">{item.headline}</span>
+                            return (
+                              <div key={idx} className="p-3 hover:bg-slate-900/40 transition-colors space-y-1">
+                                <div className="flex flex-wrap items-center justify-between gap-1.5">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    {item.date && (
+                                      <span className="text-xs font-mono text-cyan-300 font-bold bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800">
+                                        {item.date}
+                                      </span>
+                                    )}
+                                    <span className="text-xs font-bold text-slate-100 font-sans">
+                                      {item.headline}
+                                    </span>
+
+                                    {/* Associated price move next to news header in Red (price down) or Green (price up) */}
+                                    {hasPriceMove && (
+                                      <span className={`text-xs font-mono font-bold px-1.5 py-0.5 rounded border ${
+                                        isUp
+                                          ? "text-emerald-400 border-emerald-500/40 bg-emerald-950/50"
+                                          : "text-rose-400 border-rose-500/40 bg-rose-950/50"
+                                      }`}>
+                                        {isUp ? "+" : ""}{moveVal}%
+                                      </span>
+                                    )}
+
+                                    {/* Link to source as a small icon only */}
                                     {item.link_url && (
                                       <a
                                         href={item.link_url}
                                         target="_blank"
                                         rel="noopener noreferrer"
-                                        className="inline-flex items-center gap-1 text-xs font-mono px-2 py-0.5 rounded bg-slate-950 hover:bg-slate-800 border border-slate-700 text-indigo-300 hover:text-indigo-200 transition-colors"
+                                        className="text-cyan-400 hover:text-cyan-200 inline-flex items-center transition-colors p-0.5"
+                                        title={`Source: ${item.source_name || "Source Link"}`}
                                       >
-                                        <span>[Link: {item.source_name || "Source"}]</span>
-                                        <svg className="w-3 h-3 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <svg className="w-3.5 h-3.5 opacity-80 hover:opacity-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                                         </svg>
                                       </a>
                                     )}
                                   </div>
-                                  {item.detail && (
-                                    <p className="text-xs text-slate-300 leading-relaxed font-sans">
-                                      {renderAttributionTextWithLinks(item.detail)}
-                                    </p>
-                                  )}
                                 </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      )}
 
-                      {/* 4. UPCOMING 4-WEEK VOLATILITY TRIGGERS & EXPECTED REPORTS */}
-                      {optionB.forward_catalysts_next_4w && (
-                        <div className="p-3.5 rounded-lg border border-cyan-500/30 bg-slate-950/70 space-y-2.5">
-                          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-2">
-                            <span className="text-xs font-mono font-bold uppercase tracking-wide text-cyan-300">
-                              Expected Reports & Volatility Triggers (Next 4 Weeks)
-                            </span>
-                            <span className="text-xs font-mono text-slate-400">
-                              Forward Event Calendar
-                            </span>
-                          </div>
-                          {optionB.forward_catalysts_next_4w.summary && (
-                            <p className="text-xs text-slate-200 leading-relaxed font-sans">
-                              {renderAttributionTextWithLinks(optionB.forward_catalysts_next_4w.summary)}
-                            </p>
-                          )}
-                          {optionB.forward_catalysts_next_4w.events && optionB.forward_catalysts_next_4w.events.length > 0 && (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 pt-1">
-                              {optionB.forward_catalysts_next_4w.events.map((ev: any, eIdx: number) => (
-                                <div key={eIdx} className="p-2.5 rounded bg-slate-900/60 border border-slate-800/80 space-y-1.5 flex flex-col justify-between">
-                                  <div className="space-y-1">
-                                    <div className="flex flex-wrap items-center justify-between gap-1.5">
-                                      <span className="text-xs font-bold text-slate-100 font-sans">{ev.event_name}</span>
-                                      <div className="flex items-center gap-1.5">
-                                        {ev.expected_date && (
-                                          <span className="text-xs font-mono px-2 py-0.5 rounded bg-slate-950 border border-slate-800 text-cyan-300">
-                                            {ev.expected_date}
-                                          </span>
-                                        )}
-                                        {ev.potential_impact && (
-                                          <span className={`text-xs font-mono px-1.5 py-0.5 rounded font-bold border ${
-                                            ev.potential_impact === "HIGH"
-                                              ? "bg-rose-950/60 border-rose-500/50 text-rose-300"
-                                              : ev.potential_impact === "MEDIUM"
-                                              ? "bg-amber-950/60 border-amber-500/50 text-amber-300"
-                                              : "bg-slate-900 border-slate-800 text-slate-300"
-                                          }`}>
-                                            {ev.potential_impact}
-                                          </span>
-                                        )}
-                                      </div>
-                                    </div>
-                                    {ev.description && (
-                                      <p className="text-xs text-slate-300 leading-relaxed font-sans">
-                                        {renderAttributionTextWithLinks(ev.description)}
-                                      </p>
-                                    )}
-                                  </div>
+                                {item.detail && (
+                                  <p className="text-xs text-slate-300 leading-relaxed font-sans pl-0.5">
+                                    {renderAttributionTextWithLinks(item.detail)}
+                                  </p>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* 3. EXPECTED REPORTS & VOLATILITY TRIGGERS (NEXT 4 WEEKS) */}
+                  {optionB?.forward_catalysts_next_4w && (
+                    <div className="p-3 rounded-lg border border-cyan-500/30 bg-slate-950/70 space-y-2">
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-1.5">
+                        <span className="text-xs font-mono font-bold uppercase tracking-wide text-cyan-300">
+                          Expected Reports & Volatility Triggers (Next 4 Weeks)
+                        </span>
+                        <span className="text-xs font-mono text-slate-400">
+                          Forward Catalyst Calendar
+                        </span>
+                      </div>
+                      {optionB.forward_catalysts_next_4w.summary && (
+                        <p className="text-xs text-slate-200 leading-relaxed font-sans">
+                          {renderAttributionTextWithLinks(optionB.forward_catalysts_next_4w.summary)}
+                        </p>
+                      )}
+                      {optionB.forward_catalysts_next_4w.events && optionB.forward_catalysts_next_4w.events.length > 0 && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-0.5">
+                          {optionB.forward_catalysts_next_4w.events.map((ev: any, eIdx: number) => (
+                            <div key={eIdx} className="p-2.5 rounded bg-slate-900/60 border border-slate-800/80 space-y-1">
+                              <div className="flex flex-wrap items-center justify-between gap-1.5">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-xs font-bold text-slate-100 font-sans">{ev.event_name}</span>
                                   {ev.link_url && (
-                                    <div className="pt-1 border-t border-slate-800/60 mt-1">
-                                      <a
-                                        href={ev.link_url}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="inline-flex items-center gap-1 text-xs font-mono text-cyan-400 hover:text-cyan-300 transition-colors"
-                                      >
-                                        <span>[Link: Event Verification]</span>
-                                        <svg className="w-3 h-3 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                                        </svg>
-                                      </a>
-                                    </div>
+                                    <a
+                                      href={ev.link_url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-cyan-400 hover:text-cyan-200 inline-flex items-center transition-colors p-0.5"
+                                      title="Source link"
+                                    >
+                                      <svg className="w-3.5 h-3.5 opacity-80 hover:opacity-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                      </svg>
+                                    </a>
                                   )}
                                 </div>
-                              ))}
+                                <div className="flex items-center gap-1.5">
+                                  {ev.expected_date && (
+                                    <span className="text-xs font-mono px-1.5 py-0.5 rounded bg-slate-950 border border-slate-800 text-cyan-300">
+                                      {ev.expected_date}
+                                    </span>
+                                  )}
+                                  {ev.potential_impact && (
+                                    <span className={`text-xs font-mono px-1.5 py-0.5 rounded font-bold border ${
+                                      ev.potential_impact === "HIGH"
+                                        ? "bg-rose-950/60 border-rose-500/50 text-rose-300"
+                                        : ev.potential_impact === "MEDIUM"
+                                        ? "bg-amber-950/60 border-amber-500/50 text-amber-300"
+                                        : "bg-slate-900 border-slate-800 text-slate-300"
+                                    }`}>
+                                      {ev.potential_impact}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              {ev.description && (
+                                <p className="text-xs text-slate-300 leading-relaxed font-sans">
+                                  {renderAttributionTextWithLinks(ev.description)}
+                                </p>
+                              )}
                             </div>
-                          )}
+                          ))}
                         </div>
                       )}
                     </div>

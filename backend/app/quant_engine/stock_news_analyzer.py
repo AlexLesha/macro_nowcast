@@ -935,19 +935,16 @@ CRITICAL FORMATTING INSTRUCTIONS:
             "2. Macro, commodity, and market structure/liquidity flows\n"
             "3. Sub-national, state, or federal political, regulatory, and permitting shocks\n"
             "4. Non-consensus tail risks or sentiment reversals.\n"
-            "Do not merge these categories. If there was no significant news or updates in the category - omit it rather than "
-            "posting small news, keep the news presentation clean and tidy.\n"
-            "Beyond the categories mentioned above, what other internal or external developments occurred over the last 4 weeks "
-            "that altered the terminal valuation or timeline of [Ticker/Asset]? Provide links as  [Link] to a source with every significant piece of news.\n"
-            "Next question: is there any scheduled report or will there be any other expected internal or external update that could "
-            "trigger price volatility of [Ticker/Asset] in the next 4 weeks?"
+            "Do not merge these categories when analysing but present all of them as a one flow, no need to show the categories or split them. If there was no significant news or updates in the category - omit it rather than posting small news, keep the news presentation clean and tidy.\n"
+            "Beyond the categories mentioned above, what other internal or external developments occurred over the last 4 weeks that altered the terminal valuation or timeline of [Ticker/Asset]? Put links to the source as a small icon with every significant piece of news. If you can associate a price move of the [Ticker/Asset] with a particualr piece of news - put % size of the price move next to the news header in Red (price down) or Green (price up)\n"
+            "Put a short executive summary of all news flow in the last 4 weeks at the top. Next question: is there any scheduled report or will there be any other expected internal or external update that could trigger price volatility of [Ticker/Asset] in the next 4 weeks?"
         )
         prompt_sent = prompt_template.replace("[Ticker/Asset]", asset_label)
 
         # Build context
         articles_preview = "\n".join([
             f"- [{a.get('date', '')}] {a.get('headline', '')} (Source: {a.get('source', 'News')}, URL: {a.get('url') or 'https://finance.yahoo.com/quote/' + ticker + '/news'})\n  Summary: {a.get('summary', '')[:220]}"
-            for a in articles[:14]
+            for a in articles[:16]
         ]) if articles else "- No discrete company press releases captured over the 28-day window."
 
         upcoming_preview = "\n".join([
@@ -969,21 +966,17 @@ CRITICAL FORMATTING INSTRUCTIONS:
 
         system_instruction = (
             "You are a Senior Quantitative Equity Attribution & Institutional Risk Analyst. "
-            "Execute the attribution prompt with utmost analytical rigor and concise Wall Street framing.\n\n"
-            "CRITICAL RULES:\n"
-            "1. Evaluate if there was significant price volatility over the past 4 weeks. If yes, thoroughly scrutinize. If not, report concisely.\n"
-            "2. Break down attribution across the 4 MANDATORY PILLARS:\n"
-            "   - 1. Balance sheet & fundamental earnings mechanics\n"
-            "   - 2. Macro, commodity, and market structure/liquidity flows\n"
-            "   - 3. Sub-national, state, or federal political, regulatory, and permitting shocks\n"
-            "   - 4. Non-consensus tail risks or sentiment reversals.\n"
-            "   DO NOT merge categories. If there was NO significant news or update in a category, set 'has_news': false and 'items': [] "
-            "to omit it completely rather than posting small filler news. Keep it clean and tidy.\n"
-            "3. For every significant development or news item, provide a link formatted as a markdown link '[Link](url)' or descriptive '[Link: Source](url)'. "
-            "Use the provided URLs or reputable real URLs (e.g. SEC EDGAR, Bloomberg, Reuters, Yahoo Finance, Yahoo Finance analysis).\n"
-            "4. Clearly answer the question about developments altering terminal valuation or operational timeline.\n"
-            "5. Clearly answer the forward 4-week scheduled report / expected update question.\n"
-            "6. Output STRICT JSON only with NO markdown wrapper and NO conversational intro."
+            "Execute the prompt with utmost analytical rigor and concise Wall Street framing.\n\n"
+            "CRITICAL INSTRUCTIONS:\n"
+            "1. At the top, provide an 'executive_summary': a short, high-impact executive summary synthesizing all news flow and fundamental price drivers in the last 4 weeks.\n"
+            "2. Evaluate recent 4 weeks price moves. If significant price volatility occurred, scrutinize thoroughly. If not, report concisely.\n"
+            "3. Break down attribution across the 4 mandatory pillars (Balance Sheet & Earnings, Macro & Commodity Flows, Political/Regulatory Shocks, Non-Consensus Tail Risks) "
+            "and terminal valuation shifts, BUT DO NOT split them into columns or separate category sections. "
+            "Present all news developments as ONE unified flow ('news_items' list). Omit categories or items with no significant updates.\n"
+            "4. If you can associate a price move of the asset with a particular piece of news, specify 'price_move_pct' (as a signed number, e.g. +3.4 or -4.8).\n"
+            "5. For every piece of news, provide the source name ('source_name') and direct URL ('link_url') to the source.\n"
+            "6. Detail any scheduled report or expected update that could trigger price volatility in the next 4 weeks ('forward_catalysts_next_4w').\n"
+            "7. Output STRICT JSON conforming to the schema below."
         )
 
         user_prompt_full = f"{prompt_sent}\n\n{context_block}\n\nOUTPUT STRICT JSON SCHEMA:\n" + """{
@@ -994,6 +987,7 @@ CRITICAL FORMATTING INSTRUCTIONS:
   "time_window": "Recent 4 Weeks (28 Days)",
   "prompt_template": "...",
   "prompt_sent": "...",
+  "executive_summary": "Short 2-3 sentence executive synthesis of all news flow and drivers in the last 4 weeks.",
   "volatility_assessment": {
     "has_significant_volatility": true,
     "volatility_label": "SIGNIFICANT VOLATILITY" or "MODERATE / NORMAL VOLATILITY",
@@ -1003,56 +997,22 @@ CRITICAL FORMATTING INSTRUCTIONS:
     "high_price": 0.0,
     "low_price": 0.0,
     "price_range_pct": 0.0,
-    "summary": "1-2 sentence executive overview of 4-week price move and volatility."
+    "max_daily_gain_pct": 0.0,
+    "max_daily_drop_pct": 0.0,
+    "summary": "1-2 sentence overview of 4-week price moves and volatility diagnosis."
   },
-  "pillars": {
-    "balance_sheet_earnings": {
-      "pillar_id": 1,
-      "title": "1. Balance Sheet & Fundamental Earnings Mechanics",
-      "has_news": true,
-      "items": [
-        {
-          "headline": "Short title",
-          "detail": "Concise attribution explanation.",
-          "source_name": "SEC / Bloomberg / Finnhub",
-          "link_url": "https://..."
-        }
-      ]
-    },
-    "macro_market_structure": {
-      "pillar_id": 2,
-      "title": "2. Macro, Commodity, and Market Structure/Liquidity Flows",
-      "has_news": true,
-      "items": []
-    },
-    "political_regulatory_permitting": {
-      "pillar_id": 3,
-      "title": "3. Sub-national, State, or Federal Political, Regulatory, and Permitting Shocks",
-      "has_news": false,
-      "items": []
-    },
-    "tail_risks_sentiment": {
-      "pillar_id": 4,
-      "title": "4. Non-consensus Tail Risks or Sentiment Reversals",
-      "has_news": true,
-      "items": []
+  "news_items": [
+    {
+      "date": "YYYY-MM-DD",
+      "headline": "Short concise headline",
+      "price_move_pct": 3.2 or -4.5 or null,
+      "detail": "Sharp attribution explaining why this moved or impacted the stock.",
+      "source_name": "Bloomberg / SEC / Reuters",
+      "link_url": "https://..."
     }
-  },
-  "terminal_valuation_developments": {
-    "title": "Developments Altering Terminal Valuation or Operational Timeline",
-    "has_developments": true,
-    "summary": "1-2 sentence overview.",
-    "items": [
-      {
-        "headline": "Short title",
-        "detail": "Concise detail on terminal valuation or timeline impact.",
-        "source_name": "SEC / Press Release",
-        "link_url": "https://..."
-      }
-    ]
-  },
+  ],
   "forward_catalysts_next_4w": {
-    "title": "Expected Reports & Volatility Triggers in the Next 4 Weeks",
+    "title": "Expected Reports & Volatility Triggers (Next 4 Weeks)",
     "has_scheduled_events": true,
     "summary": "Forward outlook on catalysts.",
     "events": [
@@ -1082,27 +1042,49 @@ CRITICAL FORMATTING INSTRUCTIONS:
                 raw_text = raw_text.split("```")[1].split("```")[0].strip()
 
             parsed = json.loads(raw_text)
-            if parsed.get("pillars"):
-                parsed["status"] = "ok"
-                parsed["source"] = "GROQ_LLAMA_3_3_70B"
-                parsed["ticker"] = ticker
-                parsed["company_name"] = entity_name
-                parsed["time_window"] = "Recent 4 Weeks (28 Days)"
-                parsed["prompt_template"] = prompt_template
-                parsed["prompt_sent"] = prompt_sent
-                if not parsed.get("volatility_assessment"):
-                    parsed["volatility_assessment"] = {
-                        "has_significant_volatility": has_significant_volatility,
-                        "volatility_label": "SIGNIFICANT VOLATILITY" if has_significant_volatility else "NORMAL VOLATILITY",
-                        "net_price_change_pct": round(net_change_pct, 2),
-                        "start_price": round(start_price, 2),
-                        "end_price": round(end_price, 2),
-                        "high_price": round(high_price, 2),
-                        "low_price": round(low_price, 2),
-                        "price_range_pct": round(range_pct, 2),
-                        "summary": f"{entity_name} recorded a 4-week move of {net_change_pct:+.2f}% with {range_pct:.1f}% trading range."
-                    }
-                return parsed
+            parsed["status"] = "ok"
+            parsed["source"] = "GROQ_LLAMA_3_3_70B"
+            parsed["ticker"] = ticker
+            parsed["company_name"] = entity_name
+            parsed["time_window"] = "Recent 4 Weeks (28 Days)"
+            parsed["prompt_template"] = prompt_template
+            parsed["prompt_sent"] = prompt_sent
+
+            # Guarantee news_items is a list
+            if "news_items" not in parsed or not isinstance(parsed.get("news_items"), list):
+                # Flatten any legacy pillars structure if returned
+                flattened = []
+                pillars = parsed.get("pillars", {})
+                for p_key, p_val in pillars.items():
+                    if isinstance(p_val, dict) and p_val.get("items"):
+                        for it in p_val["items"]:
+                            flattened.append(it)
+                term_items = parsed.get("terminal_valuation_developments", {}).get("items", [])
+                for it in term_items:
+                    flattened.append(it)
+                parsed["news_items"] = flattened
+
+            if not parsed.get("executive_summary"):
+                parsed["executive_summary"] = (
+                    parsed.get("volatility_assessment", {}).get("summary")
+                    or f"Executive 4-week news intelligence synthesis for {entity_name} ({ticker})."
+                )
+
+            if not parsed.get("volatility_assessment"):
+                parsed["volatility_assessment"] = {
+                    "has_significant_volatility": has_significant_volatility,
+                    "volatility_label": "SIGNIFICANT VOLATILITY" if has_significant_volatility else "NORMAL VOLATILITY",
+                    "net_price_change_pct": round(net_change_pct, 2),
+                    "start_price": round(start_price, 2),
+                    "end_price": round(end_price, 2),
+                    "high_price": round(high_price, 2),
+                    "low_price": round(low_price, 2),
+                    "price_range_pct": round(range_pct, 2),
+                    "max_daily_gain_pct": round(max_daily_gain, 2),
+                    "max_daily_drop_pct": round(max_daily_drop, 2),
+                    "summary": f"{entity_name} recorded a 4-week move of {net_change_pct:+.2f}% with {range_pct:.1f}% trading range."
+                }
+            return parsed
         except Exception as e:
             logger.warning(f"Groq Option B attribution synthesis failed for {ticker}: {e}")
 
@@ -1140,86 +1122,39 @@ CRITICAL FORMATTING INSTRUCTIONS:
             "2. Macro, commodity, and market structure/liquidity flows\n"
             "3. Sub-national, state, or federal political, regulatory, and permitting shocks\n"
             "4. Non-consensus tail risks or sentiment reversals.\n"
-            "Do not merge these categories. If there was no significant news or updates in the category - omit it rather than "
-            "posting small news, keep the news presentation clean and tidy.\n"
-            "Beyond the categories mentioned above, what other internal or external developments occurred over the last 4 weeks "
-            "that altered the terminal valuation or timeline of [Ticker/Asset]? Provide links as  [Link] to a source with every significant piece of news.\n"
-            "Next question: is there any scheduled report or will there be any other expected internal or external update that could "
-            "trigger price volatility of [Ticker/Asset] in the next 4 weeks?"
+            "Do not merge these categories when analysing but present all of them as a one flow, no need to show the categories or split them. If there was no significant news or updates in the category - omit it rather than posting small news, keep the news presentation clean and tidy.\n"
+            "Beyond the categories mentioned above, what other internal or external developments occurred over the last 4 weeks that altered the terminal valuation or timeline of [Ticker/Asset]? Put links to the source as a small icon with every significant piece of news. If you can associate a price move of the [Ticker/Asset] with a particualr piece of news - put % size of the price move next to the news header in Red (price down) or Green (price up)\n"
+            "Put a short executive summary of all news flow in the last 4 weeks at the top. Next question: is there any scheduled report or will there be any other expected internal or external update that could trigger price volatility of [Ticker/Asset] in the next 4 weeks?"
         )
         prompt_sent = prompt_template.replace("[Ticker/Asset]", asset_label)
 
-        # Categorize real articles into the 4 mandatory pillars
-        p1_items = []
-        p2_items = []
-        p3_items = []
-        p4_items = []
-        terminal_items = []
+        # Build daily price change lookup
+        bars_by_date = cls.fetch_price_bars(ticker, start_str, end_str)
 
+        news_items = []
         for a in articles:
-            hl = a.get("headline", "")
-            sum_text = a.get("summary", "")
-            full_txt = f"{hl} {sum_text}".lower()
+            hl = a.get("headline", "").strip()
+            if not hl:
+                continue
+            sum_text = a.get("summary", "").strip()
+            a_date = a.get("date", "")
             url = a.get("url") or f"https://finance.yahoo.com/quote/{ticker}/news"
             src = a.get("source", "Finnhub")
 
-            item = {
+            # Check if there is an associated price move on that date
+            price_move = None
+            bar = bars_by_date.get(a_date)
+            if bar and bar.get("change_pct") is not None and abs(bar.get("change_pct", 0.0)) >= 0.25:
+                price_move = round(float(bar["change_pct"]), 2)
+
+            news_items.append({
+                "date": a_date,
                 "headline": hl,
-                "detail": sum_text[:180] + "..." if len(sum_text) > 180 else (sum_text or "Verified market development."),
+                "price_move_pct": price_move,
+                "detail": sum_text[:180] + "..." if len(sum_text) > 180 else (sum_text or "Verified corporate/market development."),
                 "source_name": src,
                 "link_url": url,
-            }
-
-            if any(k in full_txt for k in ["earnings", "revenue", "profit", "margin", "guidance", "ebitda", "cash", "debt", "dividend", "q1", "q2", "q3", "q4"]):
-                p1_items.append(item)
-            elif any(k in full_txt for k in ["fed", "inflation", "rates", "macro", "yield", "dollar", "liquidity", "commodity", "oil", "tariff", "treasury"]):
-                p2_items.append(item)
-            elif any(k in full_txt for k in ["ftc", "sec", "antitrust", "court", "lawsuit", "judge", "doj", "regulat", "permit", "patent", "ban"]):
-                p3_items.append(item)
-            elif any(k in full_txt for k in ["downgrade", "short", "investigation", "fraud", "risk", "resignation", "cut", "selloff", "plunge"]):
-                p4_items.append(item)
-            elif any(k in full_txt for k in ["acquisition", "merger", "partnership", "ai", "expansion", "patent", "contract", "timeline"]):
-                terminal_items.append(item)
-
-        # Prepare pillars (omit if no significant news)
-        pillars = {
-            "balance_sheet_earnings": {
-                "pillar_id": 1,
-                "title": "1. Balance Sheet & Fundamental Earnings Mechanics",
-                "has_news": len(p1_items) > 0,
-                "items": p1_items[:3],
-            },
-            "macro_market_structure": {
-                "pillar_id": 2,
-                "title": "2. Macro, Commodity, and Market Structure/Liquidity Flows",
-                "has_news": len(p2_items) > 0,
-                "items": p2_items[:3],
-            },
-            "political_regulatory_permitting": {
-                "pillar_id": 3,
-                "title": "3. Sub-national, State, or Federal Political, Regulatory, and Permitting Shocks",
-                "has_news": len(p3_items) > 0,
-                "items": p3_items[:3],
-            },
-            "tail_risks_sentiment": {
-                "pillar_id": 4,
-                "title": "4. Non-consensus Tail Risks or Sentiment Reversals",
-                "has_news": len(p4_items) > 0,
-                "items": p4_items[:3],
-            },
-        }
-
-        # Terminal valuation developments
-        has_term = len(terminal_items) > 0
-        terminal_devs = {
-            "title": "Developments Altering Terminal Valuation or Operational Timeline",
-            "has_developments": has_term,
-            "summary": (
-                f"Capital allocation and structural milestones across {industry or sector} over the last 4 weeks "
-                f"define the terminal free cash flow horizon."
-            ),
-            "items": terminal_items[:3],
-        }
+            })
 
         # Forward catalysts
         fwd_events = upcoming_events if upcoming_events else [
@@ -1232,9 +1167,11 @@ CRITICAL FORMATTING INSTRUCTIONS:
             }
         ]
 
-        summary_vol = (
-            f"{entity_name} ({ticker}) experienced {'elevated price volatility' if has_significant_volatility else 'measured trading volatility'} "
-            f"over the past 4 weeks ({net_change_pct:+.2f}% net change), navigating a high of ${high_price:.2f} and low of ${low_price:.2f}."
+        vol_label = "SIGNIFICANT VOLATILITY" if has_significant_volatility else "MODERATE / NORMAL VOLATILITY"
+        exec_summary = (
+            f"Over the last 4 weeks, {entity_name} ({ticker}) experienced {vol_label.lower()} "
+            f"with a net price move of {net_change_pct:+.2f}% (${start_price:.2f} → ${end_price:.2f}) and a {range_pct:.1f}% trading range. "
+            f"Primary catalysts centered on {industry or sector} operational updates, macroeconomic rate positioning, and capital allocation milestones."
         )
 
         return {
@@ -1245,21 +1182,23 @@ CRITICAL FORMATTING INSTRUCTIONS:
             "time_window": "Recent 4 Weeks (28 Days)",
             "prompt_template": prompt_template,
             "prompt_sent": prompt_sent,
+            "executive_summary": exec_summary,
             "volatility_assessment": {
                 "has_significant_volatility": has_significant_volatility,
-                "volatility_label": "SIGNIFICANT VOLATILITY" if has_significant_volatility else "MODERATE / NORMAL VOLATILITY",
+                "volatility_label": vol_label,
                 "net_price_change_pct": round(net_change_pct, 2),
                 "start_price": round(start_price, 2),
                 "end_price": round(end_price, 2),
                 "high_price": round(high_price, 2),
                 "low_price": round(low_price, 2),
                 "price_range_pct": round(range_pct, 2),
-                "summary": summary_vol,
+                "max_daily_gain_pct": round(max_daily_gain, 2),
+                "max_daily_drop_pct": round(max_daily_drop, 2),
+                "summary": f"{entity_name} recorded a 4-week move of {net_change_pct:+.2f}% with high of ${high_price:.2f} and low of ${low_price:.2f}."
             },
-            "pillars": pillars,
-            "terminal_valuation_developments": terminal_devs,
+            "news_items": news_items[:12],
             "forward_catalysts_next_4w": {
-                "title": "Expected Reports & Volatility Triggers in the Next 4 Weeks",
+                "title": "Expected Reports & Volatility Triggers (Next 4 Weeks)",
                 "has_scheduled_events": len(fwd_events) > 0,
                 "summary": "Scheduled macro and company-specific catalysts that could trigger volatility in the next 28 days.",
                 "events": fwd_events,
