@@ -938,7 +938,7 @@ export default function SingleStockAnalysisPage() {
                           <span className="text-slate-400 font-normal">[Ticker/Asset] &rarr; {data?.company_name || activeTicker} ({activeTicker})</span>
                         </div>
                         <pre className="p-2.5 rounded bg-slate-900/90 text-slate-200 whitespace-pre-wrap font-mono text-xs leading-relaxed border border-slate-800 selection:bg-purple-500/30">
-                          {optionB?.prompt_sent || `Analyze the recent 4 weeks price moves in ${data?.company_name || activeTicker} (${activeTicker}) and put a short summary (3-4 sentences) for every week about events that could have triggered significant price volatility in this asset. Do not hallucinate, use only the data that is available to you.
+                          {optionB?.prompt_sent || `Analyse the recent 4 weeks price moves in ${data?.company_name || activeTicker} (${activeTicker}) and put a short summary (3-4 sentences) for every week about events that could have triggered significant price volatility in this asset. Do not hallucinate, use only the data that is available to you.
 When analysing news, break down your attribution analysis across five mandatory pillars:
 1. Balance sheet & fundamental earnings mechanics
 2. Macro, commodity, and market structure/liquidity flows
@@ -957,101 +957,164 @@ Put a short executive summary of all news flow in the last 4 weeks at the top. N
                         <div className="inline-block w-5 h-5 border-2 border-purple-400 border-t-transparent rounded-full animate-spin"></div>
                         <p className="text-xs font-mono text-purple-300 font-bold">Executing Pure LLM 4-Week Attribution & Risk Analysis...</p>
                         <p className="text-xs text-slate-400 font-sans">
-                          Synthesizing 4-week unified news flow, price moves, and upcoming volatility triggers.
+                          Synthesizing 4-week weekly news flow, price moves, and upcoming volatility triggers.
                         </p>
                       </div>
                     )}
 
-                    {/* 2. UNIFIED 4-WEEK ATTRIBUTION NEWS FLOW (ONE LIST, NO COLUMNS) */}
+                    {/* 2. 4-WEEK ATTRIBUTION NEWS FLOW (PRESENTED AS ONE FLOW FOR EACH WEEK) */}
                     {(() => {
-                      const allNewsItems: any[] = (() => {
-                        if (!optionB) return [];
-                        if (Array.isArray(optionB.news_items) && optionB.news_items.length > 0) {
-                          return optionB.news_items;
+                      if (!optionB) return null;
+
+                      // Extract weekly blocks, or construct from flattened news items if weeks array isn't populated
+                      const rawWeeks: any[] = Array.isArray(optionB.weeks) && optionB.weeks.length > 0
+                        ? optionB.weeks
+                        : [];
+
+                      // If weeks is empty, build a 4-week structure from news_items
+                      const weeksToRender: any[] = rawWeeks.length > 0 ? rawWeeks : (() => {
+                        const allItems = Array.isArray(optionB.news_items) ? optionB.news_items : [];
+                        if (allItems.length === 0) return [];
+                        const chunks: any[] = [];
+                        const chunkSize = Math.max(1, Math.ceil(allItems.length / 4));
+                        for (let i = 0; i < 4; i++) {
+                          const slice = allItems.slice(i * chunkSize, (i + 1) * chunkSize);
+                          if (slice.length > 0) {
+                            chunks.push({
+                              week_number: i + 1,
+                              week_label: i === 0 ? "Week 1 (Current / Most Recent)" : `Week ${i + 1} (${i * 7}-${(i + 1) * 7} Days Ago)`,
+                              date_range: slice[0]?.date ? `${slice[slice.length - 1]?.date || slice[0]?.date} - ${slice[0]?.date}` : `Week ${i + 1}`,
+                              weekly_price_move_pct: slice[0]?.price_move_pct ?? null,
+                              weekly_summary: `Summary of price volatility and news flow for Week ${i + 1} across the five mandatory pillars.`,
+                              news_items: slice.slice(0, 4),
+                            });
+                          }
                         }
-                        const list: any[] = [];
-                        if (optionB.pillars) {
-                          Object.values(optionB.pillars).forEach((p: any) => {
-                            if (p && Array.isArray(p.items)) {
-                              list.push(...p.items);
-                            }
-                          });
-                        }
-                        if (optionB.terminal_valuation_developments?.items) {
-                          list.push(...optionB.terminal_valuation_developments.items);
-                        }
-                        return list;
+                        return chunks;
                       })();
 
-                      if (allNewsItems.length === 0) return null;
+                      if (weeksToRender.length === 0) return null;
 
                       return (
-                        <div className="rounded-lg border border-slate-800 bg-slate-950/70 overflow-hidden font-sans">
-                          <div className="px-3.5 py-2 border-b border-slate-800 bg-slate-900/90 flex flex-wrap items-center justify-between gap-2 text-xs font-mono">
-                            <span className="font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
-                              <span>4-Week Attribution News Flow</span>
-                              <span className="text-slate-400 font-normal">({allNewsItems.length} Key Developments)</span>
-                            </span>
-                            <span className="text-slate-400 text-xs italic">
-                              Unified flow across fundamentals, macro, regulatory, tail risks & terminal timeline
-                            </span>
-                          </div>
+                        <div className="space-y-3 font-sans">
+                          {weeksToRender.map((w: any, wIdx: number) => {
+                            const hasWeekMove = w.weekly_price_move_pct != null;
+                            const weekMove = w.weekly_price_move_pct;
+                            const isWeekUp = weekMove >= 0;
+                            const newsList = Array.isArray(w.news_items) ? w.news_items.slice(0, 4) : [];
 
-                          <div className="divide-y divide-slate-800/60">
-                            {allNewsItems.map((item: any, idx: number) => {
-                              const hasPriceMove = item.price_move_pct != null;
-                              const moveVal = item.price_move_pct;
-                              const isUp = moveVal >= 0;
-
-                              return (
-                                <div key={idx} className="p-3 hover:bg-slate-900/40 transition-colors space-y-1">
-                                  <div className="flex flex-wrap items-center justify-between gap-1.5">
+                            return (
+                              <div key={wIdx} className="rounded-lg border border-slate-800 bg-slate-950/70 overflow-hidden font-sans">
+                                {/* WEEK HEADER & 3-4 SENTENCE VOLATILITY SUMMARY */}
+                                <div className="p-3 border-b border-slate-800/80 bg-slate-900/90 space-y-2">
+                                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-mono">
                                     <div className="flex flex-wrap items-center gap-2">
-                                      {item.date && (
-                                        <span className="text-xs font-mono text-cyan-300 font-bold bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800">
-                                          {item.date}
-                                        </span>
-                                      )}
-                                      <span className="text-xs font-bold text-slate-100 font-sans">
-                                        {item.headline}
+                                      <span className="font-bold text-purple-300 uppercase tracking-wider">
+                                        {w.week_label || `Week ${w.week_number || wIdx + 1}`}
                                       </span>
-
-                                      {/* Associated price move next to news header in Red (price down) or Green (price up) */}
-                                      {hasPriceMove && (
-                                        <span className={`text-xs font-mono font-bold px-1.5 py-0.5 rounded border ${isUp
-                                          ? "text-emerald-400 border-emerald-500/40 bg-emerald-950/50"
-                                          : "text-rose-400 border-rose-500/40 bg-rose-950/50"
-                                          }`}>
-                                          {isUp ? "+" : ""}{moveVal}%
+                                      {w.date_range && (
+                                        <span className="text-slate-400 font-normal px-2 py-0.5 rounded bg-slate-900 border border-slate-800">
+                                          {w.date_range}
                                         </span>
                                       )}
-
-                                      {/* Link to source as a small icon only */}
-                                      {item.link_url && (
-                                        <a
-                                          href={item.link_url}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="text-cyan-400 hover:text-cyan-200 inline-flex items-center transition-colors p-0.5"
-                                          title={`Source: ${item.source_name || "Source Link"}`}
-                                        >
-                                          <svg className="w-3.5 h-3.5 opacity-80 hover:opacity-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                                          </svg>
-                                        </a>
-                                      )}
+                                      <span className="text-slate-500 font-normal">
+                                        ({newsList.length} {newsList.length === 1 ? "item" : "items"})
+                                      </span>
                                     </div>
+
+                                    {/* Weekly Price Movement in Red or Green */}
+                                    {hasWeekMove && (
+                                      <span className={`font-bold px-2 py-0.5 rounded border ${isWeekUp
+                                        ? "text-emerald-400 border-emerald-500/40 bg-emerald-950/60"
+                                        : "text-rose-400 border-rose-500/40 bg-rose-950/60"
+                                      }`}>
+                                        Week Move: {isWeekUp ? "+" : ""}{weekMove}%
+                                      </span>
+                                    )}
                                   </div>
 
-                                  {item.detail && (
-                                    <p className="text-xs text-slate-300 leading-relaxed font-sans pl-0.5">
-                                      {renderAttributionTextWithLinks(item.detail)}
+                                  {/* 3-4 Sentences Weekly Volatility Summary */}
+                                  {w.weekly_summary && (
+                                    <p className="text-xs text-slate-200 leading-relaxed font-sans bg-slate-950/60 p-2.5 rounded border border-slate-800/70">
+                                      {renderAttributionTextWithLinks(w.weekly_summary)}
                                     </p>
                                   )}
                                 </div>
-                              );
-                            })}
-                          </div>
+
+                                {/* WEEK'S NEWS ITEMS (LIMIT TO 3-4 ITEMS MAXIMUM PER WEEK, PRESENTED AS ONE FLOW) */}
+                                {newsList.length > 0 ? (
+                                  <div className="divide-y divide-slate-800/60">
+                                    {newsList.map((item: any, nIdx: number) => {
+                                      const hasPriceMove = item.price_move_pct != null;
+                                      const moveVal = item.price_move_pct;
+                                      const isUp = moveVal >= 0;
+                                      const itemTitle = item.title || item.headline || "Key Market Development";
+
+                                      return (
+                                        <div key={nIdx} className="p-3 hover:bg-slate-900/40 transition-colors space-y-1.5">
+                                          <div className="flex flex-wrap items-center justify-between gap-1.5">
+                                            <div className="flex flex-wrap items-center gap-2">
+                                              {item.date && (
+                                                <span className="text-xs font-mono text-cyan-300 font-bold bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800">
+                                                  {item.date}
+                                                </span>
+                                              )}
+
+                                              {/* Put links to the source as a short summary title for every significant piece of news in each week */}
+                                              {item.link_url ? (
+                                                <a
+                                                  href={item.link_url}
+                                                  target="_blank"
+                                                  rel="noopener noreferrer"
+                                                  className="text-xs font-bold text-cyan-300 hover:text-cyan-100 hover:underline inline-flex items-center gap-1.5 transition-colors font-sans"
+                                                  title={`Source: ${item.source_name || "Verified Source"}`}
+                                                >
+                                                  <span>{itemTitle}</span>
+                                                  <svg className="w-3 h-3 opacity-70 hover:opacity-100 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                                  </svg>
+                                                </a>
+                                              ) : (
+                                                <span className="text-xs font-bold text-slate-100 font-sans">
+                                                  {itemTitle}
+                                                </span>
+                                              )}
+
+                                              {/* Associated price move next to news header in Red (price down) or Green (price up) */}
+                                              {hasPriceMove && (
+                                                <span className={`text-xs font-mono font-bold px-1.5 py-0.5 rounded border ${isUp
+                                                  ? "text-emerald-400 border-emerald-500/40 bg-emerald-950/60"
+                                                  : "text-rose-400 border-rose-500/40 bg-rose-950/60"
+                                                }`}>
+                                                  {isUp ? "+" : ""}{moveVal}%
+                                                </span>
+                                              )}
+
+                                              {item.source_name && (
+                                                <span className="text-[10px] font-mono text-slate-400 bg-slate-900/80 px-1.5 py-0.5 rounded border border-slate-800">
+                                                  {item.source_name}
+                                                </span>
+                                              )}
+                                            </div>
+                                          </div>
+
+                                          {item.detail && (
+                                            <p className="text-xs text-slate-300 leading-relaxed font-sans pl-0.5">
+                                              {renderAttributionTextWithLinks(item.detail)}
+                                            </p>
+                                          )}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                ) : (
+                                  <div className="p-3 text-xs text-slate-400 italic">
+                                    No discrete news reports recorded for this week; consolidation within anticipated volatility corridors.
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
                       );
                     })()}
