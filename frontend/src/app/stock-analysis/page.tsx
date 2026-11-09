@@ -397,8 +397,8 @@ export default function SingleStockAnalysisPage() {
                 {groqStatus && (
                   <span
                     className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-mono border ${groqStatus.color === "green"
-                        ? "bg-emerald-950/40 border-emerald-500/40 text-emerald-300"
-                        : "bg-amber-950/40 border-amber-500/40 text-amber-300"
+                      ? "bg-emerald-950/40 border-emerald-500/40 text-emerald-300"
+                      : "bg-amber-950/40 border-amber-500/40 text-amber-300"
                       }`}
                     title={groqStatus.format_warning || groqStatus.message}
                   >
@@ -465,8 +465,8 @@ export default function SingleStockAnalysisPage() {
                   fetchAnalysis(sym);
                 }}
                 className={`px-2 py-0.5 rounded border transition text-xs ${activeTicker === sym
-                    ? "bg-cyan-950/80 border-cyan-500 text-cyan-300 font-bold"
-                    : "bg-slate-900/80 border-slate-800 text-slate-400 hover:text-white hover:border-slate-700"
+                  ? "bg-cyan-950/80 border-cyan-500 text-cyan-300 font-bold"
+                  : "bg-slate-900/80 border-slate-800 text-slate-400 hover:text-white hover:border-slate-700"
                   }`}
               >
                 {sym}
@@ -694,10 +694,10 @@ export default function SingleStockAnalysisPage() {
                           {hotNews?.time_window || "Last 2 Working Weeks (10 Trading Days)"}
                         </span>
                         <span className={`text-xs font-mono px-2 py-0.5 rounded border font-semibold ${hotNews?.overall_sentiment === "BULLISH"
-                            ? "bg-emerald-950/40 border-emerald-500/40 text-emerald-300"
-                            : hotNews?.overall_sentiment === "BEARISH"
-                              ? "bg-rose-950/40 border-rose-500/40 text-rose-300"
-                              : "bg-amber-950/40 border-amber-500/40 text-amber-300"
+                          ? "bg-emerald-950/40 border-emerald-500/40 text-emerald-300"
+                          : hotNews?.overall_sentiment === "BEARISH"
+                            ? "bg-rose-950/40 border-rose-500/40 text-rose-300"
+                            : "bg-amber-950/40 border-amber-500/40 text-amber-300"
                           }`}>
                           Sentiment: {hotNews?.overall_sentiment || "MIXED"}
                         </span>
@@ -758,16 +758,16 @@ export default function SingleStockAnalysisPage() {
                                   <span
                                     key={tIdx}
                                     className={`text-xs font-mono px-1.5 py-0.5 rounded font-semibold border ${tag === "EARNINGS"
-                                        ? "bg-purple-950/50 border-purple-500/40 text-purple-300"
-                                        : tag === "C-LEVEL"
-                                          ? "bg-amber-950/50 border-amber-500/40 text-amber-300"
-                                          : tag === "LEGAL"
-                                            ? "bg-rose-950/50 border-rose-500/40 text-rose-300"
-                                            : tag === "M&A"
-                                              ? "bg-blue-950/50 border-blue-500/40 text-blue-300"
-                                              : tag === "ANALYST"
-                                                ? "bg-emerald-950/50 border-emerald-500/40 text-emerald-300"
-                                                : "bg-slate-900 border-slate-800 text-slate-300"
+                                      ? "bg-purple-950/50 border-purple-500/40 text-purple-300"
+                                      : tag === "C-LEVEL"
+                                        ? "bg-amber-950/50 border-amber-500/40 text-amber-300"
+                                        : tag === "LEGAL"
+                                          ? "bg-rose-950/50 border-rose-500/40 text-rose-300"
+                                          : tag === "M&A"
+                                            ? "bg-blue-950/50 border-blue-500/40 text-blue-300"
+                                            : tag === "ANALYST"
+                                              ? "bg-emerald-950/50 border-emerald-500/40 text-emerald-300"
+                                              : "bg-slate-900 border-slate-800 text-slate-300"
                                       }`}
                                   >
                                     {tag}
@@ -863,8 +863,8 @@ export default function SingleStockAnalysisPage() {
                             </span>
                             {optionB.volatility_assessment && (
                               <span className={`text-xs font-mono px-2 py-0.5 rounded font-bold border ${optionB.volatility_assessment.has_significant_volatility
-                                  ? "bg-rose-950/60 text-rose-300 border-rose-500/50"
-                                  : "bg-emerald-950/60 text-emerald-300 border-emerald-500/50"
+                                ? "bg-rose-950/60 text-rose-300 border-rose-500/50"
+                                : "bg-emerald-950/60 text-emerald-300 border-emerald-500/50"
                                 }`}>
                                 {optionB.volatility_assessment.volatility_label || (optionB.volatility_assessment.has_significant_volatility ? "SIGNIFICANT VOLATILITY" : "MODERATE VOLATILITY")}
                               </span>
@@ -938,14 +938,14 @@ export default function SingleStockAnalysisPage() {
                           <span className="text-slate-400 font-normal">[Ticker/Asset] &rarr; {data?.company_name || activeTicker} ({activeTicker})</span>
                         </div>
                         <pre className="p-2.5 rounded bg-slate-900/90 text-slate-200 whitespace-pre-wrap font-mono text-xs leading-relaxed border border-slate-800 selection:bg-purple-500/30">
-                          {optionB?.prompt_sent || `Analyze the recent 4 weeks price moves in ${data?.company_name || activeTicker} (${activeTicker}) and if there was a significant price volatility, scrutinize every aspect of the request below. If there was no significant price volatility in the last 4 weeks, then simply report about the below points - no need to spend too much tokens analysing the request.
-Break down your attribution analysis across four mandatory pillars:
+                          {optionB?.prompt_sent || `Analyze the recent 4 weeks price moves in ${data?.company_name || activeTicker} (${activeTicker}) and put a short summary (3-4 sentences) for every week about events that could have triggered significant price volatility in this asset. Do not hallucinate, use only the data that is available to you.
+When analysing news, break down your attribution analysis across five mandatory pillars:
 1. Balance sheet & fundamental earnings mechanics
 2. Macro, commodity, and market structure/liquidity flows
 3. Sub-national, state, or federal political, regulatory, and permitting shocks
 4. Non-consensus tail risks or sentiment reversals.
-Do not merge these categories when analysing but present all of them as a one flow, no need to show the categories or split them. If there was no significant news or updates in the category - omit it rather than posting small news, keep the news presentation clean and tidy. 
-Beyond the categories mentioned above, what other internal or external developments occurred over the last 4 weeks that altered the terminal valuation or timeline of ${data?.company_name || activeTicker} (${activeTicker})? Put links to the source as a small icon with every significant piece of news. If you can associate a price move of the ${data?.company_name || activeTicker} (${activeTicker}) with a particualr piece of news - put % size of the price move next to the news header in Red (price down) or Green (price up)
+5. Beyond the categories mentioned above, what other internal or external developments occurred over the last 4 weeks that altered the terminal valuation or timeline of ${data?.company_name || activeTicker} (${activeTicker})?
+Do not merge these categories when analysing but present all of them as a one flow for each week. Put links to the source as a short summary title for every significant piece of news in each week (limit to 3-4 items maximum in each week). If you can associate a price move of the ${data?.company_name || activeTicker} (${activeTicker}) with a particualr piece of news - put % size of the price move next to the news header in Red (price down) or Green (price up)
 Put a short executive summary of all news flow in the last 4 weeks at the top. Next question: is there any scheduled report or will there be any other expected internal or external update that could trigger price volatility of ${data?.company_name || activeTicker} (${activeTicker}) in the next 4 weeks?`}
                         </pre>
                       </div>
@@ -1019,8 +1019,8 @@ Put a short executive summary of all news flow in the last 4 weeks at the top. N
                                       {/* Associated price move next to news header in Red (price down) or Green (price up) */}
                                       {hasPriceMove && (
                                         <span className={`text-xs font-mono font-bold px-1.5 py-0.5 rounded border ${isUp
-                                            ? "text-emerald-400 border-emerald-500/40 bg-emerald-950/50"
-                                            : "text-rose-400 border-rose-500/40 bg-rose-950/50"
+                                          ? "text-emerald-400 border-emerald-500/40 bg-emerald-950/50"
+                                          : "text-rose-400 border-rose-500/40 bg-rose-950/50"
                                           }`}>
                                           {isUp ? "+" : ""}{moveVal}%
                                         </span>
@@ -1101,10 +1101,10 @@ Put a short executive summary of all news flow in the last 4 weeks at the top. N
                                     )}
                                     {ev.potential_impact && (
                                       <span className={`text-xs font-mono px-1.5 py-0.5 rounded font-bold border ${ev.potential_impact === "HIGH"
-                                          ? "bg-rose-950/60 border-rose-500/50 text-rose-300"
-                                          : ev.potential_impact === "MEDIUM"
-                                            ? "bg-amber-950/60 border-amber-500/50 text-amber-300"
-                                            : "bg-slate-900 border-slate-800 text-slate-300"
+                                        ? "bg-rose-950/60 border-rose-500/50 text-rose-300"
+                                        : ev.potential_impact === "MEDIUM"
+                                          ? "bg-amber-950/60 border-amber-500/50 text-amber-300"
+                                          : "bg-slate-900 border-slate-800 text-slate-300"
                                         }`}>
                                         {ev.potential_impact}
                                       </span>
@@ -2603,8 +2603,8 @@ Put a short executive summary of all news flow in the last 4 weeks at the top. N
                     type="button"
                     onClick={() => setDossierMode(1)}
                     className={`px-3 py-1.5 rounded-md font-bold transition-all ${dossierMode === 1
-                        ? "bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20"
-                        : "text-slate-400 hover:text-white hover:bg-slate-800"
+                      ? "bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20"
+                      : "text-slate-400 hover:text-white hover:bg-slate-800"
                       }`}
                   >
                     Option 1: High-Impact Summary
@@ -2613,8 +2613,8 @@ Put a short executive summary of all news flow in the last 4 weeks at the top. N
                     type="button"
                     onClick={() => setDossierMode(2)}
                     className={`px-3 py-1.5 rounded-md font-bold transition-all ${dossierMode === 2
-                        ? "bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20"
-                        : "text-slate-400 hover:text-white hover:bg-slate-800"
+                      ? "bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20"
+                      : "text-slate-400 hover:text-white hover:bg-slate-800"
                       }`}
                   >
                     Option 2: Detailed 4-Section Dossier
