@@ -315,19 +315,22 @@ class StrategySynthesizer:
                 summary_md += f"- **Takeaway**: {assertion}\n"
 
             existing.timestamp_utc = datetime.now(timezone.utc)
+            existing.published_at = datetime.now(timezone.utc)
             existing.framework_author = author
             existing.source_type = item.get("source_type", "RESEARCH_NOTE")
             existing.source_title = item.get("source_title", "Update")
             existing.source_url = item.get("source_url", "https://macro-nowcast.pages.dev")
-            existing.raw_text_snippet = item.get("raw_text", "")[:500]
-            existing.macro_regime_call = extracted.get("macro_regime_call")
-            existing.confidence_score = extracted.get("confidence_score", 0.85)
-            existing.quad_shift_bias = json.dumps(extracted.get("quad_shift_bias", {}))
-            existing.structured_summary_markdown = summary_md
+            existing.summary_markdown = summary_md
+            existing.extracted_json = json.dumps(extracted)
             existing.affected_tickers = item.get("affected_tickers", "SPY, GLD, TLT")
             saved_records.append(existing)
 
-        db.commit()
+        try:
+            db.commit()
+        except Exception as e:
+            db.rollback()
+            logger.error(f"Error persisting intelligence deltas: {e}")
+            raise
         return saved_records
 
     def compute_what_changed_diff(
