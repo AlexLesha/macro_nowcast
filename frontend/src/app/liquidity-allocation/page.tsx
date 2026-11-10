@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { LiquidityEngineCard } from "@/components/LiquidityEngineCard";
 import { getApiUrl } from "@/lib/api";
+import { MetricTip } from "@/components/FinancialTooltip";
 
 export default function LiquidityAllocationPage() {
   const [horizonTab, setHorizonTab] = useState<"now" | "intermediate" | "long">("now");
@@ -168,20 +169,20 @@ export default function LiquidityAllocationPage() {
       <div
         key={`${f.ticker}-${idx}`}
         className={`p-2 rounded-lg border transition shadow-sm w-[130px] sm:w-[134px] shrink-0 font-mono space-y-1 ${isPositive
-            ? "bg-[#0b1622] border-emerald-900/60 hover:border-emerald-500/60"
-            : isNegative
-              ? "bg-[#180d15] border-rose-900/60 hover:border-rose-500/60"
-              : "bg-[#101726] border-slate-800 hover:border-slate-700"
+          ? "bg-[#0b1622] border-emerald-900/60 hover:border-emerald-500/60"
+          : isNegative
+            ? "bg-[#180d15] border-rose-900/60 hover:border-rose-500/60"
+            : "bg-[#101726] border-slate-800 hover:border-slate-700"
           }`}
       >
         <div className="flex items-center justify-between">
           <span className="font-bold text-slate-100 text-xs">${f.ticker}</span>
           <span
             className={`px-1 py-0.2 rounded text-xs font-bold ${isPositive
-                ? "bg-emerald-950 text-emerald-300"
-                : isNegative
-                  ? "bg-rose-950 text-rose-300"
-                  : "bg-slate-800 text-slate-300"
+              ? "bg-emerald-950 text-emerald-300"
+              : isNegative
+                ? "bg-rose-950 text-rose-300"
+                : "bg-slate-800 text-slate-300"
               }`}
           >
             {vScore > 0 ? "+" : ""}{vScore.toFixed(2)}
@@ -255,8 +256,8 @@ export default function LiquidityAllocationPage() {
               </span>
               <span
                 className={`px-2.5 py-1 rounded border font-semibold ${macroRegime.probability_risk_off_pct >= 60
-                    ? "bg-rose-950/80 border-rose-800 text-rose-300"
-                    : "bg-emerald-950/80 border-emerald-800 text-emerald-300"
+                  ? "bg-rose-950/80 border-rose-800 text-rose-300"
+                  : "bg-emerald-950/80 border-emerald-800 text-emerald-300"
                   }`}
               >
                 CARCI: {macroRegime.probability_risk_off_pct}% Risk-Off (D: {fmtRoC(macroRegime.carci_d_pct)}, W: {fmtRoC(macroRegime.carci_w_pct)})
@@ -270,7 +271,7 @@ export default function LiquidityAllocationPage() {
             </div>
             <div className="flex flex-wrap items-center gap-2 text-slate-400 text-xs">
               <span className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800">
-                ^MOVE: <strong className="text-cyan-300">{macroRegime.move_index}</strong> (D: {fmtRoC(macroRegime.move_d_pct)}, W: {fmtRoC(macroRegime.move_w_pct)})
+                <MetricTip term="MOVE INDEX">^MOVE</MetricTip>: <strong className="text-cyan-300">{macroRegime.move_index}</strong> (D: {fmtRoC(macroRegime.move_d_pct)}, W: {fmtRoC(macroRegime.move_w_pct)})
               </span>
               <span className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800">
                 ^VIX: <strong className="text-cyan-300">{macroRegime.vix_index}</strong> (D: {fmtRoC(macroRegime.vix_d_pct)}, W: {fmtRoC(macroRegime.vix_w_pct)})
@@ -280,7 +281,9 @@ export default function LiquidityAllocationPage() {
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
             <div className="p-2 rounded bg-slate-900/60 border border-slate-800/70">
-              <span className="text-slate-400 text-xs block">US Net Liquidity ($L_t)</span>
+              <span className="text-slate-400 text-xs block">
+                <MetricTip term="NET LIQUIDITY">US Net Liquidity ($L_t)</MetricTip>
+              </span>
               <span className="text-sm font-bold text-emerald-400">
                 ${Number(macroRegime.net_liquidity_usd_bn || 0).toLocaleString()}B
               </span>
@@ -289,13 +292,15 @@ export default function LiquidityAllocationPage() {
               </span>
             </div>
             <div className="p-2 rounded bg-slate-900/60 border border-slate-800/70">
-              <span className="text-slate-400 text-xs block">Liquidity Impulse</span>
+              <span className="text-slate-400 text-xs block">
+                <MetricTip term="NET LIQUIDITY">Liquidity Impulse</MetricTip>
+              </span>
               <span
                 className={`text-sm font-bold ${String(macroRegime.liquidity_impulse_state).includes("EXPANDING")
-                    ? "text-emerald-400"
-                    : String(macroRegime.liquidity_impulse_state).includes("INFLECTING")
-                      ? "text-amber-400"
-                      : "text-rose-400"
+                  ? "text-emerald-400"
+                  : String(macroRegime.liquidity_impulse_state).includes("INFLECTING")
+                    ? "text-amber-400"
+                    : "text-rose-400"
                   }`}
               >
                 {String(macroRegime.liquidity_impulse_state).split(" ")[0]}
@@ -305,7 +310,9 @@ export default function LiquidityAllocationPage() {
               </span>
             </div>
             <div className="p-2 rounded bg-slate-900/60 border border-slate-800/70">
-              <span className="text-slate-400 text-xs block">US Debt-to-Liquidity</span>
+              <span className="text-slate-400 text-xs block">
+                <MetricTip term="DEBT-TO-LIQUIDITY">US Debt-to-Liquidity</MetricTip>
+              </span>
               <span className="text-sm font-bold text-rose-400">
                 {macroRegime.debt_to_liquidity_pct}%
               </span>
@@ -314,7 +321,9 @@ export default function LiquidityAllocationPage() {
               </span>
             </div>
             <div className="p-2 rounded bg-slate-900/60 border border-slate-800/70">
-              <span className="text-slate-400 text-xs block">Accord 2.0 Probability</span>
+              <span className="text-slate-400 text-xs block">
+                <MetricTip term="ACCORD 2.0">Accord 2.0 Probability</MetricTip>
+              </span>
               <span className="text-sm font-bold text-amber-400">
                 {macroRegime.accord_2_0_prob}%
               </span>
@@ -347,8 +356,8 @@ export default function LiquidityAllocationPage() {
             <button
               onClick={() => setHorizonTab("now")}
               className={`px-3 py-1 rounded-md font-semibold transition text-xs ${horizonTab === "now"
-                  ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40"
-                  : "text-slate-400 hover:text-slate-200"
+                ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40"
+                : "text-slate-400 hover:text-slate-200"
                 }`}
             >
               Now (0–6M)
@@ -356,8 +365,8 @@ export default function LiquidityAllocationPage() {
             <button
               onClick={() => setHorizonTab("intermediate")}
               className={`px-3 py-1 rounded-md font-semibold transition text-xs ${horizonTab === "intermediate"
-                  ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/40"
-                  : "text-slate-400 hover:text-slate-200"
+                ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/40"
+                : "text-slate-400 hover:text-slate-200"
                 }`}
             >
               Intermediate (6–12M)
@@ -365,8 +374,8 @@ export default function LiquidityAllocationPage() {
             <button
               onClick={() => setHorizonTab("long")}
               className={`px-3 py-1 rounded-md font-semibold transition text-xs ${horizonTab === "long"
-                  ? "bg-amber-500/20 text-amber-300 border border-amber-500/40"
-                  : "text-slate-400 hover:text-slate-200"
+                ? "bg-amber-500/20 text-amber-300 border border-amber-500/40"
+                : "text-slate-400 hover:text-slate-200"
                 }`}
             >
               Long-View (12–36M)
@@ -464,10 +473,10 @@ export default function LiquidityAllocationPage() {
                         <td className="py-2.5 px-3">
                           <span
                             className={`px-2 py-0.5 rounded font-semibold text-xs ${row.stance.includes("OVERWEIGHT") || row.stance.includes("LONG") || row.stance.includes("BULL")
-                                ? "bg-emerald-950/80 text-emerald-400 border border-emerald-800"
-                                : row.stance.includes("UNDERWEIGHT")
-                                  ? "bg-rose-950/80 text-rose-400 border border-rose-800"
-                                  : "bg-slate-800 text-slate-300 border border-slate-700"
+                              ? "bg-emerald-950/80 text-emerald-400 border border-emerald-800"
+                              : row.stance.includes("UNDERWEIGHT")
+                                ? "bg-rose-950/80 text-rose-400 border border-rose-800"
+                                : "bg-slate-800 text-slate-300 border border-slate-700"
                               }`}
                           >
                             {row.stance}
@@ -526,10 +535,10 @@ export default function LiquidityAllocationPage() {
                     </div>
                     <span
                       className={`px-1.5 py-0.5 rounded font-bold text-xs ${isCrowdedLong
-                          ? "bg-amber-950/80 border border-amber-800 text-amber-300"
-                          : isCrowdedShort
-                            ? "bg-rose-950/80 border border-rose-800 text-rose-300"
-                            : "bg-slate-800 text-slate-400 border border-slate-700"
+                        ? "bg-amber-950/80 border border-amber-800 text-amber-300"
+                        : isCrowdedShort
+                          ? "bg-rose-950/80 border border-rose-800 text-rose-300"
+                          : "bg-slate-800 text-slate-400 border border-slate-700"
                         }`}
                     >
                       {isCrowdedLong ? "CROWDED LONG" : isCrowdedShort ? "CROWDED SHORT" : "BALANCED"}
@@ -595,8 +604,8 @@ export default function LiquidityAllocationPage() {
                 key={flt}
                 onClick={() => setFactorFilter(flt)}
                 className={`px-2 py-0.5 rounded transition font-semibold text-xs ${factorFilter === flt
-                    ? "bg-slate-800 text-cyan-400 border border-slate-700"
-                    : "text-slate-400 hover:text-slate-200"
+                  ? "bg-slate-800 text-cyan-400 border border-slate-700"
+                  : "text-slate-400 hover:text-slate-200"
                   }`}
               >
                 {flt}
@@ -620,8 +629,8 @@ export default function LiquidityAllocationPage() {
               key={cat.id}
               onClick={() => setCategoryFilter(cat.id)}
               className={`px-2.5 py-1 rounded-md transition font-semibold text-xs border ${categoryFilter === cat.id
-                  ? "bg-indigo-950/80 border-indigo-600 text-indigo-300"
-                  : "bg-slate-900 border-slate-800 text-slate-400 hover:text-white"
+                ? "bg-indigo-950/80 border-indigo-600 text-indigo-300"
+                : "bg-slate-900 border-slate-800 text-slate-400 hover:text-white"
                 }`}
             >
               {cat.label}

@@ -23,51 +23,16 @@ import {
   Info,
   RefreshCw,
   ExternalLink,
+  ShieldCheck,
+  Eye,
+  AlertOctagon,
+  Flame,
 } from "lucide-react";
 import { getApiUrl } from "@/lib/api";
-
-// Macro Glossary Dictionary for Interactive Hover Tooltips
-const MACRO_GLOSSARY: Record<string, string> = {
-  TGA: "Treasury General Account: The US government's operating checking account at the Federal Reserve. When the Treasury spends down TGA cash, it injects liquidity directly into the banking system.",
-  RRP: "Overnight Reverse Repo Facility: A Fed program where money market funds park excess cash. When RRP balances drain, money flows out into Treasury bills and broader financial markets.",
-  MOVE: "Merrill Lynch Option Volatility Estimate: The benchmark index tracking implied volatility in US Treasury options—frequently called the 'VIX of the bond market.'",
-  "HY OAS": "High Yield Option-Adjusted Spread: The yield premium paid by junk-rated corporate bonds over risk-free US Treasuries, measuring corporate credit default anxiety.",
-  DFII10: "10-Year TIPS Constant Maturity Yield: The inflation-adjusted (real) interest rate on 10-year US Treasuries. Represents the true hurdle cost of long-term capital.",
-  "r - g": "Debt Snowball Gap: The real borrowing interest rate (r) minus real economic trend growth (g). When r exceeds g, sovereign debt compounds exponentially without fiscal cuts.",
-  SLR: "Supplementary Leverage Ratio: Bank capital rule requiring large institutions to hold equity capital against Treasuries. Relaxing SLR enables banks to absorb more government debt.",
-  RMP: "Reserve Management Purchases: Fed purchases of short-term Treasury bills to maintain ample bank reserves without officially declaring a quantitative easing (QE) program.",
-  NIIP: "Net International Investment Position: The net value of domestic assets owned by foreigners versus overseas assets owned by citizens. A large negative NIIP leaves the currency vulnerable.",
-  "Accord 2.0": "Coordinated monetary-fiscal intervention where the Fed caps government borrowing costs or Treasury tilts debt issuance heavily into short-term bills.",
-  LGFV: "Local Government Financing Vehicles: Off-balance-sheet municipal financing entities in China that funded infrastructure megaprojects, now facing debt saturation.",
-  RRR: "Reserve Requirement Ratio: The proportion of bank deposits Chinese commercial lenders must hold at the PBOC. Cutting RRR unlocks lending capacity.",
-  "Trimmed Mean CPI": "Core inflation measure calculating the 70% central core of price movements, eliminating temporary upside and downside extremes (standard RBA metric).",
-};
-
-// Tooltip Component
-const TooltipWord: React.FC<{ term: string; label?: string }> = ({ term, label }) => {
-  const [open, setOpen] = useState(false);
-  const def = MACRO_GLOSSARY[term] || "Macroeconomic plumbing and systemic liquidity metric.";
-  return (
-    <span
-      className="relative inline-block cursor-help"
-      onMouseEnter={() => setOpen(true)}
-      onMouseLeave={() => setOpen(false)}
-    >
-      <span className="underline decoration-dotted decoration-cyan-400/70 underline-offset-2 text-cyan-300 font-semibold">
-        {label || term}
-      </span>
-      {open && (
-        <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-3 rounded-xl bg-[#090d16] border border-cyan-500/70 text-slate-200 text-xs shadow-2xl z-50 pointer-events-none leading-relaxed font-mono">
-          <span className="font-bold text-cyan-400 block mb-1 uppercase tracking-wider">{term}</span>
-          {def}
-        </span>
-      )}
-    </span>
-  );
-};
+import { MetricTip } from "@/components/FinancialTooltip";
 
 export default function ScenariosPlaybookPage() {
-  const [activeTab, setActiveTab] = useState<"scenarios" | "central-banks" | "real-rates">("scenarios");
+  const [activeTab, setActiveTab] = useState<"scenarios" | "crash-windows" | "central-banks" | "real-rates">("scenarios");
   const [selectedIdx, setSelectedIdx] = useState<number>(0);
   const [scenariosData, setScenariosData] = useState<any>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -105,6 +70,17 @@ export default function ScenariosPlaybookPage() {
   const triggersList = scenariosData?.trigger_telemetry?.triggers_list || [];
   const cbSentiment = scenariosData?.central_bank_sentiment || {};
   const realRates = scenariosData?.real_interest_rates || {};
+  const crashWindows = scenariosData?.forward_crash_windows || [];
+  const hydraulicScenarios = scenariosData?.hydraulic_policy_scenarios || [];
+  const actionableVerdict = scenariosData?.actionable_verdict || {};
+
+  const activeRegimeId = actionableVerdict.active_regime_id || 1;
+  const regimeBadgeColor =
+    activeRegimeId === 3
+      ? "bg-rose-950/80 text-rose-300 border-rose-700"
+      : activeRegimeId === 2
+      ? "bg-amber-950/80 text-amber-300 border-amber-700"
+      : "bg-emerald-950/80 text-emerald-300 border-emerald-700";
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
@@ -112,11 +88,11 @@ export default function ScenariosPlaybookPage() {
       <div className="border-b border-slate-800/80 pb-4">
         <div className="flex items-center gap-2 text-cyan-400 text-xs font-mono uppercase tracking-wider font-semibold mb-1">
           <Compass className="h-4 w-4" />
-          <span>Systematic Policy Playbook &bull; Rolling 4-Quarter Forward Scenarios</span>
+          <span>Systematic Policy Playbook &bull; Rolling 4-Quarter Forward Scenarios &bull; Cem Karsan / Noel Smith Framework</span>
         </div>
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <h1 className="text-base font-bold font-mono tracking-tight text-slate-100">
-            Forward Macro Scenarios, Real Rates &amp; Central Bank Sentiment
+            Forward Macro Scenarios, Crash Windows &amp; Systematic Policy Playbook
           </h1>
           <div className="flex items-center gap-2">
             <span className="text-xs font-mono px-2.5 py-1 rounded bg-slate-900 border border-slate-800 text-slate-400">
@@ -133,8 +109,85 @@ export default function ScenariosPlaybookPage() {
           </div>
         </div>
         <p className="text-xs text-slate-400 font-mono mt-1 max-w-4xl">
-          Unified institutional dashboard combining dynamic quarterly macro regimes, live FRED trigger telemetry, sovereign real interest rate dynamics (<TooltipWord term="r - g" />), and 8-week central bank speech sentiment analysis across the Fed, ECB, BoE, BoJ, PBOC, and RBA.
+          Unified institutional dashboard combining dynamic quarterly macro regimes, live FRED trigger telemetry, sovereign real interest rate dynamics (<MetricTip term="r - g">r &minus; g spread</MetricTip>), Treasury refill crash windows, and 8-week central bank speech sentiment analysis across the Fed, ECB, BoE, BoJ, PBOC, and RBA.
         </p>
+      </div>
+
+      {/* ========================================================================= */}
+      {/* ACTIONABLE MACRO VERDICT BANNER (CEM KARSAN / NOEL SMITH) */}
+      {/* ========================================================================= */}
+      <div className="bg-gradient-to-r from-[#0a1224] via-[#0f1b33] to-[#0c1527] border border-cyan-800/60 rounded-xl p-5 shadow-2xl relative overflow-hidden">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between border-b border-slate-700/60 pb-3 mb-4 gap-3">
+          <div className="flex items-center gap-2.5">
+            <ShieldCheck className="h-5 w-5 text-cyan-400 shrink-0" />
+            <div>
+              <span className="text-xs font-mono uppercase tracking-wider text-cyan-400 font-bold block">
+                ACTIONABLE DERIVATIVES &amp; HYDRAULIC VERDICT
+              </span>
+              <h2 className="text-base sm:text-lg font-black text-white font-mono">
+                {actionableVerdict.active_regime_name || "REGIME 1: THE STRUCTURAL PIN (BULLISH / RANGEBOUND)"}
+              </h2>
+            </div>
+          </div>
+          <span className={`text-xs font-mono px-3 py-1 rounded border font-black uppercase tracking-wider ${regimeBadgeColor}`}>
+            {actionableVerdict.badge_label || "STRUCTURAL DAM ACTIVE"}
+          </span>
+        </div>
+
+        {/* Executive Verdict Plain English */}
+        <div className="bg-[#080e1b]/90 border border-cyan-900/40 rounded-lg p-3.5 mb-4">
+          <div className="text-xs font-mono text-cyan-300 font-bold uppercase mb-1 flex items-center gap-1.5">
+            <Zap className="h-3.5 w-3.5 text-amber-400" />
+            PLAIN ENGLISH ACTIONABLE VERDICT &amp; HEDGE SETUP
+          </div>
+          <p className="text-sm text-slate-200 leading-relaxed font-sans">
+            {actionableVerdict.executive_verdict ||
+              "Mechanical dealer hedging (Vanna and Charm decay) acts as a structural dam, absorbing macroeconomic selling. Override headline bearish macro noise; buy dips and monetize high implied volatility."}
+          </p>
+        </div>
+
+        {/* Trading Playbook & Where to Look Next */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="bg-[#0b1526]/80 p-3.5 rounded-lg border border-slate-800">
+            <span className="text-xs font-mono uppercase tracking-wider text-emerald-400 font-bold flex items-center gap-1.5 mb-2">
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              SYSTEMATIC TRADING PLAYBOOK
+            </span>
+            <ul className="space-y-1.5 text-xs text-slate-300">
+              {(actionableVerdict.trading_playbook || [
+                "Exploit mechanical dealer dip-buying: sell out-of-the-money index puts or deploy short-volatility / put-write strategies.",
+                "Maintain core long exposure in high-beta tech, semiconductors, and cyclicals favored by liquidity flow.",
+                "Harvest the Volatility Risk Premium (VRP) across SPY and single stocks pinned near major call walls.",
+                "Avoid purchasing expensive outright put protection; time decay will relentlessly erode long option premiums.",
+              ]).map((step: string, idx: number) => (
+                <li key={idx} className="flex items-start gap-1.5 leading-snug">
+                  <ArrowRight className="h-3 w-3 text-cyan-400 shrink-0 mt-0.5" />
+                  <span>{step}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="bg-[#0b1526]/80 p-3.5 rounded-lg border border-slate-800">
+            <span className="text-xs font-mono uppercase tracking-wider text-amber-400 font-bold flex items-center gap-1.5 mb-2">
+              <Eye className="h-3.5 w-3.5" />
+              WHERE TO LOOK NEXT &bull; WHAT TO MONITOR
+            </span>
+            <ul className="space-y-1.5 text-xs text-slate-300">
+              {(actionableVerdict.where_to_look_next || [
+                "Dealer Gamma Flip Level on SPY: ensure spot remains safely above gamma neutral threshold.",
+                "Days remaining until OpEx: begin de-risking as calendar approaches OpEx Friday.",
+                "Dispersion under the surface: index pinned while individual earnings stocks exhibit violent idiosyncratic moves.",
+                "Foreign central bank gold accumulation and US Treasury auction foreign allotment metrics.",
+              ]).map((item: string, idx: number) => (
+                <li key={idx} className="flex items-start gap-1.5 leading-snug">
+                  <span className="text-amber-400 font-mono font-bold shrink-0">#{idx + 1}</span>
+                  <span>{item}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
       </div>
 
       {/* DYNAMIC SCORECARDS ROW */}
@@ -152,12 +205,17 @@ export default function ScenariosPlaybookPage() {
 
         {/* Card 2: US 10Y Real Rate & r - g */}
         <div className="p-3.5 rounded-xl bg-[#0c121e] border border-emerald-500/30 flex flex-col justify-between">
-          <span className="text-xs font-mono uppercase tracking-wider text-slate-400">10Y Real Rate (<TooltipWord term="DFII10" label="TIPS" />)</span>
+          <span className="text-xs font-mono uppercase tracking-wider text-slate-400">
+            10Y Real Rate (<MetricTip term="DFII10">TIPS</MetricTip>)
+          </span>
           <div className="text-base font-mono font-bold text-emerald-400 mt-1">
             {scorecards.us_10y_real_rate_pct !== undefined ? `${scorecards.us_10y_real_rate_pct}%` : "2.05%"}
           </div>
           <span className="text-xs font-mono text-slate-300 mt-1">
-            r - g Spread: <strong className={scorecards.us_r_minus_g_spread > 0 ? "text-amber-400" : "text-emerald-400"}>{scorecards.us_r_minus_g_spread !== undefined ? `${scorecards.us_r_minus_g_spread > 0 ? "+" : ""}${scorecards.us_r_minus_g_spread}%` : "+0.50%"}</strong>
+            <MetricTip term="r - g">r &minus; g Spread</MetricTip>:{" "}
+            <strong className={scorecards.us_r_minus_g_spread > 0 ? "text-amber-400" : "text-emerald-400"}>
+              {scorecards.us_r_minus_g_spread !== undefined ? `${scorecards.us_r_minus_g_spread > 0 ? "+" : ""}${scorecards.us_r_minus_g_spread}%` : "+0.50%"}
+            </strong>
           </span>
         </div>
 
@@ -206,6 +264,18 @@ export default function ScenariosPlaybookPage() {
         </button>
 
         <button
+          onClick={() => setActiveTab("crash-windows")}
+          className={`px-4 py-2 rounded-lg font-mono text-xs font-bold transition flex items-center gap-2 ${
+            activeTab === "crash-windows"
+              ? "bg-cyan-950/80 text-cyan-300 border border-cyan-500/50"
+              : "bg-[#0c121e] text-slate-400 border border-slate-800 hover:text-slate-200"
+          }`}
+        >
+          <Calendar className="h-4 w-4 text-amber-400" />
+          <span>Forward Crash Windows &amp; Fragility Matrix</span>
+        </button>
+
+        <button
           onClick={() => setActiveTab("central-banks")}
           className={`px-4 py-2 rounded-lg font-mono text-xs font-bold transition flex items-center gap-2 ${
             activeTab === "central-banks"
@@ -230,7 +300,9 @@ export default function ScenariosPlaybookPage() {
         </button>
       </div>
 
+      {/* ========================================================================= */}
       {/* TAB 1: FORWARD MACRO SCENARIOS */}
+      {/* ========================================================================= */}
       {activeTab === "scenarios" && (
         <div className="space-y-6">
           {/* Quarter Selector Pills */}
@@ -297,354 +369,268 @@ export default function ScenariosPlaybookPage() {
                     <Activity className="h-4 w-4 text-cyan-400" />
                     <span>Live Quantitative Trigger Telemetry</span>
                   </span>
-                  <span
-                    className={`text-xs px-2 py-0.5 rounded border font-bold uppercase ${
-                      activeQ.trigger_status?.includes("WARNING") || activeQ.trigger_status?.includes("ACTIVE")
-                        ? "bg-amber-950 text-amber-300 border-amber-800"
-                        : "bg-emerald-950 text-emerald-300 border-emerald-800"
-                    }`}
-                  >
+                  <span className="text-xs text-amber-300 font-bold px-2 py-0.5 rounded bg-amber-950/60 border border-amber-800">
                     {activeQ.trigger_status}
                   </span>
                 </div>
-                <p className="text-xs text-slate-200 leading-relaxed font-semibold">
+                <div className="text-xs text-slate-200 font-sans leading-relaxed">
                   {activeQ.live_trigger_telemetry}
-                </p>
+                </div>
               </div>
 
-              <p className="text-xs text-slate-300 font-mono leading-relaxed bg-slate-900/60 p-3.5 rounded-xl border border-slate-800">
-                {activeQ.baseScenario?.description}
-              </p>
-
-              {/* Policy Trajectory Result */}
-              {activeQ.policy_and_market_result && (
-                <div className="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800 text-xs font-mono space-y-1">
-                  <span className="text-xs uppercase font-bold text-cyan-400 block">
-                    Policy Trajectory &amp; Systematic Deployment Result:
-                  </span>
-                  <p className="text-slate-200 leading-relaxed text-xs">
-                    {activeQ.policy_and_market_result}
-                  </p>
-                </div>
-              )}
-
-              {/* Asset Direction Matrix */}
-              <div className="space-y-2.5">
-                <h3 className="text-xs font-mono uppercase text-cyan-400 font-bold tracking-wider">
-                  Consensus Asset Direction Matrix:
-                </h3>
-                {activeQ.asset_directions && (
-                  <div className="p-3 rounded-lg bg-slate-900/40 border border-slate-800 text-xs font-mono text-slate-300">
-                    <span className="font-bold text-cyan-300">Directional Tilt: </span>
-                    {activeQ.asset_directions}
-                  </div>
-                )}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs font-mono">
-                  {activeQ.baseScenario?.assetMatrix?.map((row: any, i: number) => (
-                    <div key={i} className="p-2.5 rounded-lg bg-slate-900/70 border border-slate-800 flex items-center justify-between">
-                      <span className="text-slate-300 font-medium">{row.asset}</span>
-                      <span className={`font-bold ${row.color}`}>{row.direction}</span>
+              {/* Asset Matrix */}
+              <div>
+                <span className="text-xs font-mono uppercase tracking-wider text-slate-400 font-bold block mb-2">
+                  Systematic Asset Allocation &bull; Directional Vector
+                </span>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                  {(activeQ.baseScenario?.assetMatrix || []).map((a: any, idx: number) => (
+                    <div key={idx} className="p-2.5 rounded-lg bg-[#080d16] border border-slate-800 font-mono text-xs">
+                      <span className="text-slate-400 block text-[11px] truncate">{a.asset}</span>
+                      <span className={`font-bold block mt-0.5 ${a.color || "text-slate-200"}`}>{a.direction}</span>
                     </div>
                   ))}
                 </div>
               </div>
 
-              {/* Triggers and Prerequisites */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-mono">
-                <div className="p-3.5 rounded-xl bg-slate-900/40 border border-slate-800 space-y-2">
-                  <span className="text-cyan-400 font-bold uppercase text-xs block">
-                    Quantitative Triggers:
-                  </span>
-                  <ul className="space-y-1.5 text-slate-300 text-xs">
-                    {activeQ.baseScenario?.triggers?.map((t: string, idx: number) => (
-                      <li key={idx} className="flex items-start gap-1.5">
-                        <ArrowRight className="h-3.5 w-3.5 text-cyan-400 shrink-0 mt-0.5" />
-                        <span>{t}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+              {/* Policy & Market Result */}
+              <div className="p-3.5 rounded-xl bg-slate-900/50 border border-slate-800 text-xs font-sans text-slate-300 leading-relaxed">
+                <span className="font-bold font-mono text-cyan-400 block mb-1 uppercase tracking-wider text-[11px]">
+                  Macro Transmission &bull; Policy Response
+                </span>
+                {activeQ.policy_and_market_result}
+              </div>
 
-                <div className="p-3.5 rounded-xl bg-slate-900/40 border border-slate-800 space-y-2">
-                  <span className="text-indigo-400 font-bold uppercase text-xs block">
-                    Firm Prerequisites:
-                  </span>
-                  <ul className="space-y-1.5 text-slate-300 text-xs">
-                    {activeQ.baseScenario?.prerequisites?.map((p: string, idx: number) => (
-                      <li key={idx} className="flex items-start gap-1.5">
-                        <CheckCircle2 className="h-3.5 w-3.5 text-indigo-400 shrink-0 mt-0.5" />
-                        <span>{p}</span>
-                      </li>
-                    ))}
-                  </ul>
+              {/* Scenario Triggers Checklist */}
+              <div className="space-y-1.5 pt-1">
+                <span className="text-xs font-mono uppercase tracking-wider text-slate-400 font-bold block mb-2">
+                  Trigger Validation Rules (Requires 2+ to validate)
+                </span>
+                <div className="space-y-1 text-xs font-mono text-slate-300">
+                  {(activeQ.baseScenario?.triggers || []).map((trig: string, idx: number) => (
+                    <div key={idx} className="flex items-start gap-2 p-1.5 rounded bg-slate-900/30">
+                      <CheckCircle2 className="h-3.5 w-3.5 text-cyan-400 shrink-0 mt-0.5" />
+                      <span>{trig}</span>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
 
             {/* Right: Alternative Case (40%) */}
-            <div className="lg:col-span-4 p-5 rounded-2xl bg-[#0c121e] border border-amber-500/30 shadow-xl space-y-5 flex flex-col justify-between">
-              <div className="space-y-4">
-                <div className="flex items-center gap-2 border-b border-slate-800/80 pb-3">
-                  <span className="text-xs font-mono font-bold px-2 py-0.5 rounded bg-amber-950/80 text-amber-400 border border-amber-800">
-                    ALTERNATIVE TAIL CASE ({activeQ.altProb || "40%"})
+            <div className="lg:col-span-4 p-5 rounded-2xl bg-[#0c121e] border border-slate-800 shadow-xl space-y-4 flex flex-col justify-between">
+              <div>
+                <div className="flex items-center gap-2 border-b border-slate-800 pb-3 mb-3">
+                  <span className="text-xs font-mono font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-300">
+                    ALT SCENARIO ({activeQ.altProb || "40%"})
                   </span>
                 </div>
-
-                <h3 className="text-base font-mono font-bold text-slate-100">
+                <h3 className="text-sm font-mono font-bold text-slate-200 mb-2">
                   {activeQ.altScenario?.title}
                 </h3>
-
-                <p className="text-xs text-slate-300 font-mono leading-relaxed bg-slate-900/60 p-3.5 rounded-xl border border-slate-800">
+                <p className="text-xs font-sans text-slate-400 leading-relaxed mb-4">
                   {activeQ.altScenario?.description}
                 </p>
 
-                <div className="space-y-2 text-xs font-mono">
-                  <span className="text-amber-400 font-bold uppercase text-xs block">
-                    Trigger Checkpoints:
-                  </span>
-                  <ul className="space-y-1.5 text-slate-300 text-xs">
-                    {activeQ.altScenario?.triggers?.map((t: string, idx: number) => (
-                      <li key={idx} className="flex items-start gap-1.5">
-                        <AlertTriangle className="h-3.5 w-3.5 text-amber-400 shrink-0 mt-0.5" />
-                        <span>{t}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+                <div className="space-y-3 font-mono text-xs">
+                  <div className="p-3 rounded-lg bg-slate-900/60 border border-slate-800">
+                    <span className="text-amber-400 font-bold block mb-1 uppercase text-[11px]">
+                      Asset Reaction Vector
+                    </span>
+                    <p className="text-slate-300 font-sans text-xs">{activeQ.altScenario?.assetDirection}</p>
+                  </div>
 
-                <div className="p-3 rounded-lg bg-slate-900/60 border border-slate-800 text-xs font-mono">
-                  <span className="text-slate-400 text-xs block uppercase font-bold mb-1">
-                    Alternative Market Trajectory:
-                  </span>
-                  <p className="text-slate-200">{activeQ.altScenario?.assetDirection}</p>
+                  <div className="p-3 rounded-lg bg-slate-900/60 border border-slate-800">
+                    <span className="text-cyan-400 font-bold block mb-1 uppercase text-[11px]">
+                      Policy Reaction Function
+                    </span>
+                    <p className="text-slate-300 font-sans text-xs">{activeQ.altScenario?.policyResponse}</p>
+                  </div>
                 </div>
               </div>
 
-              <div className="p-3.5 rounded-xl bg-amber-950/20 border border-amber-800/40 text-xs font-mono space-y-1">
-                <span className="text-amber-400 font-bold uppercase text-xs block">
-                  Emergency Policy Intervention:
-                </span>
-                <p className="text-slate-300 text-xs">{activeQ.altScenario?.policyResponse}</p>
+              <div className="pt-3 border-t border-slate-800 text-xs font-mono text-slate-500">
+                Quarter: {activeQ.quarter} &bull; Model Status: Active Rolling
               </div>
-            </div>
-          </div>
-
-          {/* SYSTEMIC TRIGGERS LEDGER TABLE */}
-          <div className="p-5 rounded-2xl bg-[#0c121e] border border-slate-800 space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <div className="flex items-center gap-2">
-                <Activity className="h-4 w-4 text-cyan-400" />
-                <h3 className="text-sm font-mono font-bold text-slate-100 uppercase tracking-wider">
-                  Live Quantitative Trigger Distance Barometer
-                </h3>
-              </div>
-              <span className="text-xs font-mono text-slate-400">
-                Audited against live FRED, Treasury &amp; Market feeds
-              </span>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs font-mono">
-                <thead>
-                  <tr className="border-b border-slate-800 text-slate-400 bg-slate-900/40">
-                    <th className="p-3">Trigger Parameter</th>
-                    <th className="p-3">Live Reading</th>
-                    <th className="p-3">Stress Threshold</th>
-                    <th className="p-3">Distance to Line</th>
-                    <th className="p-3">Status</th>
-                    <th className="p-3">Market Consequence</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-800/60">
-                  {triggersList.map((t: any, idx: number) => (
-                    <tr key={idx} className="hover:bg-slate-900/30 transition">
-                      <td className="p-3 font-bold text-slate-200">{t.name}</td>
-                      <td className="p-3 font-semibold text-cyan-300">{t.live_value}</td>
-                      <td className="p-3 text-slate-400">{t.threshold}</td>
-                      <td className="p-3 text-slate-300">{t.distance_pct}%</td>
-                      <td className="p-3">
-                        <span
-                          className={`px-2 py-0.5 rounded font-bold uppercase text-xs border ${
-                            t.status === "TRIGGERED"
-                              ? "bg-rose-950 text-rose-300 border-rose-800"
-                              : t.status === "ACTIVE WATCH"
-                              ? "bg-amber-950 text-amber-300 border-amber-800"
-                              : "bg-emerald-950 text-emerald-300 border-emerald-800"
-                          }`}
-                        >
-                          {t.status}
-                        </span>
-                      </td>
-                      <td className="p-3 text-slate-300">{t.implication}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Simple English Explanation Box */}
-            <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800 text-xs font-mono text-slate-400 space-y-1">
-              <div className="flex items-center gap-1.5 text-cyan-400 font-bold uppercase text-xs">
-                <Info className="h-3.5 w-3.5" />
-                <span>In Plain English: What are Quantitative Triggers?</span>
-              </div>
-              <p className="leading-relaxed">
-                Think of these triggers as circuit breakers in an electrical panel. Under normal conditions, financial markets follow standard business cycles. However, if any key indicator—such as junk bond borrowing costs (<TooltipWord term="HY OAS" />) or inflation spikes—breaches its red line, it automatically triggers a policy pivot. When circuit breakers trip, central banks and the Treasury are forced to intervene with emergency liquidity, rate cuts, or regulatory relief, overriding standard market trends.
-              </p>
             </div>
           </div>
         </div>
       )}
 
-      {/* TAB 2: CENTRAL BANK SPEECHES & MONETARY MATRIX */}
-      {activeTab === "central-banks" && (
+      {/* ========================================================================= */}
+      {/* TAB 2: FORWARD CRASH WINDOWS & HYDRAULIC FRAGILITY MATRIX */}
+      {/* ========================================================================= */}
+      {activeTab === "crash-windows" && (
         <div className="space-y-6">
-          {/* Header Summary Card */}
-          <div className="p-5 rounded-2xl bg-[#0c121e] border border-cyan-500/30 space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
-              <div>
-                <span className="text-xs font-mono uppercase text-cyan-400 font-bold tracking-wider">
-                  Trailing 8-Week Global Consensus Matrix
-                </span>
-                <h2 className="text-base font-mono font-bold text-slate-100 mt-1">
-                  Institutional Central Bank Sentiment Ledger &amp; Policy Stance
-                </h2>
-              </div>
-              <div className="text-right">
-                <span className="text-xs font-mono text-slate-400 block">Overall Stance:</span>
-                <span className="text-sm font-mono font-bold text-cyan-300">
-                  {cbSentiment.net_bias_label || "Divergent Asymmetric Tilt"} (Net Score: {cbSentiment.global_net_balance})
-                </span>
-              </div>
+          {/* Header Explanation */}
+          <div className="bg-[#0c121e] border border-slate-800 rounded-xl p-5 shadow-xl">
+            <div className="flex items-center gap-2 text-cyan-400 font-mono text-xs uppercase font-bold mb-2">
+              <Calendar className="h-4 w-4" />
+              <span>Cem Karsan / Noel Smith Temporal Collision Windows</span>
             </div>
-            <p className="text-xs text-slate-300 font-mono leading-relaxed">
-              Synthesized official communications, press conference transcripts, and economic remarks from the core leadership of the Federal Reserve, European Central Bank, Bank of England, Bank of Japan, People's Bank of China, and Reserve Bank of Australia over the last 8 weeks.
+            <h2 className="text-base font-bold font-mono text-white mb-2">
+              Forward 12-Month Crash Window Calendar: OpEx Cycles vs. Treasury Liquidity Drains
+            </h2>
+            <p className="text-xs font-sans text-slate-300 leading-relaxed max-w-4xl">
+              Treasury liquidity dictates the <strong className="text-cyan-300">magnitude</strong> of market moves, but the options market valve system dictates the <strong className="text-cyan-300">timing</strong>. In the weeks prior to monthly OpEx (3rd Friday), mechanical dealer Vanna and Charm flows act as a structural dam, propping up indices and suppressing volatility. Once contracts expire, the market enters the 10-day <MetricTip term="WINDOW OF WEAKNESS">Post-OpEx Window of Weakness</MetricTip>. If an acute Treasury cash drain (such as the mid-April $300B tax collection, June quarterly refunding, or post-debt ceiling refill) collides with this window, systemic shock absorbers are zero and markets are acutely vulnerable to cascading drawdowns.
             </p>
+          </div>
 
-            {/* Central Bank Institution Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-              {Object.entries(cbSentiment.institutions_breakdown || {}).map(([code, item]: [string, any]) => {
-                const score = item.avg_score || 0;
-                const isHawkish = score > 15;
-                const isDovish = score < -15;
+          {/* 12-Month Crash Windows Timeline */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+            {crashWindows.map((win: any, idx: number) => {
+              const isExtreme = win.severity === "EXTREME_COLLISION";
+              const isHigh = win.severity === "HIGH_COLLISION";
+              const isElevated = win.severity === "ELEVATED";
 
-                return (
-                  <div key={code} className="p-4 rounded-xl bg-slate-900/70 border border-slate-800 space-y-3 font-mono">
-                    <div className="flex items-center justify-between text-xs">
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-slate-100 text-sm">{code}</span>
-                        <span className="text-xs text-slate-400">({item.speeches_count} speeches)</span>
-                      </div>
-                      <span
-                        className={`px-2 py-0.5 rounded font-bold uppercase text-xs border ${
-                          isHawkish
-                            ? "bg-rose-950 text-rose-300 border-rose-800"
-                            : isDovish
-                            ? "bg-emerald-950 text-emerald-300 border-emerald-800"
-                            : "bg-slate-800 text-slate-300 border-slate-700"
-                        }`}
-                      >
-                        {item.status_label} ({score > 0 ? "+" : ""}{score})
+              const cardBorder = isExtreme
+                ? "border-rose-700 bg-gradient-to-br from-rose-950/40 via-[#0e1628] to-[#080d17]"
+                : isHigh
+                ? "border-amber-700 bg-gradient-to-br from-amber-950/30 via-[#0e1628] to-[#080d17]"
+                : isElevated
+                ? "border-cyan-800/60 bg-[#0c121e]"
+                : "border-slate-800 bg-[#0a0f1a]";
+
+              const badgeColor = isExtreme
+                ? "bg-rose-950 text-rose-300 border-rose-700"
+                : isHigh
+                ? "bg-amber-950 text-amber-300 border-amber-700"
+                : isElevated
+                ? "bg-cyan-950 text-cyan-300 border-cyan-700"
+                : "bg-slate-900 text-slate-400 border-slate-800";
+
+              return (
+                <div key={idx} className={`p-4 rounded-xl border ${cardBorder} font-mono text-xs flex flex-col justify-between space-y-3 shadow-lg`}>
+                  <div>
+                    <div className="flex items-center justify-between border-b border-slate-800 pb-2 mb-2">
+                      <span className="font-bold text-sm text-slate-100">{win.month_label}</span>
+                      <span className={`px-2 py-0.5 rounded font-black text-[10px] uppercase border ${badgeColor}`}>
+                        {win.severity.replace("_", " ")}
                       </span>
                     </div>
 
-                    <div className="space-y-1 text-xs">
-                      <span className="text-slate-400 block">Lead Speaker:</span>
-                      <span className="text-slate-200 font-semibold">{item.latest_speaker} &bull; <span className="text-slate-400">{item.latest_role}</span></span>
-                    </div>
-
-                    <div className="p-2.5 rounded-lg bg-black/40 border border-slate-800/80 text-xs italic text-cyan-200 leading-relaxed">
-                      "{item.key_quote}"
-                    </div>
-
-                    <div className="space-y-1 text-xs text-slate-400">
-                      <div className="flex justify-between">
-                        <span>Balance Sheet Stance:</span>
-                        <span className="text-slate-200 font-bold">{item.balance_sheet_stance}</span>
+                    <div className="space-y-1.5 text-slate-300">
+                      <div className="flex justify-between text-[11px]">
+                        <span className="text-slate-400">Monthly OpEx (3rd Fri):</span>
+                        <span className="font-bold text-cyan-300">{win.opex_date}</span>
                       </div>
-                      <p className="text-slate-400 line-clamp-2">{item.liquidity_implication}</p>
+                      <div className="flex justify-between text-[11px]">
+                        <span className="text-slate-400">
+                          <MetricTip term="WINDOW OF WEAKNESS">Window of Weakness:</MetricTip>
+                        </span>
+                        <span className="text-slate-200">{win.window_of_weakness_start} &rarr; {win.window_of_weakness_end}</span>
+                      </div>
+                      <div className="flex justify-between text-[11px]">
+                        <span className="text-slate-400">Collision Risk Score:</span>
+                        <span className={`font-black ${win.risk_score >= 80 ? "text-rose-400" : win.risk_score >= 60 ? "text-amber-400" : "text-emerald-400"}`}>
+                          {win.risk_score} / 100
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="p-2.5 rounded bg-[#070b14] border border-slate-800 mt-3 font-sans text-xs">
+                      <span className="font-bold font-mono text-amber-400 block mb-1 text-[11px] uppercase">
+                        Fiscal / Treasury Event:
+                      </span>
+                      <p className="text-slate-300 leading-snug">{win.fiscal_event}</p>
+                    </div>
+                  </div>
+
+                  <div className="pt-2 border-t border-slate-800/80 font-sans text-xs text-cyan-300/90 leading-snug">
+                    <strong className="font-mono text-[11px] text-white block uppercase mb-0.5">Recommended Hedge Strategy:</strong>
+                    {win.recommended_strategy}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Systematic Hydraulic Policy Shock Scenarios */}
+          <div className="bg-[#0c121e] border border-slate-800 rounded-xl p-5 shadow-xl">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
+              <div className="flex items-center gap-2">
+                <Flame className="h-4 w-4 text-rose-400" />
+                <h3 className="font-mono text-base font-bold uppercase tracking-wider text-slate-100">
+                  4 Systematic Hydraulic Policy Shock Scenarios (Treasury &amp; Derivatives)
+                </h3>
+              </div>
+              <span className="text-xs font-mono text-slate-400">
+                Stress Simulation Matrix
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 font-mono text-xs">
+              {hydraulicScenarios.map((sc: any) => {
+                const isRose = sc.badge_color === "rose";
+                const isAmber = sc.badge_color === "amber";
+                const borderCol = isRose
+                  ? "border-rose-900/60 bg-gradient-to-b from-rose-950/20 to-[#080e1b]"
+                  : isAmber
+                  ? "border-amber-900/60 bg-gradient-to-b from-amber-950/20 to-[#080e1b]"
+                  : "border-emerald-900/60 bg-gradient-to-b from-emerald-950/20 to-[#080e1b]";
+
+                return (
+                  <div key={sc.id} className={`p-4 rounded-xl border ${borderCol} flex flex-col justify-between space-y-3`}>
+                    <div>
+                      <div className="flex items-center justify-between border-b border-slate-800 pb-2 mb-2">
+                        <span className="font-bold text-sm text-white">{sc.title}</span>
+                        <span className={`px-2 py-0.5 rounded font-black text-[10px] uppercase border ${
+                          isRose ? "bg-rose-950 text-rose-300 border-rose-800" : isAmber ? "bg-amber-950 text-amber-300 border-amber-800" : "bg-emerald-950 text-emerald-300 border-emerald-800"
+                        }`}>
+                          {sc.probability} PROB
+                        </span>
+                      </div>
+
+                      <div className="space-y-2 font-sans text-xs text-slate-300">
+                        <div>
+                          <strong className="text-slate-400 font-mono block text-[11px] uppercase">Catalyst Trigger:</strong>
+                          <p>{sc.catalyst}</p>
+                        </div>
+                        <div>
+                          <strong className="text-slate-400 font-mono block text-[11px] uppercase">Hydraulic Flow Mechanics:</strong>
+                          <p>{sc.flow_mechanics}</p>
+                        </div>
+                        <div>
+                          <strong className="text-slate-400 font-mono block text-[11px] uppercase">Cross-Asset Impact:</strong>
+                          <p>{sc.market_impact}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2 pt-2 border-t border-slate-800 font-sans text-xs">
+                      <div className="p-2 rounded bg-[#060a12] border border-cyan-900/40 text-cyan-200">
+                        <strong className="font-mono text-[11px] text-cyan-400 block uppercase mb-0.5">
+                          Actionable Trade Strategy:
+                        </strong>
+                        {sc.actionable_trade_idea}
+                      </div>
+                      <div className="text-slate-400 text-[11px]">
+                        <strong className="text-amber-400 font-mono uppercase">Where to look next:</strong> {sc.where_to_look_next}
+                      </div>
                     </div>
                   </div>
                 );
               })}
             </div>
           </div>
+        </div>
+      )}
 
-          {/* CHINA 2008 LIQUIDITY CASE STUDY & STRUCTURAL REALITY */}
-          <div className="p-5 rounded-2xl bg-[#0c121e] border border-indigo-500/30 space-y-4">
-            <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
-              <Globe className="h-4 w-4 text-indigo-400" />
-              <h3 className="text-sm font-mono font-bold text-slate-100 uppercase tracking-wider">
-                China Liquidity Provider Assessment: The 2008 Playbook vs. 2026 Structural Constraints
-              </h3>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 font-mono text-xs">
-              {/* 2008 Historical Case Study */}
-              <div className="p-4 rounded-xl bg-slate-900/60 border border-emerald-500/30 space-y-3">
-                <span className="text-emerald-400 font-bold uppercase text-xs flex items-center gap-1.5">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-                  <span>The 2008 Global Liquidity Locomotive Playbook</span>
-                </span>
-                <p className="text-slate-300 leading-relaxed">
-                  In late 2008, Beijing unleashed a massive <strong>4 Trillion RMB ($586B, ~12.5% of GDP)</strong> stimulus package. Channeled through state-owned banks and <TooltipWord term="LGFV" label="LGFVs" />, this spending boom absorbed the world's excess industrial capacity, ignited a multi-year global commodity supercycle, and directly rescued Australia and Europe from prolonged depression.
-                </p>
-                <div className="p-2.5 rounded-lg bg-emerald-950/30 border border-emerald-800/40 text-emerald-300">
-                  <strong>Historical Impact:</strong> Surging demand for Australian iron ore, metallurgical coal, and industrial machinery pulled the global economy out of the Great Financial Crisis.
-                </div>
-              </div>
-
-              {/* Current Structural Reality */}
-              <div className="p-4 rounded-xl bg-slate-900/60 border border-amber-500/30 space-y-3">
-                <span className="text-amber-400 font-bold uppercase text-xs flex items-center gap-1.5">
-                  <AlertTriangle className="h-4 w-4 text-amber-400" />
-                  <span>2026 Structural Constraints: Why No Global Bazooka?</span>
-                </span>
-                <ul className="space-y-1.5 text-slate-300">
-                  <li>&bull; <strong>Balance Sheet Recession:</strong> Chinese households and real estate developers are aggressively deleveraging rather than borrowing.</li>
-                  <li>&bull; <strong>LGFV Debt Saturation:</strong> Municipal debt exceeds 100% of provincial GDP, limiting local fiscal execution.</li>
-                  <li>&bull; <strong>Currency Defense:</strong> A massive monetary flood risks destabilizing the RMB against the US Dollar and triggering capital flight.</li>
-                </ul>
-                <div className="p-2.5 rounded-lg bg-amber-950/30 border border-amber-800/40 text-amber-300">
-                  <strong>Macro Conclusion:</strong> PBOC will provide a targeted domestic floor via <TooltipWord term="RRR" /> cuts and debt swaps, but will <em>not</em> export a 2008-style global liquidity wave.
-                </div>
-              </div>
-            </div>
-
-            {/* Australia - China Dependency Basket */}
-            <div className="p-4 rounded-xl bg-gradient-to-r from-slate-900 via-indigo-950/30 to-slate-900 border border-slate-800 space-y-2 font-mono text-xs">
-              <div className="flex items-center justify-between text-cyan-300 font-bold">
-                <span>Australia &bull; China Macro Dependency &amp; Terms of Trade</span>
-                <span>86.4% Correlation</span>
-              </div>
-              <p className="text-slate-300 leading-relaxed">
-                Because China's stimulus is targeted at domestic debt swaps rather than commodity-intensive infrastructure megaprojects, Australian mining corporate tax receipts remain subdued. The Reserve Bank of Australia (RBA) must manage domestic services inflation (<TooltipWord term="Trimmed Mean CPI" /> 3.5%) without the windfall revenue of a booming Chinese commodity supercycle, keeping the AUD/USD capped below 0.6800.
-              </p>
-            </div>
-
-            {/* Simple English Explanation Box */}
-            <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800 text-xs font-mono text-slate-400 space-y-1">
-              <div className="flex items-center gap-1.5 text-cyan-400 font-bold uppercase text-xs">
-                <Info className="h-3.5 w-3.5" />
-                <span>In Plain English: Why Does China's Stimulus Matter Globally?</span>
-              </div>
-              <p className="leading-relaxed">
-                China is the world's largest consumer of raw commodities (iron ore, copper, oil, energy). In 2008, China acted like a global economic superhero by borrowing heavily to build roads, railways, and cities, which created trillions of dollars of demand for exporting countries like Australia, Brazil, and Germany. Today, China already has built vast infrastructure and has too much domestic debt, so it is choosing to fix its local debts rather than buy huge volumes of foreign commodities.
-              </p>
-            </div>
-          </div>
-
-          {/* AUDITED SPEECHES LEDGER TABLE */}
+      {/* ========================================================================= */}
+      {/* TAB 3: CENTRAL BANK SENTIMENT MATRIX */}
+      {/* ========================================================================= */}
+      {activeTab === "central-banks" && (
+        <div className="space-y-6">
           <div className="p-5 rounded-2xl bg-[#0c121e] border border-slate-800 space-y-4">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <div className="flex items-center gap-2">
-                <FileText className="h-4 w-4 text-cyan-400" />
+                <Landmark className="h-4 w-4 text-cyan-400" />
                 <h3 className="text-sm font-mono font-bold text-slate-100 uppercase tracking-wider">
-                  Audited Official Speeches &amp; Press Conferences (Last 8 Weeks)
+                  8-Week Central Bank Speech Sentiment &bull; Balance Sheet Telemetry
                 </h3>
               </div>
-              <span className="text-xs font-mono text-slate-400">
-                Stored in PostgreSQL central database
+              <span className="text-xs font-mono text-cyan-400 font-semibold">
+                Fed &bull; ECB &bull; BoE &bull; BoJ &bull; PBOC &bull; RBA
               </span>
             </div>
 
@@ -652,59 +638,41 @@ export default function ScenariosPlaybookPage() {
               <table className="w-full text-left text-xs font-mono">
                 <thead>
                   <tr className="border-b border-slate-800 text-slate-400 bg-slate-900/40">
-                    <th className="p-3">Date</th>
-                    <th className="p-3">Bank</th>
-                    <th className="p-3">Speaker &amp; Role</th>
-                    <th className="p-3">Speech Title</th>
-                    <th className="p-3">Sentiment Score</th>
+                    <th className="p-3">Institution &amp; Speaker</th>
+                    <th className="p-3">Date &amp; Speech Title</th>
+                    <th className="p-3">Hawkish / Dovish Bias</th>
                     <th className="p-3">Balance Sheet Stance</th>
-                    <th className="p-3">Official Link</th>
+                    <th className="p-3">Liquidity Implication</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60">
-                  {(cbSentiment.speeches_ledger || []).map((s: any) => {
-                    const score = s.hawkish_dovish_score || 0;
-                    return (
-                      <tr key={s.id} className="hover:bg-slate-900/30 transition">
-                        <td className="p-3 text-slate-400">{s.speech_date}</td>
-                        <td className="p-3 font-bold text-cyan-300">{s.institution}</td>
-                        <td className="p-3 text-slate-200">
-                          <strong>{s.speaker}</strong>
-                          <span className="block text-slate-400 text-xs">{s.speaker_role}</span>
-                        </td>
-                        <td className="p-3 text-slate-300 max-w-xs truncate">{s.speech_title}</td>
-                        <td className="p-3">
-                          <span
-                            className={`px-2 py-0.5 rounded font-bold text-xs border ${
-                              score > 15
-                                ? "bg-rose-950 text-rose-300 border-rose-800"
-                                : score < -15
-                                ? "bg-emerald-950 text-emerald-300 border-emerald-800"
-                                : "bg-slate-800 text-slate-300 border-slate-700"
-                            }`}
-                          >
-                            {score > 0 ? `+${score}` : score} ({s.tone_label})
-                          </span>
-                        </td>
-                        <td className="p-3 text-slate-300 font-semibold">{s.balance_sheet_stance}</td>
-                        <td className="p-3">
-                          {s.source_url ? (
-                            <a
-                              href={s.source_url}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-cyan-400 hover:text-cyan-300 flex items-center gap-1"
-                            >
-                              <span>Official</span>
-                              <ExternalLink className="h-3 w-3" />
-                            </a>
-                          ) : (
-                            <span className="text-slate-600">N/A</span>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
+                  {(cbSentiment.speeches || []).map((sp: any) => (
+                    <tr key={sp.id} className="hover:bg-slate-900/30 transition">
+                      <td className="p-3">
+                        <span className="font-bold text-slate-200 block">{sp.speaker}</span>
+                        <span className="text-slate-400 text-[11px]">{sp.institution} &bull; {sp.speaker_role}</span>
+                      </td>
+                      <td className="p-3 max-w-xs">
+                        <span className="text-slate-400 text-[11px] block">{sp.speech_date}</span>
+                        <span className="text-slate-200 font-sans text-xs line-clamp-1">{sp.speech_title}</span>
+                      </td>
+                      <td className="p-3">
+                        <span
+                          className={`px-2 py-0.5 rounded font-bold uppercase text-xs ${
+                            sp.hawkish_dovish_score > 10
+                              ? "bg-rose-950 text-rose-300 border border-rose-800"
+                              : sp.hawkish_dovish_score < -10
+                              ? "bg-emerald-950 text-emerald-300 border border-emerald-800"
+                              : "bg-slate-800 text-slate-300 border border-slate-700"
+                          }`}
+                        >
+                          {sp.tone_label} ({sp.hawkish_dovish_score > 0 ? `+${sp.hawkish_dovish_score}` : sp.hawkish_dovish_score})
+                        </span>
+                      </td>
+                      <td className="p-3 text-slate-300">{sp.balance_sheet_stance}</td>
+                      <td className="p-3 text-slate-300 max-w-sm font-sans text-xs leading-relaxed">{sp.liquidity_implication}</td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
@@ -712,47 +680,21 @@ export default function ScenariosPlaybookPage() {
         </div>
       )}
 
-      {/* TAB 3: REAL INTEREST RATES & SOVEREIGN DEBT SQUEEZE */}
+      {/* ========================================================================= */}
+      {/* TAB 4: REAL INTEREST RATES & SOVEREIGN DEBT SQUEEZE */}
+      {/* ========================================================================= */}
       {activeTab === "real-rates" && (
         <div className="space-y-6">
-          {/* US Debt Squeeze Metric Strip */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-            <div className="p-4 rounded-xl bg-[#0c121e] border border-cyan-500/30 font-mono text-xs space-y-1">
-              <span className="text-slate-400 uppercase block font-semibold">Total Public Debt</span>
-              <div className="text-base font-bold text-slate-100">${realRates.us_metrics?.us_public_debt_tn || "36.5"} Trillion</div>
-              <span className="text-slate-400">122.5% of US GDP</span>
-            </div>
-
-            <div className="p-4 rounded-xl bg-[#0c121e] border border-amber-500/30 font-mono text-xs space-y-1">
-              <span className="text-slate-400 uppercase block font-semibold">Annual Net Interest</span>
-              <div className="text-base font-bold text-amber-400">${realRates.us_metrics?.annual_net_interest_expense_tn || "1.18"} Trillion</div>
-              <span className="text-slate-400">Exceeds US Defense Budget</span>
-            </div>
-
-            <div className="p-4 rounded-xl bg-[#0c121e] border border-emerald-500/30 font-mono text-xs space-y-1">
-              <span className="text-slate-400 uppercase block font-semibold">10Y Real TIPS Yield</span>
-              <div className="text-base font-bold text-emerald-400">{realRates.us_metrics?.live_10y_real_tips_pct || "2.05"}%</div>
-              <span className="text-slate-400">Nominal 10Y: {realRates.us_metrics?.live_10y_nominal_pct || "4.41"}%</span>
-            </div>
-
-            <div className="p-4 rounded-xl bg-[#0c121e] border border-rose-500/30 font-mono text-xs space-y-1">
-              <span className="text-slate-400 uppercase block font-semibold">Mandatory Entitlements</span>
-              <div className="text-base font-bold text-rose-400">${realRates.us_metrics?.mandatory_entitlements_tn || "4.25"} Trillion</div>
-              <span className="text-slate-400">Absorbs 82% of Tax Receipts</span>
-            </div>
-          </div>
-
-          {/* SOVEREIGN COMPARATIVE REAL RATE BASKET */}
           <div className="p-5 rounded-2xl bg-[#0c121e] border border-slate-800 space-y-4">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <div className="flex items-center gap-2">
                 <Scale className="h-4 w-4 text-cyan-400" />
                 <h3 className="text-sm font-mono font-bold text-slate-100 uppercase tracking-wider">
-                  Sovereign Comparative Real Interest Rate Basket &amp; The <TooltipWord term="r - g" /> Debt Snowball
+                  Sovereign "r &minus; g" Debt Snowball Gap &bull; G4 &amp; Australia
                 </h3>
               </div>
               <span className="text-xs font-mono text-slate-400">
-                Formula: Real Yield (r) = 10Y Nominal &minus; Expected Inflation
+                Formula: Real Yield &minus; Potential Real GDP Growth
               </span>
             </div>
 
@@ -760,40 +702,30 @@ export default function ScenariosPlaybookPage() {
               <table className="w-full text-left text-xs font-mono">
                 <thead>
                   <tr className="border-b border-slate-800 text-slate-400 bg-slate-900/40">
-                    <th className="p-3">Sovereign Economy</th>
-                    <th className="p-3">10Y Nominal</th>
-                    <th className="p-3">Inflation Expectation</th>
+                    <th className="p-3">Country / Jurisdiction</th>
+                    <th className="p-3">10Y Benchmark Nominal</th>
+                    <th className="p-3">Core Inflation / TIPS</th>
                     <th className="p-3">10Y Real Rate (r)</th>
-                    <th className="p-3">Real GDP Trend (g)</th>
-                    <th className="p-3">r &minus; g Snowball Spread</th>
-                    <th className="p-3">Debt / GDP</th>
-                    <th className="p-3">Compounding Status</th>
+                    <th className="p-3">Trend GDP Growth (g)</th>
+                    <th className="p-3">r &minus; g Snowball Gap</th>
+                    <th className="p-3">Fiscal Compounding Diagnosis</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60">
-                  {(realRates.sovereign_comparative_basket || []).map((row: any) => {
-                    const rMinusG = row.r_minus_g_spread || 0;
+                  {(realRates.g4_comparison_table || []).map((row: any) => {
+                    const isPositive = row.r_minus_g_gap > 0;
                     return (
                       <tr key={row.country} className="hover:bg-slate-900/30 transition">
-                        <td className="p-3 font-bold text-slate-100">
-                          <span className="mr-2">{row.flag}</span>
-                          <span>{row.country}</span>
-                          <span className="block text-slate-500 text-xs">{row.ticker}</span>
-                        </td>
-                        <td className="p-3 text-slate-300">{row.nominal_10y}%</td>
-                        <td className="p-3 text-slate-400">{row.inflation_expectation}%</td>
-                        <td className="p-3 font-bold text-cyan-300">{row.real_rate_10y}%</td>
-                        <td className="p-3 text-slate-300">{row.real_gdp_trend}%</td>
-                        <td className="p-3">
-                          <span
-                            className={`font-bold ${
-                              rMinusG > 0 ? "text-rose-400" : "text-emerald-400"
-                            }`}
-                          >
-                            {rMinusG > 0 ? `+${rMinusG}` : rMinusG}%
+                        <td className="p-3 font-bold text-slate-200">{row.country}</td>
+                        <td className="p-3 text-slate-300">{row.nominal_10y_yield_pct}%</td>
+                        <td className="p-3 text-slate-300">{row.core_inflation_pct}%</td>
+                        <td className="p-3 text-slate-200 font-bold">{row.real_yield_r_pct}%</td>
+                        <td className="p-3 text-slate-300">{row.real_gdp_growth_g_pct}%</td>
+                        <td className="p-3 font-black">
+                          <span className={isPositive ? "text-rose-400" : "text-emerald-400"}>
+                            {isPositive ? `+${row.r_minus_g_gap}` : row.r_minus_g_gap}%
                           </span>
                         </td>
-                        <td className="p-3 text-slate-300">{row.debt_to_gdp_pct}%</td>
                         <td className="p-3">
                           <span
                             className={`px-2 py-0.5 rounded font-bold uppercase text-xs border ${
@@ -814,14 +746,14 @@ export default function ScenariosPlaybookPage() {
               </table>
             </div>
 
-            {/* Simple English Explanation Box */}
+            {/* Plain English Explanation Box */}
             <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800 text-xs font-mono text-slate-400 space-y-1">
               <div className="flex items-center gap-1.5 text-cyan-400 font-bold uppercase text-xs">
                 <Info className="h-3.5 w-3.5" />
                 <span>In Plain English: What is the "r &minus; g" Debt Snowball Spread?</span>
               </div>
-              <p className="leading-relaxed">
-                Think of <strong>r</strong> as the interest rate on your government's credit card, and <strong>g</strong> as how fast the nation's paychecks are growing. When <strong>r &gt; g</strong>, the interest charges grow faster than the whole economy, causing debt to snowball out of control. This eventually forces governments to seek <TooltipWord term="Accord 2.0" label="Accord 2.0 policies" />—meaning the central bank must print money or suppress bond yields to prevent a bankruptcy crisis.
+              <p className="leading-relaxed font-sans text-slate-300 text-xs">
+                Think of <strong>r</strong> as the interest rate on your government's credit card, and <strong>g</strong> as how fast the nation's paychecks are growing. When <strong>r &gt; g</strong>, the interest charges grow faster than the whole economy, causing sovereign debt to snowball out of control. This eventually forces governments to seek <MetricTip term="ACCORD 2.0">Accord 2.0 policies</MetricTip>—meaning the central bank must print money or suppress bond yields to prevent a sovereign debt clearance crisis.
               </p>
             </div>
           </div>
@@ -856,7 +788,7 @@ export default function ScenariosPlaybookPage() {
                       <td className="p-3 font-bold text-slate-200">{s.sector}</td>
                       <td className="p-3">
                         <span
-                          className={`px-2 py-0.5 rounded font-bold uppercase text-xs ${
+                          className={`px-2 py-0.5 rounded font-bold uppercase text-xs border ${
                             s.duration_risk.includes("EXTREME") || s.duration_risk.includes("VERY HIGH")
                               ? "bg-rose-950 text-rose-300 border border-rose-800"
                               : s.duration_risk.includes("HIGH")
@@ -877,17 +809,6 @@ export default function ScenariosPlaybookPage() {
                   ))}
                 </tbody>
               </table>
-            </div>
-
-            {/* Simple English Explanation Box */}
-            <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800 text-xs font-mono text-slate-400 space-y-1">
-              <div className="flex items-center gap-1.5 text-cyan-400 font-bold uppercase text-xs">
-                <Info className="h-3.5 w-3.5" />
-                <span>In Plain English: Why Do Real Rates Hurt Tech and REITs More Than Energy?</span>
-              </div>
-              <p className="leading-relaxed">
-                Companies that promise big profits far into the future (like Tech and AI companies) are called "long duration." When real rates jump, a dollar earned 10 years from now becomes worth significantly less today in present value, dragging down stock valuation multiples. Meanwhile, capital-intensive businesses like Real Estate (<TooltipWord term="SLR" label="REITs" />) get crushed by higher borrowing costs when refinancing mortgages. Energy and Financial companies have short payback cycles or benefit from lending at higher interest rates.
-              </p>
             </div>
           </div>
         </div>

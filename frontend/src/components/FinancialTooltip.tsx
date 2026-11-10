@@ -615,6 +615,114 @@ export const METRIC_GLOSSARY: Record<string, { formula?: string; explanation: st
     formula: "Vega = ∂V / ∂σ (Change in option price per 1% move in implied volatility)",
     explanation: "Volatility sensitivity measuring sensitivity to expanding or collapsing implied volatility.",
   },
+  VANNA: {
+    formula: "Vanna = ∂Delta / ∂σ = ∂Vega / ∂S (Sensitivity of delta to shifts in implied volatility)",
+    explanation: "Volatility decay flow: when market volatility (VIX) drops, out-of-the-money put deltas collapse, mechanically forcing options dealers to buy underlying equities to rebalance hedges, creating an upward drift.",
+  },
+  CHARM: {
+    formula: "Charm = -∂Delta / ∂t (Sensitivity of option delta to the daily passage of time)",
+    explanation: "Time decay flow: as option expiration approaches, out-of-the-money option deltas decay toward zero each day. In heavily hedged markets, the daily passage of time forces dealers to systematically purchase the underlying market to maintain delta neutrality.",
+  },
+  TGA: {
+    formula: "TGA = Treasury General Account at the Federal Reserve (FRED: WTREGEN)",
+    explanation: "The US federal government's checking account at the Fed. Money sitting here is sterilized—it cannot circulate in commercial banking, cannot purchase risk assets, or fund loans. When TGA drains, liquidity injects into commercial bank reserves; when TGA refills, liquidity is sucked out of markets.",
+  },
+  "TREASURY GENERAL ACCOUNT": {
+    formula: "TGA = Treasury General Account at the Federal Reserve (FRED: WTREGEN)",
+    explanation: "The US federal government's checking account at the Fed. Money sitting here is sterilized—it cannot circulate in commercial banking, cannot purchase risk assets, or fund loans. When TGA drains, liquidity injects into commercial bank reserves; when TGA refills, liquidity is sucked out of markets.",
+  },
+  "ON RRP": {
+    formula: "Overnight Reverse Repo Facility (FRED: RRPONTSYD)",
+    explanation: "Cash deposited overnight at the Fed by Money Market Funds (MMFs) and non-banks. Acts as a liquidity dampener or sponge. When MMFs move cash from RRP to buy Treasury Bills, commercial bank reserves are protected from liquidity drains.",
+  },
+  "REVERSE REPO": {
+    formula: "Overnight Reverse Repo Facility (FRED: RRPONTSYD)",
+    explanation: "Cash deposited overnight at the Fed by Money Market Funds (MMFs) and non-banks. Acts as a liquidity dampener or sponge. When MMFs move cash from RRP to buy Treasury Bills, commercial bank reserves are protected from liquidity drains.",
+  },
+  "NET LIQUIDITY": {
+    formula: "Net Liquidity ≈ Fed Assets (WALCL) - TGA (WTREGEN) - ON RRP (RRPONTSYD)",
+    explanation: "The high-powered liquidity fuel driving financial asset multiples and risk appetite. When Net Liquidity expands, equities, tech, and crypto inflate; when it contracts, price-to-earnings multiples compress across the board.",
+  },
+  "US NET LIQUIDITY": {
+    formula: "Net Liquidity ≈ Fed Assets (WALCL) - TGA (WTREGEN) - ON RRP (RRPONTSYD)",
+    explanation: "The high-powered liquidity fuel driving financial asset multiples and risk appetite. When Net Liquidity expands, equities, tech, and crypto inflate; when it contracts, price-to-earnings multiples compress across the board.",
+  },
+  "BANK RESERVES": {
+    formula: "Bank Reserves = Commercial bank cash deposits held at the Fed (FRED: WRESBAL)",
+    explanation: "The high-powered foundation of the private banking system. Backs bank lending, market-making inventories, and repo market financing. Draining reserves below comfortable levels (~$3.0T) causes repo friction and sudden volatility spikes.",
+  },
+  "BASIS TRADE": {
+    formula: "Long Cash Treasury + Short Treasury Futures funded via 30x–60x Overnight Repo (SOFR)",
+    explanation: "Leveraged arbitrage executed by hedge funds to harvest minor price discrepancies between Treasury futures and physical bonds. Absorbs massive Treasury debt issuance, but is highly vulnerable to repo rate spikes or clearinghouse margin hikes, risking forced fire-sales.",
+  },
+  "CASH-FUTURES BASIS TRADE": {
+    formula: "Long Cash Treasury + Short Treasury Futures funded via 30x–60x Overnight Repo (SOFR)",
+    explanation: "Leveraged arbitrage executed by hedge funds to harvest minor price discrepancies between Treasury futures and physical bonds. Absorbs massive Treasury debt issuance, but is highly vulnerable to repo rate spikes or clearinghouse margin hikes, risking forced fire-sales.",
+  },
+  SOFR: {
+    formula: "Secured Overnight Financing Rate (broad measure of overnight repo cost secured by Treasuries)",
+    explanation: "The interbank benchmark rate for borrowing cash collateralized by Treasuries. Spikes in SOFR above the Fed's IORB rate signal collateral shortages or liquidity hoarding by primary dealers.",
+  },
+  "WINDOW OF WEAKNESS": {
+    formula: "Temporal window spanning OpEx + 1 day to OpEx + 10 calendar days",
+    explanation: "Once monthly or quarterly options expire, millions of hedging contracts vanish, extinguishing the mechanical dealer Vanna and Charm bids. Without these structural shock absorbers, financial assets are acutely vulnerable to Treasury liquidity drains, tax drains, or debt auctions.",
+  },
+  "STRUCTURAL PIN": {
+    formula: "Pre-OpEx calendar window (1st of month to 3rd Friday) with VIX < VIX3M (Contango)",
+    explanation: "A market regime where relentless mechanical dealer hedging (Vanna and Charm) acts as a structural dam, absorbing macroeconomic selling and pinning index prices. Bearish macro news is routinely ignored until options expire.",
+  },
+  "LEFT-TAIL CASCADE": {
+    formula: "Net Liquidity Contraction + VIX > VIX3M (Inverted) + Negative Dealer Gamma",
+    explanation: "A crisis market structure where dealers are short gamma and forced to sell more as prices fall. If a macro shock or Treasury liquidity drain breaks the pinning dam, the market transitions into an accelerating, non-linear downward cascade.",
+  },
+  "VANNA-CHARM DAM": {
+    formula: "Combined daily mechanical dealer hedging flows generated by volatility drop + time decay",
+    explanation: "A quantitative barrier created by market maker hedging. Ahead of monthly expiration, the dam suppresses realized volatility and props up equity prices despite deteriorating macroeconomic fundamentals.",
+  },
+  DISPERSION: {
+    formula: "Single-Stock / Sector Implied Volatility minus Index Implied Volatility",
+    explanation: "The proliferation of covered call ETFs and short-volatility strategies suppresses broader index volatility (pinning the index), but the repressed volatility leaks into violent single-stock and sector-level moves beneath the surface.",
+  },
+  "TERM STRUCTURE CONTANGO": {
+    formula: "VIX < VIX3M (Short-term volatility trades at a discount to 3-month volatility)",
+    explanation: "The normal, healthy volatility state where market makers are comfortably supplying liquidity and long gamma. Signals that downside panic is absent and mechanical dip-buying flows are operational.",
+  },
+  "TERM STRUCTURE INVERSION": {
+    formula: "VIX > VIX3M (Front-month volatility trades at a premium to 3-month volatility)",
+    explanation: "Systemic warning signal: indicates acute immediate panic where institutional investors are bidding for immediate downside crash protection. Signals dealers transitioning toward short gamma.",
+  },
+  "MOVE INDEX": {
+    formula: "ICE BofA MOVE Index (Treasury Bond Implied Volatility Index)",
+    explanation: "The 'VIX for Bonds': measures expected volatility across 2Y, 5Y, 10Y, and 30Y Treasuries. Sustained spikes above 115-120 warn of sovereign debt clearance stress, forcing multi-asset risk parity funds to liquidate equities.",
+  },
+  "ACCORD 2.0": {
+    formula: "Fed-Treasury Policy Coordination to cap sovereign borrowing yields",
+    explanation: "Historical parallel to the 1942–1951 Fed-Treasury Accord. When US public debt-to-domestic liquidity crosses extreme thresholds, the central bank is forced to cap yields (Yield Curve Control or Reserve Management QE), triggering massive capital rotation into physical gold and hard assets.",
+  },
+  SLR: {
+    formula: "Supplementary Leverage Ratio = Tier 1 Capital / Total Leverage Exposure (including Treasuries & Reserves)",
+    explanation: "Regulatory balance sheet constraint limiting primary dealers from warehousing unlimited US Treasury debt. When dealer balance sheets approach SLR limits, Treasury auction demand falters and term premiums rise.",
+  },
+  SRF: {
+    formula: "Fed Standing Repo Facility (Backstop lending cash against Treasuries at overnight target ceiling)",
+    explanation: "Emergency Fed backstop designed to prevent repo rate spikes (like September 2019). When commercial banks run out of reserves, primary dealers tap the SRF to swap Treasuries for cash directly at the Fed.",
+  },
+  "DEBT-TO-LIQUIDITY": {
+    formula: "(Total Public Debt / Domestic M2 Money Supply & Bank Deposits) * 100",
+    explanation: "42 Macro Fiscal Dominance Metric: evaluates the sheer scale of sovereign debt relative to available domestic bank deposits. Readings above 100% indicate fiscal dominance where private savings cannot absorb sovereign supply without Fed balance sheet monetization.",
+  },
+  NIIP: {
+    formula: "Net International Investment Position (FRED: IIPUSNETIQ)",
+    explanation: "The difference between US external financial assets and external liabilities. A deep negative NIIP (-$24T) demonstrates extreme foreign ownership of US assets, making sovereign yields vulnerable to foreign reserve diversification.",
+  },
+  "T-BILLS VS COUPONS": {
+    formula: "Treasury Issuance Ratio: Short-term Bills (<1 Year) vs Long-dated Notes & Bonds (>2 Years)",
+    explanation: "Treasury issuance choice dictates monetary transmission: T-Bills can be absorbed by Money Market Funds out of the ON RRP (leaving bank reserves intact), whereas Coupon bonds must be funded by bank reserves and institutional investors, draining commercial liquidity.",
+  },
+  "FORWARD CRASH WINDOW": {
+    formula: "Calendar overlap of Treasury Refill / Tax Collection Dates with Post-OpEx Window of Weakness",
+    explanation: "A systematic high-risk collision window. When large TGA cash drains coincide with the post-OpEx period where dealer shock absorbers are offline, the market faces maximum vulnerability to abrupt drawdowns.",
+  },
 };
 
 export interface MetricTipProps {

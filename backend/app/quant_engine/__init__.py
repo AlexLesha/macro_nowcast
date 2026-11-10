@@ -53,6 +53,11 @@ try:
 except ImportError:
     from backend.app.quant_engine.options_surface_engine import OptionsAndVolatilitySurfaceEngine
 
+try:
+    from app.quant_engine.macro_plumbing_state import MacroPlumbingAndOptionsStateEngine
+except ImportError:
+    from backend.app.quant_engine.macro_plumbing_state import MacroPlumbingAndOptionsStateEngine
+
 __all__ = [
     "compute_growth_nowcast",
     "compute_inflation_nowcast",
@@ -85,6 +90,7 @@ __all__ = [
     "DR_MO_56_UNIVERSE",
     "CommoditiesAndAlternativesEngine",
     "OptionsAndVolatilitySurfaceEngine",
+    "MacroPlumbingAndOptionsStateEngine",
     "compute_pivot_vs_continuation_scores",
     "get_multi_horizon_actionable_ideas",
 ]

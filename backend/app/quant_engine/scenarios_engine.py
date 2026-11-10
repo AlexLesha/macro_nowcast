@@ -773,6 +773,66 @@ class ScenariosEngine:
         return scenarios
 
     @classmethod
+    def build_hydraulic_policy_scenarios(cls) -> List[Dict[str, Any]]:
+        """
+        Builds the 4 Econo-Physics Hydraulic & Derivatives Policy Shock Scenarios:
+        1. MMF / ON RRP Buffer Absorption (T-Bills dominance)
+        2. Bank Reserve Vacuum Drain (Coupon dominance)
+        3. Cash-Futures Basis Trade Repo Margin Shock (SOFR blowout)
+        4. Left-Tail Negative Gamma Cascade (Collision Window Event)
+        """
+        return [
+            {
+                "id": "scenario_hydraulic_1",
+                "title": "Scenario 1: MMF / ON RRP Buffer Soft Landing (T-Bill Dominance)",
+                "catalyst": "Treasury issues front-end T-Bills yielding above the ON RRP rate; Money Market Funds absorb supply.",
+                "flow_mechanics": "Cash leaves the Fed ON RRP facility and lands in the TGA. Commercial Bank Reserves (WRESBAL) remain untouched.",
+                "probability": "55%",
+                "status_badge": "SOFT_LANDING_BUFFER",
+                "badge_color": "emerald",
+                "market_impact": "Net market liquidity is cushioned; equities ignore debt issuance; volatility (VIX/MOVE) remains subdued.",
+                "actionable_trade_idea": "Stay overweight high-beta tech ($QQQ, $XLK) and small-cap cyclicals ($IWM); finance upside call spreads.",
+                "where_to_look_next": "Daily ON RRP balance drain pace vs TGA balance additions; monitor TBAC T-bill share recommendation (>20%)."
+            },
+            {
+                "id": "scenario_hydraulic_2",
+                "title": "Scenario 2: Bank Reserve Vacuum Drain (Coupon Duration Flood)",
+                "catalyst": "Treasury shifts issuance to 10Y/30Y Notes & Bonds after debt ceiling resolution; ON RRP is near baseline.",
+                "flow_mechanics": "MMFs cannot buy long duration. Commercial banks and institutional investors buy with bank cash, draining Bank Reserves dollar-for-dollar.",
+                "probability": "30%",
+                "status_badge": "LIQUIDITY_VACUUM",
+                "badge_color": "amber",
+                "market_impact": "Commercial interbank liquidity dries up; SOFR repo spreads widen; equity P/E multiples compress across long duration.",
+                "actionable_trade_idea": "Rotate out of unprofitable growth into high-FCF quality balance sheets ($QUAL, $FCTE); execute index put collars.",
+                "where_to_look_next": "Bank reserves dropping below LCLoR ($3.0T); 10Y real TIPS yield (DFII10) breaking > 2.25%."
+            },
+            {
+                "id": "scenario_hydraulic_3",
+                "title": "Scenario 3: Cash-Futures Basis Trade Repo Margin Shock",
+                "catalyst": "Overnight repo (SOFR) spikes above IORB or DTCC/clearinghouses raise margin haircuts on leveraged hedge funds.",
+                "flow_mechanics": "Hedge funds running 30x–60x leveraged Treasury basis trades face margin calls, triggering forced fire-sales of physical cash Treasuries.",
+                "probability": "15%",
+                "status_badge": "FUNDING_SEIZURE_RISK",
+                "badge_color": "rose",
+                "market_impact": "Dash for cash; cross-asset correlation heads to 1.0; Treasury bond volatility (^MOVE) spikes > 120; risk-parity deleverages.",
+                "actionable_trade_idea": "Hold 50%+ ultra-short floating T-Bills ($USFR) and US Dollar cash ($UUP); long Gold ($GLD) as systemic monetary hedge.",
+                "where_to_look_next": "SOFR vs IORB spread (> +10 bps); Fed Standing Repo Facility (SRF) emergency borrowing volumes."
+            },
+            {
+                "id": "scenario_hydraulic_4",
+                "title": "Scenario 4: Left-Tail Negative Gamma Cascade (Collision Window Event)",
+                "catalyst": "A major TGA tax drain ($250B-$400B April/Quarterly) collides with the Post-OpEx Window of Weakness (OpEx + 1 to +10 days).",
+                "flow_mechanics": "Options expire, extinguishing dealer Vanna/Charm bids. Equities break below the Gamma Flip level; dealers become aggressive momentum short sellers.",
+                "probability": "20%",
+                "status_badge": "CRISIS_CASCADE_COLLISION",
+                "badge_color": "rose",
+                "market_impact": "Cascading, non-linear market drop (fat left-tail Minsky moment); VIX term structure inverts (VIX > VIX3M); VVIX surges.",
+                "actionable_trade_idea": "Purchase out-of-the-money SPY/QQQ put spreads or long VIX calls 10 days before the collision date; eliminate short gamma exposure.",
+                "where_to_look_next": "VIX / VIX3M inversion (< 0.0); CBOE Put/Call ratio spiking > 1.10; dealer gamma flip breach level on SPY."
+            }
+        ]
+
+    @classmethod
     def build_scenarios_payload(cls, force: bool = False) -> Dict[str, Any]:
         """Builds complete synthesized Scenarios & Policy Playbook payload with 24-hour cache."""
         cache_key = "scenarios_playbook_master"
@@ -786,6 +846,19 @@ class ScenariosEngine:
         real_rates_data = cls.compute_real_interest_rates_and_debt_squeeze()
         trigger_telemetry = cls.compute_live_trigger_telemetry()
         scenarios_list = cls.build_dynamic_scenarios_playbook()
+        hydraulic_scenarios = cls.build_hydraulic_policy_scenarios()
+
+        # Connect to Central Macro Plumbing & Options State
+        plumbing_state = {}
+        forward_crash_windows = []
+        actionable_verdict = {}
+        try:
+            from app.quant_engine.macro_plumbing_state import MacroPlumbingAndOptionsStateEngine
+            plumbing_state = MacroPlumbingAndOptionsStateEngine.build_complete_plumbing_and_options_state(force_refresh=force)
+            forward_crash_windows = plumbing_state.get("forward_crash_windows", [])
+            actionable_verdict = plumbing_state.get("signal_matrix", {})
+        except Exception as e:
+            logger.debug(f"Plumbing state link in scenarios: {e}")
 
         payload = {
             "title": "Institutional Macro Scenarios & Systematic Policy Playbook",
@@ -803,6 +876,10 @@ class ScenariosEngine:
                 "trigger_overall_status": trigger_telemetry.get("overall_status", "ACTIVE MONITORING"),
             },
             "scenarios": scenarios_list,
+            "hydraulic_policy_scenarios": hydraulic_scenarios,
+            "forward_crash_windows": forward_crash_windows,
+            "actionable_verdict": actionable_verdict,
+            "macro_plumbing_state": plumbing_state,
             "trigger_telemetry": trigger_telemetry,
             "central_bank_sentiment": sentiment_matrix,
             "real_interest_rates": real_rates_data,

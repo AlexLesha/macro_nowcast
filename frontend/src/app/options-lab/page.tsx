@@ -3,6 +3,20 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { getApiUrl } from "@/lib/api";
+import { MetricTip } from "@/components/FinancialTooltip";
+import {
+  ShieldCheck,
+  Zap,
+  Calendar,
+  Layers,
+  CheckCircle2,
+  AlertTriangle,
+  ArrowRight,
+  Eye,
+  Activity,
+  Compass,
+  Cpu,
+} from "lucide-react";
 
 const SUPPORTED_TICKERS = ["SPY", "QQQ", "IWM", "NVDA", "IBIT", "GLD", "TLT", "USO", "XLK", "XLF", "XLE"];
 
@@ -27,7 +41,7 @@ const FALLBACK_OPTIONS_DATA: any = {
     active_signals_count: 2,
     actionable_modules_list: ["Module 3 (MOVE vs VIX Co-Signer)", "Module 4 (VIX Term Structure & VRP)"],
     neutral_modules_list: ["Module 1 (Dealer GEX & Walls)", "Module 2 (Correlation & Dispersion)", "Module 5 (Cross-Asset Options Flow)"],
-    headline_summary: "2 of 5 Options Modules currently flash a standalone actionable signal (Module 3 (MOVE vs VIX Co-Signer), Module 4 (VIX Term Structure & VRP)).",
+    headline_summary: "2 of 5 Options Modules currently flash a standalone actionable signal.",
   },
   module_1_gex_and_collar: {
     ticker: "SPY",
@@ -53,8 +67,8 @@ const FALLBACK_OPTIONS_DATA: any = {
     ],
     kspy_overlay_regime: "MID-CORRIDOR POSITIVE GAMMA PIN -> NO DIRECTIONAL INDEX EDGE",
     signal_status: "NO_STANDALONE_ACTION",
-    plain_english_verdict: "NO STANDALONE DIRECTIONAL OPTIONS TRADE: $SPY ($585.20) is pinned in the middle (57.4%) of its Put Wall ($572.00) to Call Wall ($595.00) corridor under Positive Dealer Gamma (+0.42B). Dealers are mechanically selling rips and buying dips, which crushes directional index option buyers via theta decay.",
-    model_complement_and_next_step: "WHERE TO LOOK NEXT: When the broad index is pinned by positive dealer gamma, alpha shifts to single-stock & sector rotation. Look at Module 2 (Sector Dispersion) below and /outliers (1-3 months & 12 months Priority 1 Pivots).",
+    plain_english_verdict: "NO STANDALONE DIRECTIONAL OPTIONS TRADE: $SPY is pinned between its Put Wall and Call Wall under Positive Dealer Gamma. Dealers mechanically sell rips and buy dips, crushing option buyers via theta decay.",
+    model_complement_and_next_step: "Alpha shifts to single-stock and sector rotation; check Module 2 and /outliers.",
   },
   module_2_correlation_and_dispersion: {
     implied_sector_corr_pct: 34.2,
@@ -62,22 +76,10 @@ const FALLBACK_OPTIONS_DATA: any = {
     sector_sharpe_dispersion: 0.94,
     top_sector_leader: { sector: "XLK", sharpe_21d: 1.82, ret_21d_pct: 5.4 },
     bottom_sector_laggard: { sector: "XLRE", sharpe_21d: -0.74, ret_21d_pct: -2.8 },
-    sector_rankings: [
-      { sector: "XLK", sharpe_21d: 1.82, ret_21d_pct: 5.4, analysis_link: "/stock-analysis?ticker=XLK" },
-      { sector: "XLF", sharpe_21d: 1.25, ret_21d_pct: 3.8, analysis_link: "/stock-analysis?ticker=XLF" },
-      { sector: "XLI", sharpe_21d: 0.95, ret_21d_pct: 2.7, analysis_link: "/stock-analysis?ticker=XLI" },
-      { sector: "XLC", sharpe_21d: 0.88, ret_21d_pct: 2.4, analysis_link: "/stock-analysis?ticker=XLC" },
-      { sector: "XLY", sharpe_21d: 0.65, ret_21d_pct: 1.9, analysis_link: "/stock-analysis?ticker=XLY" },
-      { sector: "XLE", sharpe_21d: 0.22, ret_21d_pct: 0.8, analysis_link: "/stock-analysis?ticker=XLE" },
-      { sector: "XLV", sharpe_21d: 0.05, ret_21d_pct: 0.1, analysis_link: "/stock-analysis?ticker=XLV" },
-      { sector: "XLP", sharpe_21d: -0.15, ret_21d_pct: -0.4, analysis_link: "/stock-analysis?ticker=XLP" },
-      { sector: "XLB", sharpe_21d: -0.32, ret_21d_pct: -0.9, analysis_link: "/stock-analysis?ticker=XLB" },
-      { sector: "XLU", sharpe_21d: -0.55, ret_21d_pct: -1.7, analysis_link: "/stock-analysis?ticker=XLU" },
-      { sector: "XLRE", sharpe_21d: -0.74, ret_21d_pct: -2.8, analysis_link: "/stock-analysis?ticker=XLRE" },
-    ],
+    sector_rankings: [],
     signal_status: "NO_STANDALONE_ACTION",
-    plain_english_verdict: "NO STANDALONE CORRELATION OR DISPERSION TRADE: Sector correlation (34.2%, 42.0th pct) and 11-Sector Sharpe Dispersion (0.94) are both sitting in neutral mid-ranges. Neither pod-shop crowding nor liquidation panic is present.",
-    model_complement_and_next_step: "WHERE TO LOOK NEXT: With no index correlation distortion, rely on /stock-analysis and /outliers (12 months & 3+ Years) for fundamental stock selection.",
+    plain_english_verdict: "Sector correlation and dispersion are both sitting in neutral mid-ranges.",
+    model_complement_and_next_step: "Rely on /stock-analysis and /outliers for fundamental selection.",
   },
   module_3_move_vix_cosigner: {
     move_index: 73.5,
@@ -90,73 +92,64 @@ const FALLBACK_OPTIONS_DATA: any = {
     move_minus_vix_z_spread: -0.85,
     cosigner_state: "BULLISH CO-SIGNER ACTIVE (Bond Vol Calm While Equity Vol Elevated)",
     signal_status: "ACTIONABLE_BULLISH",
-    plain_english_verdict: "ACTIONABLE 3FOURTEEN CO-SIGNER BUY SIGNAL: Treasury Bond Volatility (^MOVE = 73.5, 28.5th 1Y pct) is subdued in its lowest tier while Equity Volatility (^VIX = 18.2, 58.2th 1Y pct) is elevated. Historically, equity scares that are NOT confirmed by bond market volatility have a near-100% 12M win rate. Action: Buy the equity dip ($SPY, $QQQ, $IWM) and sell inflated equity put spreads.",
-    model_complement_and_next_step: "Deploy capital into the top-ranked candidates on /outliers (1-3 months Priority 1 Pivots) and /speculation.",
+    plain_english_verdict: "Treasury Bond Volatility is subdued while Equity Volatility is elevated. Buy equity dips.",
+    model_complement_and_next_step: "Deploy capital into /outliers candidates.",
   },
   module_4_term_structure_and_vrp: {
     vix9d: 17.5,
     vix_spot: 18.2,
     vix3m: 19.8,
     vix_to_vix3m_ratio: 0.919,
-    vix9d_to_vix_ratio: 0.962,
-    spy_rv_21d_pct: 12.4,
-    vrp_spread_pts: 5.8,
-    skew_25d_pct: 4.1,
-    cboe_skew_index: 142.5,
-    skew_to_vix_ratio: 7.83,
+    vrp_spread_pts: 3.4,
+    cboe_skew_index: 138.5,
+    skew_to_vix_ratio: 7.6,
     skew_to_vix_percentile: 65.0,
-    term_structure_state: "RICH VOLATILITY RISK PREMIUM (VRP +5.8 pts -> Sell Overpriced Vol)",
-    signal_status: "ACTIONABLE_VOL_ARB",
-    plain_english_verdict: "ACTIONABLE VRP CARRY HARVEST: 30D Implied Volatility (18.2%) is trading +5.8 vol points above 21D Realized Volatility (12.4%) while the VIX curve is in contango (0.919x). Action: Harvest rich option premium by selling cash-secured puts on Priority 1 pivots or writing covered calls against extended Bucket 3 holdings.",
-    model_complement_and_next_step: "Select cash-secured put strike levels using the 15-Day Probable Range Low on /42-macro and /outliers.",
+    skew_25d_pct: 4.1,
+    term_structure_state: "CONTANGO (Normal Steepening)",
+    signal_status: "NO_STANDALONE_ACTION",
+    plain_english_verdict: "Term structure is in normal contango with positive volatility carry.",
+    model_complement_and_next_step: "Option selling strategies enjoy positive carry.",
   },
   module_5_flow_and_capitulation: {
-    inverse_etf_vol_share_pct: 31.8,
-    bull_leveraged_etf_vol_share_pct: 68.2,
-    call_sweep_anomalies: ["$XLK (P/C Vol 0.52x, RVOL 1.20x)", "$IBIT (P/C Vol 0.48x, RVOL 1.25x)"],
-    put_hedge_anomalies: [],
-    cross_asset_flow_table: [
-      { ticker: "SPY", name: "S&P 500 Trust", group: "Equity Index", rvol_5d_vs_21d: 1.05, put_call_vol_ratio: 0.88, put_call_oi_ratio: 1.02, flow_regime: "BALANCED TWO-WAY FLOW", analysis_link: "/stock-analysis?ticker=SPY" },
-      { ticker: "QQQ", name: "Nasdaq 100 Trust", group: "Equity Index", rvol_5d_vs_21d: 1.12, put_call_vol_ratio: 0.82, put_call_oi_ratio: 0.94, flow_regime: "BALANCED TWO-WAY FLOW", analysis_link: "/stock-analysis?ticker=QQQ" },
-      { ticker: "IWM", name: "Russell 2000 Small Cap", group: "Equity Index", rvol_5d_vs_21d: 0.95, put_call_vol_ratio: 0.92, put_call_oi_ratio: 1.10, flow_regime: "BALANCED TWO-WAY FLOW", analysis_link: "/stock-analysis?ticker=IWM" },
-      { ticker: "XLK", name: "Technology Sector", group: "US Sector", rvol_5d_vs_21d: 1.20, put_call_vol_ratio: 0.52, put_call_oi_ratio: 0.78, flow_regime: "HEAVY CALL ACCUMULATION (Bullish Sweep)", analysis_link: "/stock-analysis?ticker=XLK" },
-      { ticker: "XLF", name: "Financials Sector", group: "US Sector", rvol_5d_vs_21d: 0.98, put_call_vol_ratio: 0.84, put_call_oi_ratio: 0.88, flow_regime: "BALANCED TWO-WAY FLOW", analysis_link: "/stock-analysis?ticker=XLF" },
-      { ticker: "XLE", name: "Energy Sector", group: "US Sector", rvol_5d_vs_21d: 0.89, put_call_vol_ratio: 0.96, put_call_oi_ratio: 0.92, flow_regime: "BALANCED TWO-WAY FLOW", analysis_link: "/stock-analysis?ticker=XLE" },
-      { ticker: "GLD", name: "SPDR Gold Trust", group: "Hard Assets", rvol_5d_vs_21d: 1.15, put_call_vol_ratio: 0.65, put_call_oi_ratio: 0.80, flow_regime: "BALANCED TWO-WAY FLOW", analysis_link: "/stock-analysis?ticker=GLD" },
-      { ticker: "USO", name: "US Crude Oil Fund", group: "Hard Assets", rvol_5d_vs_21d: 1.02, put_call_vol_ratio: 0.78, put_call_oi_ratio: 0.85, flow_regime: "BALANCED TWO-WAY FLOW", analysis_link: "/stock-analysis?ticker=USO" },
-      { ticker: "TLT", name: "20+ Year Treasury Bond", group: "Rates", rvol_5d_vs_21d: 1.08, put_call_vol_ratio: 1.05, put_call_oi_ratio: 1.18, flow_regime: "BALANCED TWO-WAY FLOW", analysis_link: "/stock-analysis?ticker=TLT" },
-      { ticker: "IBIT", name: "iShares Bitcoin Trust", group: "Digital Assets", rvol_5d_vs_21d: 1.25, put_call_vol_ratio: 0.48, put_call_oi_ratio: 0.62, flow_regime: "HEAVY CALL ACCUMULATION (Bullish Sweep)", analysis_link: "/stock-analysis?ticker=IBIT" },
-    ],
-    signal_status: "ACTIONABLE_BULLISH",
-    plain_english_verdict: "ACTIONABLE CROSS-ASSET CALL ACCUMULATION: While broad Inverse ETF sentiment is neutral (31.8%), institutional options sweeps are aggressively bidding Calls in $XLK (P/C Vol 0.52x, RVOL 1.20x), $IBIT (P/C Vol 0.48x, RVOL 1.25x). Action: Focus tactical long exposure on $XLK and $IBIT.",
-    model_complement_and_next_step: "Run any equity ticker from this flow anomaly list through /stock-analysis and /outliers to confirm its Range Position % before entering.",
+    inverse_etf_vol_share_pct: 28.5,
+    bull_leveraged_etf_vol_share_pct: 35.2,
+    cross_asset_flow_table: [],
+    signal_status: "NO_STANDALONE_ACTION",
+    plain_english_verdict: "Speculative Inverse ETF share is in the neutral band.",
+    model_complement_and_next_step: "Monitor for extreme capitulation washouts (>48%).",
   },
 };
 
 function statusBadgeStyle(status: string) {
-  if (status === "ACTIONABLE_BULLISH") {
-    return "bg-emerald-950/60 border-emerald-500/50 text-emerald-300";
+  switch (status) {
+    case "ACTIONABLE_BULLISH":
+      return "bg-emerald-950/80 border-emerald-500/50 text-emerald-300";
+    case "ACTIONABLE_BEARISH":
+      return "bg-rose-950/80 border-rose-500/50 text-rose-300";
+    case "ACTIONABLE_VOL_HARVEST":
+      return "bg-amber-950/80 border-amber-500/50 text-amber-300";
+    default:
+      return "bg-slate-900 border-slate-700 text-slate-300";
   }
-  if (status === "ACTIONABLE_BEARISH") {
-    return "bg-rose-950/60 border-rose-500/50 text-rose-300";
-  }
-  if (status === "ACTIONABLE_VOL_ARB") {
-    return "bg-cyan-950/60 border-cyan-500/50 text-cyan-300";
-  }
-  return "bg-slate-800/80 border-slate-600 text-slate-300";
 }
 
 function statusLabelText(status: string) {
-  if (status === "ACTIONABLE_BULLISH") return "● ACTIONABLE BULLISH IDEA";
-  if (status === "ACTIONABLE_BEARISH") return "● ACTIONABLE BEARISH / HEDGE IDEA";
-  if (status === "ACTIONABLE_VOL_ARB") return "● ACTIONABLE VOL / DISPERSION ARB";
-  return "○ NO STANDALONE ACTION (SEE COMPLEMENTARY MODULE)";
+  switch (status) {
+    case "ACTIONABLE_BULLISH":
+      return "ACTIONABLE BUY";
+    case "ACTIONABLE_BEARISH":
+      return "ACTIONABLE HEDGE / SHORT";
+    case "ACTIONABLE_VOL_HARVEST":
+      return "VOL CARRY HARVEST";
+    default:
+      return "NEUTRAL / NO EDGE";
+  }
 }
 
-export default function OptionsAndVolatilityLabPage() {
+export default function OptionsLabPage() {
   const [selectedTicker, setSelectedTicker] = useState<string>("SPY");
   const [data, setData] = useState<any>(FALLBACK_OPTIONS_DATA);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [loading, setLoading] = useState<boolean>(false);
 
   const fetchDashboard = (tk: string, force = false) => {
     setLoading(true);
@@ -165,9 +158,8 @@ export default function OptionsAndVolatilityLabPage() {
     })
       .then((r) => {
         if (!r.ok) {
-          // Attempt fallback route without v1 prefix
           return fetch(getApiUrl(`/api/options-lab/dashboard?ticker=${encodeURIComponent(tk)}&force=${force}`), { cache: "no-store" })
-            .then((r2) => (r2.ok ? r2.json() : Promise.reject(new Error(`HTTP ${r2.status}`))));
+            .then((r2) => (r2.ok ? r2.json() : null));
         }
         return r.json();
       })
@@ -175,9 +167,11 @@ export default function OptionsAndVolatilityLabPage() {
         if (json && json.status === "ok") {
           setData(json);
         }
-        setLoading(false);
       })
-      .catch(() => {
+      .catch((e) => {
+        console.error("Options Lab fetch error:", e);
+      })
+      .finally(() => {
         setLoading(false);
       });
   };
@@ -199,6 +193,20 @@ export default function OptionsAndVolatilityLabPage() {
   const m4 = data?.module_4_term_structure_and_vrp;
   const m5 = data?.module_5_flow_and_capitulation;
 
+  const macroPlumbing = data?.macro_plumbing_state || {};
+  const opexCal = macroPlumbing.opex_calendar || {};
+  const signalMatrix = macroPlumbing.signal_matrix || {};
+  const volProxies = macroPlumbing.volatility_proxies || {};
+  const hydraulics = macroPlumbing.hydraulic_liquidity_state || {};
+
+  const activeRegimeId = signalMatrix.active_regime_id || 1;
+  const regimeBadgeColor =
+    activeRegimeId === 3
+      ? "bg-rose-950/80 text-rose-300 border-rose-700"
+      : activeRegimeId === 2
+      ? "bg-amber-950/80 text-amber-300 border-amber-700"
+      : "bg-emerald-950/80 text-emerald-300 border-emerald-700";
+
   return (
     <div className="min-h-screen bg-[#090D16] text-slate-100">
       <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 space-y-6">
@@ -208,8 +216,8 @@ export default function OptionsAndVolatilityLabPage() {
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-4">
             <div>
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs font-mono uppercase tracking-wider text-cyan-400">
-                  Live Options Microstructure • Dealer GEX • Cross-Asset Volatility Surface
+                <span className="text-xs font-mono uppercase tracking-wider text-cyan-400 font-bold">
+                  Live Options Microstructure &bull; Dealer GEX &bull; Cem Karsan / Noel Smith Framework
                 </span>
                 {data?.as_of_utc && (
                   <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-mono">
@@ -218,7 +226,7 @@ export default function OptionsAndVolatilityLabPage() {
                 )}
               </div>
               <h1 className="text-base font-bold text-white mt-1">
-                Options & Volatility Surface Lab (5-Module Dynamic Suite)
+                Institutional Options &amp; Volatility Surface Lab (5-Module Dynamic Suite)
               </h1>
             </div>
 
@@ -254,28 +262,32 @@ export default function OptionsAndVolatilityLabPage() {
                   Project-Global Macro Regime Alignment
                 </span>
                 <span className="px-2 py-0.5 rounded bg-blue-500/20 border border-blue-500/40 text-blue-300 text-xs font-mono font-semibold">
-                  Regime: {regime?.active_regime_label || "DEFLATION"} • {regime?.hedgeye_quad || "QUAD_3"}
+                  Regime: {regime?.active_regime_label || "DEFLATION"} &bull; {regime?.hedgeye_quad || "QUAD_3"}
                 </span>
               </div>
               <div className="flex flex-wrap items-center gap-3 text-xs font-mono">
                 <span className="text-slate-400">
-                  Fed Net Liquidity: <strong className="text-emerald-400">${regime?.net_liquidity_usd_bn || 5745.7}B</strong> ({regime?.net_liquidity_4w_roc_bn || -120.0}B 4W)
+                  <MetricTip term="NET LIQUIDITY">Fed Net Liquidity</MetricTip>: <strong className="text-emerald-400">${regime?.net_liquidity_usd_bn || 5745.7}B</strong> ({regime?.net_liquidity_4w_roc_bn || -120.0}B 4W)
                 </span>
                 <span className="text-slate-400">
-                  Accord 2.0 Prob: <strong className="text-amber-400">{regime?.accord_2_0_prob || 72.0}%</strong>
+                  <MetricTip term="ACCORD 2.0">Accord 2.0 Prob</MetricTip>: <strong className="text-amber-400">{regime?.accord_2_0_prob || 72.0}%</strong>
                 </span>
               </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs font-mono">
               <div className="p-2.5 rounded-lg border border-slate-800 bg-slate-950/60">
-                <span className="text-slate-400">Dealer Gamma Impact:</span>
+                <span className="text-slate-400">
+                  <MetricTip term="DEALER GAMMA">Dealer Gamma Impact:</MetricTip>
+                </span>
                 <div className="text-xs font-bold text-white mt-1">
                   {regime?.gamma_regime_impact || "Evaluating dealer gamma buffer..."}
                 </div>
               </div>
               <div className="p-2.5 rounded-lg border border-slate-800 bg-slate-950/60">
-                <span className="text-slate-400">Volatility Risk Premium Carry:</span>
+                <span className="text-slate-400">
+                  <MetricTip term="VRP">Volatility Risk Premium Carry:</MetricTip>
+                </span>
                 <div className="text-xs font-bold text-cyan-300 mt-1">
                   {regime?.vrp_regime_state || "Positive Volatility Carry"}
                 </div>
@@ -295,40 +307,210 @@ export default function OptionsAndVolatilityLabPage() {
               <span className="text-slate-400">Integrated Models:</span>
               <div className="flex flex-wrap gap-3">
                 <Link href="/42-macro" className="text-cyan-400 hover:text-cyan-300 transition">
-                  → 42 Macro GRID
+                  &rarr; 42 Macro GRID
                 </Link>
                 <Link href="/liquidity-allocation" className="text-cyan-400 hover:text-cyan-300 transition">
-                  → Liquidity Allocation
+                  &rarr; Liquidity Allocation
                 </Link>
-                <Link href="/commodities-alternatives" className="text-cyan-400 hover:text-cyan-300 transition">
-                  → Commodities &amp; Plumbing
-                </Link>
-                <Link href="/synthesis" className="text-cyan-400 hover:text-cyan-300 transition">
-                  → Synthesis
+                <Link href="/scenarios" className="text-cyan-400 hover:text-cyan-300 transition">
+                  &rarr; Forward Scenarios
                 </Link>
                 <Link href={`/stock-analysis?ticker=${selectedTicker}`} className="text-amber-400 hover:text-amber-300 transition font-semibold">
-                  → Analyze ${selectedTicker} in Stock Analysis
+                  &rarr; Analyze ${selectedTicker} in Stock Analysis
                 </Link>
               </div>
             </div>
           </div>
+        </section>
 
-          {/* EXECUTIVE SYNTHESIS BANNER */}
-          <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-3 flex flex-wrap items-center justify-between gap-3 text-xs">
-            <div className="text-slate-200 font-medium">
-              <strong className="text-cyan-300 font-mono uppercase mr-1.5">
-                Executive Synthesis:
-              </strong>
-              {data?.executive_synthesis?.headline_summary ||
-                "Evaluating live option chains, VIX term structure, MOVE co-signer, and sector dispersion..."}
+        {/* ========================================================================= */}
+        {/* CEM KARSAN / NOEL SMITH OPEX CYCLE TRACKER & 3-REGIME SIGNAL MATRIX */}
+        {/* ========================================================================= */}
+        <section className="rounded-xl border border-cyan-800/60 bg-gradient-to-r from-[#0a1224] via-[#0f1b33] to-[#0c1527] p-5 shadow-2xl space-y-4">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between border-b border-slate-700/60 pb-3 gap-2">
+            <div className="flex items-center gap-2.5">
+              <ShieldCheck className="h-5 w-5 text-cyan-400 shrink-0" />
+              <div>
+                <span className="text-xs font-mono uppercase tracking-wider text-cyan-400 font-bold block">
+                  OPTIONS HYDRAULIC VALVE SYSTEM &bull; CEM KARSAN &amp; NOEL SMITH ENGINE
+                </span>
+                <h2 className="text-base font-black text-white font-mono">
+                  OpEx Cycle Phase: {opexCal.phase_label || "Pre-OpEx Structural Pin (Valves Closed)"}
+                </h2>
+              </div>
             </div>
-            <div className="flex flex-wrap gap-2 font-mono text-xs">
-              <Link href="/outliers" className="text-cyan-400 hover:underline">
-                → Outliers Scanner
-              </Link>
-              <Link href="/speculation" className="text-cyan-400 hover:underline">
-                → Speculation Matrix
-              </Link>
+            <div className="flex items-center gap-2">
+              <span className={`text-xs font-mono px-3 py-1 rounded border font-black uppercase tracking-wider ${regimeBadgeColor}`}>
+                {signalMatrix.badge_label || "STRUCTURAL DAM ACTIVE"}
+              </span>
+              <span className="text-xs font-mono px-2.5 py-1 rounded bg-slate-900 border border-slate-700 text-slate-300">
+                Valve: <strong className={opexCal.valve_status === "VALVES_OPEN" ? "text-rose-400" : "text-emerald-400"}>{opexCal.valve_status || "VALVES_CLOSED"}</strong>
+              </span>
+            </div>
+          </div>
+
+          {/* OpEx Temporal Details Bar */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 font-mono text-xs">
+            <div className="bg-[#080e1b] p-3 rounded-lg border border-slate-800">
+              <span className="text-slate-400 block mb-0.5">Days to Next OpEx</span>
+              <div className="text-base font-black text-cyan-300">
+                {opexCal.days_until_next_opex ?? 12} Days
+              </div>
+              <span className="text-[11px] text-slate-500">
+                Next: {opexCal.next_opex || "2026-11-20"} {opexCal.is_quarterly_opex ? "(Quarterly)" : "(Monthly)"}
+              </span>
+            </div>
+
+            <div className="bg-[#080e1b] p-3 rounded-lg border border-slate-800">
+              <span className="text-slate-400 block mb-0.5">
+                <MetricTip term="VANNA">Vanna Decay Flow</MetricTip>
+              </span>
+              <div className="text-base font-bold text-emerald-400">
+                +${m1?.vanna_notional_mn || 142.5}M
+              </div>
+              <span className="text-[11px] text-slate-500">dDelta / dSigma dealer bid</span>
+            </div>
+
+            <div className="bg-[#080e1b] p-3 rounded-lg border border-slate-800">
+              <span className="text-slate-400 block mb-0.5">
+                <MetricTip term="CHARM">Charm Time Decay Flow</MetricTip>
+              </span>
+              <div className="text-base font-bold text-emerald-400">
+                +${m1?.charm_notional_mn || 88.2}M
+              </div>
+              <span className="text-[11px] text-slate-500">Daily passage forces buying</span>
+            </div>
+
+            <div className="bg-[#080e1b] p-3 rounded-lg border border-slate-800">
+              <span className="text-slate-400 block mb-0.5">
+                <MetricTip term="TERM STRUCTURE CONTANGO">Term Structure Slope</MetricTip>
+              </span>
+              <div className="text-base font-bold text-amber-300">
+                {volProxies.term_structure_slope !== undefined ? `${volProxies.term_structure_slope > 0 ? "+" : ""}${volProxies.term_structure_slope}` : "+1.70"} pts
+              </div>
+              <span className="text-[11px] text-slate-500">
+                {volProxies.term_structure_state || "CONTANGO"} (VIX &lt; VIX3M)
+              </span>
+            </div>
+          </div>
+
+          {/* 3-Regime Signal Matrix Breakdown */}
+          <div>
+            <span className="text-xs font-mono uppercase tracking-wider text-slate-400 font-bold block mb-2">
+              The 3-Regime Signal Matrix (Quantitative State Machine)
+            </span>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              {(signalMatrix.regimes_breakdown || [
+                {
+                  id: 1,
+                  name: "Regime 1: The Structural Pin",
+                  subtitle: "Bullish / Rangebound Dam",
+                  condition_logic: "1st of month to OpEx Friday AND VIX < VIX3M (Contango).",
+                  mechanism: "Vanna and Charm force dealers to buy as hedges decay.",
+                  action: "Override bearish macro headlines. Buy dips, sell volatility.",
+                  is_active: activeRegimeId === 1,
+                },
+                {
+                  id: 2,
+                  name: "Regime 2: Window of Weakness",
+                  subtitle: "Vulnerable / Macro-Driven",
+                  condition_logic: "OpEx + 1 to OpEx + 10 days AND Net Liquidity flat/contracting.",
+                  mechanism: "Derivatives expire; structural dealer bid vanishes. Vulnerable to TGA.",
+                  action: "Macro Vulnerability Alert. Buy downside hedges, rotate to T-Bills.",
+                  is_active: activeRegimeId === 2,
+                },
+                {
+                  id: 3,
+                  name: "Regime 3: The Left Tail Cascade",
+                  subtitle: "Crisis / Negative Gamma",
+                  condition_logic: "Net Liquidity sharp drain AND VIX > VIX3M AND Put/Call breakout.",
+                  mechanism: "Dealers transition to short gamma (forced momentum sellers).",
+                  action: "De-gross all equities. Exit risk assets; basis trade forced unwind.",
+                  is_active: activeRegimeId === 3,
+                },
+              ]).map((reg: any) => {
+                const isActive = reg.is_active;
+                const borderClass = isActive
+                  ? reg.id === 3
+                    ? "border-rose-500 bg-rose-950/30 shadow-lg shadow-rose-950/40"
+                    : reg.id === 2
+                    ? "border-amber-500 bg-amber-950/30 shadow-lg shadow-amber-950/40"
+                    : "border-emerald-500 bg-emerald-950/30 shadow-lg shadow-emerald-950/40"
+                  : "border-slate-800 bg-[#091120] opacity-75";
+
+                return (
+                  <div key={reg.id} className={`p-3.5 rounded-xl border ${borderClass} font-mono text-xs flex flex-col justify-between space-y-2`}>
+                    <div>
+                      <div className="flex items-center justify-between border-b border-slate-800 pb-1.5 mb-1.5">
+                        <span className="font-bold text-white text-xs">{reg.name}</span>
+                        <span className={`px-2 py-0.5 rounded font-black text-[10px] uppercase border ${
+                          isActive
+                            ? reg.id === 3
+                              ? "bg-rose-950 text-rose-300 border-rose-600 animate-pulse"
+                              : reg.id === 2
+                              ? "bg-amber-950 text-amber-300 border-amber-600 animate-pulse"
+                              : "bg-emerald-950 text-emerald-300 border-emerald-600"
+                            : "bg-slate-900 text-slate-500 border-slate-800"
+                        }`}>
+                          {isActive ? "ACTIVE REGIME" : "INACTIVE"}
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-cyan-400 font-semibold mb-1">{reg.subtitle}</div>
+                      <p className="text-[11px] text-slate-300 font-sans mb-1.5 leading-snug">
+                        <strong className="font-mono text-slate-400 text-[10px] block uppercase">Logic:</strong> {reg.condition_logic}
+                      </p>
+                      <p className="text-[11px] text-slate-300 font-sans leading-snug">
+                        <strong className="font-mono text-slate-400 text-[10px] block uppercase">Plumbing:</strong> {reg.mechanism}
+                      </p>
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-800 text-[11px] font-sans text-cyan-200">
+                      <strong className="font-mono text-cyan-400 block uppercase text-[10px]">Action:</strong> {reg.action}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Tradable Verdict & Checklist */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 pt-2 border-t border-slate-800/80">
+            <div className="bg-[#080e1b] p-3 rounded-lg border border-slate-800">
+              <span className="text-xs font-mono uppercase tracking-wider text-emerald-400 font-bold flex items-center gap-1.5 mb-1.5">
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                SYSTEMATIC OPTIONS ACTIONABLE PLAYBOOK
+              </span>
+              <ul className="space-y-1 text-xs text-slate-300">
+                {(signalMatrix.trading_playbook || [
+                  "Exploit mechanical dealer dip-buying: sell out-of-the-money index puts or deploy short-volatility strategies.",
+                  "Harvest the Volatility Risk Premium (VRP) across SPY pinned near major call walls.",
+                  "Avoid purchasing expensive outright put protection; time decay will relentlessly erode long option premiums.",
+                ]).map((step: string, idx: number) => (
+                  <li key={idx} className="flex items-start gap-1.5 leading-snug">
+                    <ArrowRight className="h-3 w-3 text-cyan-400 shrink-0 mt-0.5" />
+                    <span>{step}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div className="bg-[#080e1b] p-3 rounded-lg border border-slate-800">
+              <span className="text-xs font-mono uppercase tracking-wider text-amber-400 font-bold flex items-center gap-1.5 mb-1.5">
+                <Eye className="h-3.5 w-3.5" />
+                WHERE TO LOOK NEXT &bull; WHAT TO MONITOR
+              </span>
+              <ul className="space-y-1 text-xs text-slate-300">
+                {(signalMatrix.where_to_look_next || [
+                  "Dealer Gamma Flip Level on SPY: ensure spot remains safely above gamma neutral threshold.",
+                  "Days remaining until OpEx: begin de-risking as calendar approaches OpEx Friday.",
+                  "Dispersion under the surface: index pinned while individual earnings stocks exhibit violent moves.",
+                ]).map((item: string, idx: number) => (
+                  <li key={idx} className="flex items-start gap-1.5 leading-snug">
+                    <span className="text-amber-400 font-mono font-bold shrink-0">#{idx + 1}</span>
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
             </div>
           </div>
         </section>
@@ -352,7 +534,7 @@ export default function OptionsAndVolatilityLabPage() {
               </h2>
             </div>
             <div className="text-xs font-mono text-slate-400">
-              Cross-Asset Signal Arbitrage • Multi-Manager Positioning
+              Cross-Asset Signal Arbitrage &bull; Multi-Manager Positioning
             </div>
           </div>
 
@@ -360,7 +542,9 @@ export default function OptionsAndVolatilityLabPage() {
             {/* Barometer 1: Dealer Gamma Modulator */}
             <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-3 space-y-2 flex flex-col justify-between">
               <div>
-                <div className="text-slate-400 text-xs">1. Dealer Gamma (GEX)</div>
+                <div className="text-slate-400 text-xs">
+                  <MetricTip term="DEALER GAMMA">1. Dealer Gamma (GEX)</MetricTip>
+                </div>
                 <div className="text-sm font-bold text-white mt-0.5">
                   {m1?.net_gex_bn >= 0 ? "+" : ""}{m1?.net_gex_bn}B <span className="text-xs font-normal text-slate-400">/ 1%</span>
                 </div>
@@ -380,7 +564,9 @@ export default function OptionsAndVolatilityLabPage() {
             {/* Barometer 2: Pod-Shop Dispersion */}
             <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-3 space-y-2 flex flex-col justify-between">
               <div>
-                <div className="text-slate-400 text-xs">2. Pod-Shop Dispersion</div>
+                <div className="text-slate-400 text-xs">
+                  <MetricTip term="DISPERSION">2. Pod-Shop Dispersion</MetricTip>
+                </div>
                 <div className="text-sm font-bold text-cyan-300 mt-0.5">
                   {m2?.implied_sector_corr_pct}% <span className="text-xs font-normal text-slate-400">({m2?.corr_1y_percentile}th pct)</span>
                 </div>
@@ -400,7 +586,9 @@ export default function OptionsAndVolatilityLabPage() {
             {/* Barometer 3: 3Fourteen Co-Signer */}
             <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-3 space-y-2 flex flex-col justify-between">
               <div>
-                <div className="text-slate-400 text-xs">3. Volatility Co-Signer</div>
+                <div className="text-slate-400 text-xs">
+                  <MetricTip term="MOVE INDEX">3. Volatility Co-Signer</MetricTip>
+                </div>
                 <div className="text-sm font-bold text-amber-300 mt-0.5">
                   MOVE {m3?.move_index} <span className="text-xs font-normal text-slate-400">vs VIX {m3?.vix_index}</span>
                 </div>
@@ -419,7 +607,9 @@ export default function OptionsAndVolatilityLabPage() {
             {/* Barometer 4: SKEW / VIX Tail Risk */}
             <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-3 space-y-2 flex flex-col justify-between">
               <div>
-                <div className="text-slate-400 text-xs">4. SKEW / VIX Tail Crash</div>
+                <div className="text-slate-400 text-xs">
+                  <MetricTip term="25D SKEW">4. SKEW / VIX Tail Crash</MetricTip>
+                </div>
                 <div className="text-sm font-bold text-rose-300 mt-0.5">
                   {m4?.skew_to_vix_ratio || 7.8}x <span className="text-xs font-normal text-slate-400">({m4?.skew_to_vix_percentile || 65}th pct)</span>
                 </div>
@@ -459,7 +649,6 @@ export default function OptionsAndVolatilityLabPage() {
           </div>
         </section>
 
-
         {/* =====================================================================
             MODULE 1: DEALER GAMMA EXPOSURE (GEX), VANNA/CHARM & KSPY COLLAR ROUTER
            ===================================================================== */}
@@ -468,14 +657,16 @@ export default function OptionsAndVolatilityLabPage() {
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-xs font-mono text-cyan-400 uppercase">
-                  Module 1 • Live Option Chain Greeks (${m1?.ticker || selectedTicker})
+                  Module 1 &bull; Live Option Chain Greeks (${m1?.ticker || selectedTicker})
                 </span>
                 <span className="px-2 py-0.5 rounded bg-slate-800 text-xs font-mono text-slate-300">
                   Regime: {m1?.gamma_regime_classification || "POSITIVE_GAMMA_PIN"}
                 </span>
               </div>
               <h2 className="text-base font-bold text-white mt-0.5">
-                Dealer Net Gamma (GEX), 0DTE Heat, Vanna/Charm & KSPY Collar Router
+                Dealer Net Gamma (<MetricTip term="DEALER GEX">GEX</MetricTip>),{" "}
+                <MetricTip term="0DTE HEAT">0DTE Heat</MetricTip>,{" "}
+                <MetricTip term="VANNA">Vanna</MetricTip>/<MetricTip term="CHARM">Charm</MetricTip> &amp; KSPY Collar Router
               </h2>
             </div>
             {m1 && (
@@ -493,14 +684,18 @@ export default function OptionsAndVolatilityLabPage() {
             <>
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 font-mono text-xs">
                 <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-3">
-                  <div className="text-slate-400">Live Spot / Flip</div>
+                  <div className="text-slate-400">
+                    Live Spot / <MetricTip term="GAMMA FLIP">Flip</MetricTip>
+                  </div>
                   <div className="text-sm font-bold text-white mt-1">
                     ${m1.spot_price} /{" "}
                     <span className="text-amber-300">${m1.gamma_flip_price}</span>
                   </div>
                 </div>
                 <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-3">
-                  <div className="text-slate-400">Net Dealer GEX</div>
+                  <div className="text-slate-400">
+                    <MetricTip term="DEALER GEX">Net Dealer GEX</MetricTip>
+                  </div>
                   <div
                     className={`text-sm font-bold mt-1 ${
                       m1.net_gex_bn >= 0 ? "text-emerald-400" : "text-rose-400"
@@ -511,9 +706,11 @@ export default function OptionsAndVolatilityLabPage() {
                   </div>
                 </div>
                 <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-3">
-                  <div className="text-slate-400">Put Wall → Call Wall</div>
+                  <div className="text-slate-400">
+                    <MetricTip term="PUT WALL">Put Wall</MetricTip> &rarr; <MetricTip term="CALL WALL">Call Wall</MetricTip>
+                  </div>
                   <div className="text-sm font-bold text-cyan-300 mt-1">
-                    ${m1.put_wall_strike} → ${m1.call_wall_strike}
+                    ${m1.put_wall_strike} &rarr; ${m1.call_wall_strike}
                   </div>
                 </div>
                 <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-3">
@@ -523,13 +720,17 @@ export default function OptionsAndVolatilityLabPage() {
                   </div>
                 </div>
                 <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-3">
-                  <div className="text-slate-400">Near-Term 0DTE Heat</div>
+                  <div className="text-slate-400">
+                    <MetricTip term="0DTE HEAT">Near-Term 0DTE Heat</MetricTip>
+                  </div>
                   <div className="text-sm font-bold text-amber-300 mt-1">
                     {m1.near_term_0dte_heat_pct}% of Vol
                   </div>
                 </div>
                 <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-3">
-                  <div className="text-slate-400">Vanna / Charm Flow</div>
+                  <div className="text-slate-400">
+                    <MetricTip term="VANNA">Vanna</MetricTip> / <MetricTip term="CHARM">Charm Flow</MetricTip>
+                  </div>
                   <div className="text-sm font-bold text-slate-200 mt-1">
                     ${m1.vanna_notional_mn}M / ${m1.charm_notional_mn}M
                   </div>
@@ -572,7 +773,7 @@ export default function OptionsAndVolatilityLabPage() {
                 <div className="text-xs font-bold text-white">
                   ► Plain-English Verdict ({m1.kspy_overlay_regime}):
                 </div>
-                <p className="text-xs text-slate-200 leading-relaxed">
+                <p className="text-xs text-slate-200 leading-relaxed font-sans">
                   {m1.plain_english_verdict}
                 </p>
                 <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-800 text-xs font-mono">
@@ -583,7 +784,7 @@ export default function OptionsAndVolatilityLabPage() {
                     href={`/stock-analysis?ticker=${m1.ticker}`}
                     className="text-amber-400 hover:text-amber-300 font-semibold"
                   >
-                    → Open ${m1.ticker} Forensic Dossier
+                    &rarr; Open ${m1.ticker} Forensic Dossier
                   </Link>
                 </div>
               </div>
@@ -601,10 +802,11 @@ export default function OptionsAndVolatilityLabPage() {
               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3">
                 <div>
                   <span className="text-xs font-mono text-cyan-400 uppercase">
-                    Module 2 • 42 Macro Dispersion &amp; Pod-Shop Monitor
+                    Module 2 &bull; 42 Macro Dispersion &amp; Pod-Shop Monitor
                   </span>
                   <h2 className="text-base font-bold text-white mt-0.5">
-                    Implied/Realized Sector Correlation &amp; 11-Sector Sharpe Dispersion
+                    Implied/Realized Sector Correlation &amp;{" "}
+                    <MetricTip term="DISPERSION">11-Sector Sharpe Dispersion</MetricTip>
                   </h2>
                 </div>
                 {m2 && (
@@ -631,7 +833,9 @@ export default function OptionsAndVolatilityLabPage() {
                       </div>
                     </div>
                     <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-3">
-                      <div className="text-slate-400">Sharpe Dispersion</div>
+                      <div className="text-slate-400">
+                        <MetricTip term="DISPERSION">Sharpe Dispersion</MetricTip>
+                      </div>
                       <div className="text-sm font-bold text-cyan-300 mt-1">
                         {m2.sector_sharpe_dispersion}
                       </div>
@@ -678,7 +882,7 @@ export default function OptionsAndVolatilityLabPage() {
                                 href={s.analysis_link || `/stock-analysis?ticker=${s.sector}`}
                                 className="text-cyan-400 hover:text-cyan-300 text-xs"
                               >
-                                Dossier →
+                                Dossier &rarr;
                               </Link>
                             </td>
                           </tr>
@@ -693,7 +897,7 @@ export default function OptionsAndVolatilityLabPage() {
             {m2 && (
               <div className="rounded-lg border border-slate-700 bg-slate-900/90 p-3.5 space-y-1.5">
                 <div className="text-xs font-bold text-white">► Plain-English Verdict:</div>
-                <p className="text-xs text-slate-200 leading-relaxed">
+                <p className="text-xs text-slate-200 leading-relaxed font-sans">
                   {m2.plain_english_verdict}
                 </p>
                 <div className="text-xs font-mono text-cyan-300 pt-1 border-t border-slate-800">
@@ -709,10 +913,10 @@ export default function OptionsAndVolatilityLabPage() {
               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3">
                 <div>
                   <span className="text-xs font-mono text-cyan-400 uppercase">
-                    Module 3 • 3Fourteen Cross-Asset Volatility Co-Signer
+                    Module 3 &bull; 3Fourteen Cross-Asset Volatility Co-Signer
                   </span>
                   <h2 className="text-base font-bold text-white mt-0.5">
-                    Treasury Bond Vol (^MOVE) vs. Equity Vol (^VIX &amp; ^VVIX)
+                    Treasury Bond Vol (<MetricTip term="MOVE INDEX">^MOVE</MetricTip>) vs. Equity Vol (^VIX &amp; ^VVIX)
                   </h2>
                 </div>
                 {m3 && (
@@ -730,7 +934,9 @@ export default function OptionsAndVolatilityLabPage() {
                 <>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 font-mono text-xs">
                     <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-3">
-                      <div className="text-slate-400">^MOVE (Bond Vol)</div>
+                      <div className="text-slate-400">
+                        <MetricTip term="MOVE INDEX">^MOVE (Bond Vol)</MetricTip>
+                      </div>
                       <div className="text-sm font-bold text-amber-300 mt-1">
                         {m3.move_index}{" "}
                         <span className="text-xs text-slate-400">
@@ -765,8 +971,8 @@ export default function OptionsAndVolatilityLabPage() {
                   <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-3 text-xs font-mono space-y-1.5">
                     <div className="text-slate-400">Active Co-Signer Regime State:</div>
                     <div className="text-amber-300 font-bold">{m3.cosigner_state}</div>
-                    <div className="text-slate-400 text-xs font-sans">
-                      Rule: Equity spikes (^VIX &gt; 55th pct) while Bond Vol stays calm (^MOVE &lt; 32nd pct) trigger a high-conviction equity buy. Rising ^MOVE (&gt;72nd pct) while ^VIX is low warns of an impending rate-led equity air-pocket.
+                    <div className="text-slate-400 text-xs font-sans leading-relaxed">
+                      Rule: Equity scares (^VIX &gt; 55th pct) while Bond Vol stays calm (^MOVE &lt; 32nd pct) trigger a high-conviction equity buy. Rising ^MOVE (&gt;72nd pct) while ^VIX is low warns of an impending rate-led equity air-pocket.
                     </div>
                   </div>
                 </>
@@ -776,7 +982,7 @@ export default function OptionsAndVolatilityLabPage() {
             {m3 && (
               <div className="rounded-lg border border-slate-700 bg-slate-900/90 p-3.5 space-y-1.5">
                 <div className="text-xs font-bold text-white">► Plain-English Verdict:</div>
-                <p className="text-xs text-slate-200 leading-relaxed">
+                <p className="text-xs text-slate-200 leading-relaxed font-sans">
                   {m3.plain_english_verdict}
                 </p>
                 <div className="text-xs font-mono text-cyan-300 pt-1 border-t border-slate-800">
@@ -797,10 +1003,11 @@ export default function OptionsAndVolatilityLabPage() {
               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3">
                 <div>
                   <span className="text-xs font-mono text-cyan-400 uppercase">
-                    Module 4 • Term Structure, SKEW/VIX Ratio &amp; VRP Carry
+                    Module 4 &bull; Term Structure, SKEW/VIX Ratio &amp; VRP Carry
                   </span>
                   <h2 className="text-base font-bold text-white mt-0.5">
-                    VIX Curve (^VIX9D / ^VIX / ^VIX3M), Tail Risk &amp; VRP
+                    VIX Curve (^VIX9D / ^VIX / ^VIX3M), Tail Risk &amp;{" "}
+                    <MetricTip term="VRP">VRP</MetricTip>
                   </h2>
                 </div>
                 {m4 && (
@@ -824,7 +1031,9 @@ export default function OptionsAndVolatilityLabPage() {
                       </div>
                     </div>
                     <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-3">
-                      <div className="text-slate-400">VIX / VIX3M Ratio</div>
+                      <div className="text-slate-400">
+                        <MetricTip term="TERM STRUCTURE CONTANGO">VIX / VIX3M Ratio</MetricTip>
+                      </div>
                       <div
                         className={`text-sm font-bold mt-1 ${
                           m4.vix_to_vix3m_ratio >= 1.0 ? "text-rose-400" : "text-emerald-400"
@@ -834,14 +1043,18 @@ export default function OptionsAndVolatilityLabPage() {
                       </div>
                     </div>
                     <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-3">
-                      <div className="text-slate-400">VRP (IV30 - RV21)</div>
+                      <div className="text-slate-400">
+                        <MetricTip term="VRP">VRP (IV30 - RV21)</MetricTip>
+                      </div>
                       <div className="text-sm font-bold text-cyan-300 mt-1">
                         {m4.vrp_spread_pts >= 0 ? "+" : ""}
                         {m4.vrp_spread_pts} pts
                       </div>
                     </div>
                     <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-3">
-                      <div className="text-slate-400">SKEW / VIX Ratio</div>
+                      <div className="text-slate-400">
+                        <MetricTip term="25D SKEW">SKEW / VIX Ratio</MetricTip>
+                      </div>
                       <div className="text-sm font-bold text-amber-300 mt-1">
                         {m4.skew_to_vix_ratio || 7.8}x
                       </div>
@@ -854,9 +1067,11 @@ export default function OptionsAndVolatilityLabPage() {
                       <div className="text-cyan-300 font-bold mt-0.5">{m4.term_structure_state}</div>
                     </div>
                     <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-3">
-                      <div className="text-slate-400">CBOE SKEW &amp; 25Δ Skew:</div>
+                      <div className="text-slate-400">
+                        <MetricTip term="25D SKEW">CBOE SKEW &amp; 25Δ Skew:</MetricTip>
+                      </div>
                       <div className="text-amber-300 font-bold mt-0.5">
-                        SKEW: {m4.cboe_skew_index} • 25Δ Put Skew: +{m4.skew_25d_pct}%
+                        SKEW: {m4.cboe_skew_index} &bull; 25Δ Put Skew: +{m4.skew_25d_pct}%
                       </div>
                     </div>
                   </div>
@@ -867,7 +1082,7 @@ export default function OptionsAndVolatilityLabPage() {
             {m4 && (
               <div className="rounded-lg border border-slate-700 bg-slate-900/90 p-3.5 space-y-1.5">
                 <div className="text-xs font-bold text-white">► Plain-English Verdict:</div>
-                <p className="text-xs text-slate-200 leading-relaxed">
+                <p className="text-xs text-slate-200 leading-relaxed font-sans">
                   {m4.plain_english_verdict}
                 </p>
                 <div className="text-xs font-mono text-cyan-300 pt-1 border-t border-slate-800">
@@ -883,7 +1098,7 @@ export default function OptionsAndVolatilityLabPage() {
               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3">
                 <div>
                   <span className="text-xs font-mono text-cyan-400 uppercase">
-                    Module 5 • Cross-Asset Options Sweeps &amp; 3Fourteen Capitulation
+                    Module 5 &bull; Cross-Asset Options Sweeps &amp; 3Fourteen Capitulation
                   </span>
                   <h2 className="text-base font-bold text-white mt-0.5">
                     Speculative Inverse-ETF Volume Share &amp; Cross-Asset Put/Call Ratios
@@ -946,7 +1161,7 @@ export default function OptionsAndVolatilityLabPage() {
                                 href={r.analysis_link || `/stock-analysis?ticker=${r.ticker}`}
                                 className="text-cyan-400 hover:text-cyan-300 text-xs"
                               >
-                                Dossier →
+                                Dossier &rarr;
                               </Link>
                             </td>
                           </tr>
@@ -961,7 +1176,7 @@ export default function OptionsAndVolatilityLabPage() {
             {m5 && (
               <div className="rounded-lg border border-slate-700 bg-slate-900/90 p-3.5 space-y-1.5">
                 <div className="text-xs font-bold text-white">► Plain-English Verdict:</div>
-                <p className="text-xs text-slate-200 leading-relaxed">
+                <p className="text-xs text-slate-200 leading-relaxed font-sans">
                   {m5.plain_english_verdict}
                 </p>
                 <div className="text-xs font-mono text-cyan-300 pt-1 border-t border-slate-800">

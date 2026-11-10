@@ -337,6 +337,20 @@ async def get_options_lab_cross_asset_volatility():
     return OptionsAndVolatilitySurfaceEngine.get_volatility_cross_asset_summary()
 
 
+@app.get("/api/v1/macro/plumbing-options-state")
+@app.get("/api/macro/plumbing-options-state")
+@app.get("/v1/macro/plumbing-options-state")
+@app.get("/macro/plumbing-options-state")
+def get_macro_plumbing_options_state_main(force: bool = False):
+    """Returns central US Fiscal Plumbing Hydraulics & Options Dynamics State Machine."""
+    try:
+        from app.quant_engine.macro_plumbing_state import MacroPlumbingAndOptionsStateEngine
+    except ImportError:
+        from backend.app.quant_engine.macro_plumbing_state import MacroPlumbingAndOptionsStateEngine
+
+    return MacroPlumbingAndOptionsStateEngine.build_complete_plumbing_and_options_state(force_refresh=force)
+
+
 
 @app.get("/api/v1/synthesis/dashboard")
 @app.get("/api/synthesis/dashboard")
@@ -775,10 +789,17 @@ async def get_live_liquidity_and_horizons(force: bool = False):
         except Exception:
             pass
 
+    try:
+        from app.quant_engine.macro_plumbing_state import MacroPlumbingAndOptionsStateEngine
+    except ImportError:
+        from backend.app.quant_engine.macro_plumbing_state import MacroPlumbingAndOptionsStateEngine
+    plumbing_state = MacroPlumbingAndOptionsStateEngine.build_complete_plumbing_and_options_state(force_refresh=force)
+
     res = {
         "status": "ok",
         "as_of_utc": liq["as_of_utc"],
         "macro_regime": macro_regime_summary,
+        "macro_plumbing_state": plumbing_state,
         "cftc_positioning": cftc_summary,
         "kiss_portfolio": ftm["kiss_and_drmo"]["kiss_portfolio"],
         "liquidity": liq,

@@ -927,6 +927,18 @@ class OptionsAndVolatilitySurfaceEngine:
         actionable_mods = [name for name, m in all_mods if m["signal_status"] != "NO_STANDALONE_ACTION"]
         neutral_mods = [name for name, m in all_mods if m["signal_status"] == "NO_STANDALONE_ACTION"]
 
+        # Central Macro Plumbing & Cem Karsan / Noel Smith OpEx State
+        macro_plumbing = {}
+        try:
+            from app.quant_engine.macro_plumbing_state import MacroPlumbingAndOptionsStateEngine
+            macro_plumbing = MacroPlumbingAndOptionsStateEngine.build_complete_plumbing_and_options_state(force_refresh=force_refresh)
+        except Exception:
+            try:
+                from backend.app.quant_engine.macro_plumbing_state import MacroPlumbingAndOptionsStateEngine
+                macro_plumbing = MacroPlumbingAndOptionsStateEngine.build_complete_plumbing_and_options_state(force_refresh=force_refresh)
+            except Exception:
+                pass
+
         # 42 Macro Volatility Confirmation Gate Status
         is_move_calm = mod3["move_1y_pct"] <= 40.0
         is_vrp_positive = mod4["vrp_spread_pts"] >= 1.0
@@ -1050,6 +1062,7 @@ class OptionsAndVolatilitySurfaceEngine:
             "module_3_move_vix_cosigner": mod3,
             "module_4_term_structure_and_vrp": mod4,
             "module_5_flow_and_capitulation": mod5,
+            "macro_plumbing_state": macro_plumbing,
         }
 
         sanitized = cls._sanitize_floats(payload)

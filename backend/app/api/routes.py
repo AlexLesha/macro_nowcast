@@ -487,6 +487,12 @@ def get_full_liquidity_suite(db: Session = Depends(get_db)):
     global_ratios = get_global_liquidity_debt(db)
     bond_accord = get_bond_stress_accord(db)
 
+    try:
+        from app.quant_engine.macro_plumbing_state import MacroPlumbingAndOptionsStateEngine
+    except ImportError:
+        from backend.app.quant_engine.macro_plumbing_state import MacroPlumbingAndOptionsStateEngine
+    plumbing_state = MacroPlumbingAndOptionsStateEngine.build_complete_plumbing_and_options_state()
+
     # Sync into RegimeSnapshot
     try:
         today = date.today()
@@ -506,7 +512,24 @@ def get_full_liquidity_suite(db: Session = Depends(get_db)):
         "us_net_liquidity": us_liq,
         "global_debt_ratios": global_ratios,
         "bond_stress_accord": bond_accord,
+        "macro_plumbing_state": plumbing_state,
     }
+
+
+@api_router.get("/v1/macro/plumbing-options-state")
+@api_router.get("/macro/plumbing-options-state")
+def get_macro_plumbing_options_state(force: bool = False):
+    """
+    Centralized Institutional State Machine:
+    Synthesizes US Fiscal Plumbing & Net Liquidity Hydraulics with Cem Karsan / Noel Smith
+    Options Market Dynamics, the 3-Regime Signal Matrix, and Forward Crash Windows.
+    """
+    try:
+        from app.quant_engine.macro_plumbing_state import MacroPlumbingAndOptionsStateEngine
+    except ImportError:
+        from backend.app.quant_engine.macro_plumbing_state import MacroPlumbingAndOptionsStateEngine
+
+    return MacroPlumbingAndOptionsStateEngine.build_complete_plumbing_and_options_state(force_refresh=force)
 
 
 # ----------------------------------------------------
@@ -1779,67 +1802,9 @@ def get_stock_hot_news(
 
 @api_router.get("/v1/stock/analysis/{ticker}/hot-news/option-b")
 @api_router.get("/stock/analysis/{ticker}/hot-news/option-b")
-def get_stock_hot_news_option_b(
-    ticker: str,
-    refresh: bool = False,
-    db: Session = Depends(get_db),
-):
-    """Direct fast-path endpoint for Option B: 4-Week Pure LLM Attribution & Forward Volatility Analysis."""
-    clean_t = ticker.strip().upper()
-    try:
-        from app.quant_engine.stock_news_analyzer import StockHotNewsEngine
-    except ImportError:
-        from backend.app.quant_engine.stock_news_analyzer import StockHotNewsEngine
-
-    try:
-        from app.db.stock_compressed_store import StockCompressedStore
-    except ImportError:
-        from backend.app.db.stock_compressed_store import StockCompressedStore
-
-    cached_payload = None
-    try:
-        cached_payload = StockCompressedStore.get_stock_payload(clean_t)
-        if not refresh and cached_payload and isinstance(cached_payload.get("hot_news"), dict) and cached_payload["hot_news"].get("option_b"):
-            logger.info(f"[OptionB] Fast cache hit for {clean_t}")
-            return _sanitize_floats(cached_payload["hot_news"]["option_b"])
-    except Exception as e:
-        logger.debug(f"[OptionB] Cache check note for {clean_t}: {e}")
-
-    entity_name = clean_t
-    sector = ""
-    industry = ""
-    if cached_payload:
-        entity_name = cached_payload.get("company_name") or cached_payload.get("entity_name") or clean_t
-        sector = cached_payload.get("gics_sector") or ""
-        industry = cached_payload.get("gics_industry") or ""
-    else:
-        try:
-            from app.quant_engine.stock_analyzer import SingleStockXRayEngine
-            overview = SingleStockXRayEngine.fetch_company_overview(db, clean_t)
-            entity_name = overview.get("company_name", clean_t)
-            sector = overview.get("sector", "")
-            industry = overview.get("industry", "")
-        except Exception:
-            pass
-
-    option_b = StockHotNewsEngine.generate_option_b_attribution(
-        ticker=clean_t,
-        entity_name=entity_name,
-        sector=sector,
-        industry=industry,
-        force_refresh=refresh,
-    )
-
-    if cached_payload and option_b:
-        try:
-            if "hot_news" not in cached_payload or not isinstance(cached_payload["hot_news"], dict):
-                cached_payload["hot_news"] = {}
-            cached_payload["hot_news"]["option_b"] = option_b
-            StockCompressedStore.save_stock_payload(clean_t, industry or "General", cached_payload)
-        except Exception as e:
-            logger.debug(f"[OptionB] Cache sync note for {clean_t}: {e}")
-
-    return _sanitize_floats(option_b)
+def get_stock_hot_news_option_b(ticker: str):
+    """Option B has been discontinued; Option A (2-week working days) is the sole intelligence standard."""
+    return {"status": "discontinued", "message": "Option B has been removed in favor of Option A."}
 
 
 # ----------------------------------------------------

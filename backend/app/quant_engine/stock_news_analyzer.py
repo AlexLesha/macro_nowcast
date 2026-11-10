@@ -11,6 +11,7 @@ grounded fallback). Excludes non-working and non-trading days.
 
 import json
 import logging
+import math
 import os
 import re
 import time
@@ -31,10 +32,6 @@ logger = logging.getLogger("macropulse.stock_news_analyzer")
 # In-memory TTL cache for news synthesis (15 min TTL)
 _HOT_NEWS_CACHE: Dict[str, Dict[str, Any]] = {}
 _HOT_NEWS_TTL_SECONDS = 900  # 15 minutes
-
-# In-memory TTL cache for Option B Attribution (15 min TTL)
-_OPTION_B_CACHE: Dict[str, Dict[str, Any]] = {}
-_OPTION_B_TTL_SECONDS = 900  # 15 minutes
 
 # Circuit breaker for Alpha Vantage rate-limit exhaustion (24-hour backoff)
 _ALPHA_CIRCUIT_BREAKER_UNTIL: float = 0.0
@@ -383,6 +380,9 @@ class StockHotNewsEngine:
                 "_db_cached": False,
             })
 
+        # Compute deterministic 2-week price metrics (High, Low, Net Move %, Range %, Volatility %)
+        metrics = cls._compute_2w_price_metrics(days_context)
+
         # Only invoke Groq if there are un-cached days
         un_cached_days = [d for d in days_context if not d.get("_db_cached")]
         groq_result = None
@@ -393,6 +393,7 @@ class StockHotNewsEngine:
                 sector=sector,
                 industry=industry,
                 days_context=days_context,
+                metrics=metrics,
             )
 
         if groq_result and groq_result.get("status") == "ok":
@@ -405,9 +406,14 @@ class StockHotNewsEngine:
                 sector=sector,
                 industry=industry,
                 days_context=days_context,
+                metrics=metrics,
             )
 
-        # Merge in any pre-cached DB days (and clean legacy price action sentences)
+        # Attach metrics and net move to payload
+        payload["metrics"] = metrics
+        payload["net_price_change_pct"] = metrics.get("net_price_change_pct", 0.0)
+
+        # Merge in any pre-cached DB days (and clean legacy price action sentences & cited figures)
         for i, day_dict in enumerate(payload.get("days", [])):
             d_date = day_dict.get("date")
             if d_date in cached_days_by_date:
@@ -418,9 +424,17 @@ class StockHotNewsEngine:
                         b for b in raw_b
                         if not re.match(r"^Stock (?:advanced|declined|held flat)", str(b), re.I)
                         and not re.match(r"^Regular trading session logged", str(b), re.I)
+                        and not re.match(r"^Key cited figures", str(b), re.I)
                     ]
                     cached_d["bullet_points"] = cleaned_b if cleaned_b else ["No events"]
                 payload["days"][i] = cached_d
+            else:
+                raw_b = day_dict.get("bullet_points", [])
+                if isinstance(raw_b, list):
+                    day_dict["bullet_points"] = [
+                        b for b in raw_b
+                        if not re.match(r"^Key cited figures", str(b), re.I)
+                    ]
 
         # OPT-2: Persist newly synthesized days into database
         try:
@@ -448,24 +462,100 @@ class StockHotNewsEngine:
             },
         }
 
-        # Option B: 4-Week Pure LLM Attribution & Forward Outlook Analysis
-        try:
-            payload["option_b"] = cls.generate_option_b_attribution(
-                ticker=clean_t,
-                entity_name=entity_name,
-                sector=sector,
-                industry=industry,
-                force_refresh=force_refresh,
-            )
-        except Exception as e:
-            logger.warning(f"[StockHotNewsEngine] Option B auto-attach note for {clean_t}: {e}")
-
         # Store in TTL cache
         _HOT_NEWS_CACHE[clean_t] = {
             "data": payload,
             "_cached_at": now_ts,
         }
         return payload
+
+    @classmethod
+    def _compute_2w_price_metrics(cls, days_context: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Calculates deterministic 2-week price metrics: Low, High, Net Move %, Price Range %, Realized Volatility %."""
+        valid_highs: List[float] = []
+        valid_lows: List[float] = []
+        valid_changes: List[float] = []
+        up_days = 0
+        down_days = 0
+
+        for d in days_context:
+            pa = d.get("price_action") or {}
+            h = pa.get("high")
+            l = pa.get("low")
+            c = pa.get("close")
+            o = pa.get("open")
+            chg = pa.get("change_pct")
+
+            if h is not None:
+                valid_highs.append(float(h))
+            elif o is not None and c is not None:
+                valid_highs.append(max(float(o), float(c)))
+
+            if l is not None:
+                valid_lows.append(float(l))
+            elif o is not None and c is not None:
+                valid_lows.append(min(float(o), float(c)))
+
+            if chg is not None:
+                chg_flt = float(chg)
+                valid_changes.append(chg_flt)
+                if chg_flt > 0:
+                    up_days += 1
+                elif chg_flt < 0:
+                    down_days += 1
+
+        start_px: Optional[float] = None
+        end_px: Optional[float] = None
+
+        # Oldest trading day is at the end of days_context (index -1)
+        for d in reversed(days_context):
+            pa = d.get("price_action") or {}
+            if pa.get("open") is not None:
+                start_px = float(pa["open"])
+                break
+            elif pa.get("close") is not None:
+                start_px = float(pa["close"])
+                break
+
+        # Latest trading day is at the start of days_context (index 0)
+        for d in days_context:
+            pa = d.get("price_action") or {}
+            if pa.get("close") is not None:
+                end_px = float(pa["close"])
+                break
+            elif pa.get("open") is not None:
+                end_px = float(pa["open"])
+                break
+
+        high_px = max(valid_highs) if valid_highs else (end_px or 0.0)
+        low_px = min(valid_lows) if valid_lows else (end_px or 0.0)
+
+        net_move_pct = 0.0
+        range_pct = 0.0
+        if start_px and start_px > 0:
+            if end_px is not None:
+                net_move_pct = ((end_px - start_px) / start_px) * 100.0
+            range_pct = ((high_px - low_px) / start_px) * 100.0
+
+        if len(valid_changes) >= 2:
+            mean_chg = sum(valid_changes) / len(valid_changes)
+            var_chg = sum((x - mean_chg) ** 2 for x in valid_changes) / (len(valid_changes) - 1)
+            vol_pct = math.sqrt(var_chg) * math.sqrt(252)
+        else:
+            vol_pct = abs(net_move_pct)
+
+        return {
+            "start_price": round(start_px, 2) if start_px is not None else 0.0,
+            "end_price": round(end_px, 2) if end_px is not None else 0.0,
+            "high_price": round(high_px, 2),
+            "low_price": round(low_px, 2),
+            "net_price_change_pct": round(net_move_pct, 2),
+            "price_range_pct": round(range_pct, 2),
+            "volatility_pct": round(vol_pct, 2),
+            "up_sessions": up_days,
+            "down_sessions": down_days,
+            "total_sessions": len(days_context),
+        }
 
     @classmethod
     def _call_groq_hot_news_bullets(
@@ -475,10 +565,22 @@ class StockHotNewsEngine:
         sector: str,
         industry: str,
         days_context: List[Dict[str, Any]],
+        metrics: Optional[Dict[str, Any]] = None,
     ) -> Optional[Dict[str, Any]]:
-        """Invokes Groq LLM Gateway requesting sharp, concise 3-5 bullet points per day with high-impact tags."""
+        """Invokes Groq LLM Gateway requesting sharp, concise 3-5 bullet points per day with high-impact tags and critical price/volatility analysis."""
         if not settings.GROQ_API_KEY:
             return None
+
+        m = metrics or cls._compute_2w_price_metrics(days_context)
+        vol_pct = m.get("volatility_pct", 0.0)
+        low_px = m.get("low_price", 0.0)
+        high_px = m.get("high_price", 0.0)
+        net_pct = m.get("net_price_change_pct", 0.0)
+        start_px = m.get("start_price", 0.0)
+        end_px = m.get("end_price", 0.0)
+        up_cnt = m.get("up_sessions", 0)
+        down_cnt = m.get("down_sessions", 0)
+        rng_pct = m.get("price_range_pct", 0.0)
 
         # Build prompt payload
         days_text_blocks = []
@@ -506,39 +608,51 @@ class StockHotNewsEngine:
         context_str = "\n\n".join(days_text_blocks)
 
         system_prompt = (
-            "You are a Wall Street quantitative equity analyst. Your job is to produce a compact, high-impact "
-            "news intelligence breakdown for portfolio managers across the last 10 working trading days. "
+            "You are a Wall Street quantitative equity analyst. Your job is to produce a high-impact, "
+            "critical price and news intelligence breakdown for portfolio managers across the last 10 working trading days. "
+            "In 'weekly_takeaway', produce a deep, critical Wall Street macro & equity analysis of the 2-week price movement, "
+            f"incorporating the exact metrics: Volatility ({vol_pct:.1f}%), Low (${low_px:.2f}), High (${high_px:.2f}), and Net Move ({net_pct:+.2f}%). "
+            f"Assess systematic factor beta ({sector or 'Sector'}) vs idiosyncratic company catalysts, support/resistance tests between ${low_px:.2f} and ${high_px:.2f}, and session breadth ({up_cnt} up vs {down_cnt} down). "
             "Strictly follow the bullet-point rules: sharp, concise, mentioning exact numbers and names. "
             "DO NOT include any price action descriptive sentences like 'Stock declined -4.88% to close at $7.41 (open: $7.79)...' "
             "or 'Regular trading session logged'. Prices and changes are already displayed in the UI header. "
             "Keep only events and stock-moving data. Add 1-2 bullet points for relevant whole market (SPY) or sector moving events if applicable. "
+            "DO NOT EVER generate any bullet point starting with 'Key cited figures'. "
             "Never output day titles or headlines. Only output bullet points."
         )
 
         user_prompt = f"""Analyze the verified daily news and price action for {entity_name} ({ticker}) across the 10 working trading days below:
 Industry: {sector} • {industry}.
+2-WEEK METRICS:
+- Realized Volatility: {vol_pct:.1f}%
+- Price Low: ${low_px:.2f}
+- Price High: ${high_px:.2f}
+- Price Range: {rng_pct:.1f}%
+- 2-Week Net Move: {net_pct:+.2f}% (${start_px:.2f} -> ${end_px:.2f})
+- Session Breadth: {up_cnt} Advances, {down_cnt} Declines
 
 MARKET DATA & NEWS FEED:
 {context_str}
 
 CRITICAL FORMATTING INSTRUCTIONS:
-1. For EACH of the 10 trading days:
+1. In 'weekly_takeaway', provide an in-depth critical analysis of the 2-week move synthesizing the Volatility ({vol_pct:.1f}%), Price Low (${low_px:.2f}), Price High (${high_px:.2f}), and Net Move ({net_pct:+.2f}%). Break down factor exposure vs company catalysts, session breadth, and technical positioning.
+2. For EACH of the 10 trading days:
    - Provide 2 to 4 SHARP, CONCISE bullet points highlighting ONLY market-moving events (financial figures, numbers, percentages, catalysts, partners, contracts, earnings, management/director changes, legal/regulatory developments).
    - DO NOT include price action description sentences (such as 'Stock declined -4.88% to close at $7.41...').
+   - DO NOT EVER create any bullet point starting with 'Key cited figures'.
    - Include 1 to 2 bullet points on relevant whole market (S&P 500 / SPY) or sector ETF movements on that day if applicable.
    - If there was no major company event and no market/sector move, output exactly ONE bullet point: ["No events"].
    - DO NOT provide a day title, headline, or introductory sentence. Only output the bullet points array.
    - Assign appropriate high-impact tags from: ["EARNINGS", "C-LEVEL", "LEGAL", "M&A", "ANALYST", "PRODUCT", "MACRO"]. If quiet session, use ["TRADING_SESSION"].
-2. Output STRICT JSON only (no markdown formatting, no commentary) matching this schema:
+3. Output STRICT JSON only (no markdown formatting, no commentary) matching this schema:
 {{
   "status": "ok",
   "source": "GROQ_LLAMA_3_3_70B",
   "ticker": "{ticker}",
   "company_name": "{entity_name}",
-  "time_window": "Last 2 Working Weeks (10 Trading Days)",
   "overall_sentiment": "BULLISH" | "BEARISH" | "NEUTRAL" | "MIXED",
-  "weekly_takeaway": "2-3 sentence executive high-impact synthesis of the 2-week news flow and cumulative stock price impact.",
-  "net_price_change_pct": 0.0,
+  "weekly_takeaway": "In-depth critical Wall Street analysis of the 2-week price movement explicitly incorporating Volatility {vol_pct:.1f}%, Low ${low_px:.2f}, High ${high_px:.2f}, and Net Move {net_pct:+.2f}%.",
+  "net_price_change_pct": {net_pct},
   "days": [
     {{
       "date": "YYYY-MM-DD",
@@ -580,6 +694,13 @@ CRITICAL FORMATTING INSTRUCTIONS:
             data = json.loads(raw_text)
             if data.get("days") and len(data["days"]) >= 8:
                 data["source"] = "GROQ_LLAMA_3_3_70B"
+                data["metrics"] = m
+                for d in data["days"]:
+                    raw_pts = d.get("bullet_points") or []
+                    d["bullet_points"] = [
+                        p for p in raw_pts
+                        if not re.match(r"^Key cited figures", str(p), re.I)
+                    ]
                 return data
         except Exception as e:
             logger.warning(f"Groq hot news bullet synthesis failed for {ticker}: {e}")
@@ -594,17 +715,25 @@ CRITICAL FORMATTING INSTRUCTIONS:
         sector: str,
         industry: str,
         days_context: List[Dict[str, Any]],
+        metrics: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
         Deterministic, 100% grounded fallback synthesizer.
         Extracts real figures, names, and exact daily price impacts into
-        3-5 concise bullet points per day with high-impact event tags.
+        concise bullet points per day with high-impact event tags, plus deep critical price/volatility analysis.
         """
         clean_t = ticker.strip().upper()
+        m = metrics or cls._compute_2w_price_metrics(days_context)
         days_list: List[Dict[str, Any]] = []
-        overall_chg = 0.0
-        up_days = 0
-        down_days = 0
+        overall_chg = m.get("net_price_change_pct", 0.0)
+        up_days = m.get("up_sessions", 0)
+        down_days = m.get("down_sessions", 0)
+        vol_pct = m.get("volatility_pct", 0.0)
+        low_px = m.get("low_price", 0.0)
+        high_px = m.get("high_price", 0.0)
+        start_px = m.get("start_price", 0.0)
+        end_px = m.get("end_price", 0.0)
+        rng_pct = m.get("price_range_pct", 0.0)
 
         # Pre-calculate ETF returns once before loop
         sector_etf = "XLRE" if "reit" in (sector + industry).lower() or "real estate" in (sector + industry).lower() else "SPY"
@@ -628,9 +757,9 @@ CRITICAL FORMATTING INSTRUCTIONS:
                     for idx, row in ret_df.iterrows():
                         d_key = idx.strftime("%Y-%m-%d")
                         ret_by_date[d_key] = {}
-                        if "SPY" in row and not pd.isna(row["SPY"]):
+                        if "SPY" in row and not math.isnan(float(row["SPY"])):
                             ret_by_date[d_key]["SPY"] = round(float(row["SPY"]), 2)
-                        if sector_etf in row and not pd.isna(row[sector_etf]):
+                        if sector_etf in row and not math.isnan(float(row[sector_etf])):
                             ret_by_date[d_key][sector_etf] = round(float(row[sector_etf]), 2)
         except Exception:
             pass
@@ -642,18 +771,7 @@ CRITICAL FORMATTING INSTRUCTIONS:
             articles = d["articles"]
             num_articles = d["articles_count"]
 
-            open_px = pa.get("open")
-            close_px = pa.get("close")
             chg_pct = pa.get("change_pct", 0.0) or 0.0
-            vol_str = pa.get("volume_str", "—")
-            day_range = pa.get("day_range", "—")
-
-            if chg_pct != 0:
-                overall_chg += chg_pct
-                if chg_pct > 0:
-                    up_days += 1
-                else:
-                    down_days += 1
 
             top_headlines = [a["headline"] for a in articles[:4]]
             text_corpus = " ".join([a["headline"] + ". " + a["summary"] for a in articles[:5]])
@@ -701,13 +819,7 @@ CRITICAL FORMATTING INSTRUCTIONS:
                     h2 = top_headlines[1].replace('"', "'")
                     bullet_points.append(f"{h2}.")
 
-            # 2. Key financial numbers/figures cited in text
-            found_figs = re.findall(r"\$\d+(?:\.\d+)?[MBKmbk]?|\b\d+(?:\.\d+)?%", text_corpus)
-            if found_figs:
-                unique_figs = list(dict.fromkeys(found_figs))[:3]
-                bullet_points.append(f"Key cited figures: {', '.join(unique_figs)} reported across disclosures.")
-
-            # 3. Add relevant whole market or sector moving event (1-2 bullet points if applicable)
+            # 2. Add relevant whole market or sector moving event (1-2 bullet points if applicable)
             if spy_pct is not None or sec_pct is not None:
                 market_parts = []
                 if spy_pct is not None and abs(spy_pct) >= 0.3:
@@ -720,7 +832,7 @@ CRITICAL FORMATTING INSTRUCTIONS:
                 if market_parts:
                     bullet_points.append(f"Market & Sector Context: {', '.join(market_parts)} on macro rate/liquidity dynamics.")
 
-            # 4. If no events and no major market move
+            # 3. If no events and no major market move
             if not bullet_points:
                 bullet_points = ["No events"]
 
@@ -737,10 +849,17 @@ CRITICAL FORMATTING INSTRUCTIONS:
 
         overall_sent = "BULLISH" if up_days > down_days + 1 else ("BEARISH" if down_days > up_days + 1 else "MIXED")
 
+        vol_regime = "elevated realized volatility" if vol_pct >= 28.0 else ("moderate volatility" if vol_pct >= 15.0 else "compressed consolidation")
+        dir_label = "advanced" if overall_chg > 0 else ("pulled back" if overall_chg < 0 else "traded flat")
+        sign_label = "+" if overall_chg > 0 else ""
+
         takeaway = (
-            f"Over the last 2 working weeks (10 trading sessions), {entity_name} ({ticker}) moved a cumulative {overall_chg:+.2f}%, "
-            f"navigating {up_days} advancing sessions and {down_days} declining sessions. News flow centered on "
-            f"{industry or sector} operational catalysts and macroeconomic liquidity positioning."
+            f"Over the last 10 trading sessions (2 working weeks), {entity_name} ({ticker}) {dir_label} {sign_label}{overall_chg:.2f}% "
+            f"(${start_px:.2f} → ${end_px:.2f}), logging {vol_regime} with annualized realized volatility of {vol_pct:.1f}%. "
+            f"Price action established a {rng_pct:.1f}% trading corridor between a 2-week Low of ${low_px:.2f} and a High of ${high_px:.2f}. "
+            f"Session breadth logged {up_days} advancing vs {down_days} declining sessions. Price movements reflected "
+            f"{'resistance testing near the 2-week high' if end_px >= high_px * 0.98 else ('support consolidation near the 2-week low' if end_px <= low_px * 1.02 else 'mid-channel rotational flow')} "
+            f"driven by {sector or industry or 'equity'} sector factor exposures alongside fundamental operational execution."
         )
 
         return {
@@ -748,562 +867,10 @@ CRITICAL FORMATTING INSTRUCTIONS:
             "source": "DETERMINISTIC_FINNHUB_MASSIVE",
             "ticker": ticker,
             "company_name": entity_name,
-            "time_window": "Last 2 Working Weeks (10 Trading Days)",
             "overall_sentiment": overall_sent,
             "weekly_takeaway": takeaway,
             "net_price_change_pct": round(overall_chg, 2),
+            "metrics": m,
             "days": days_list,
         }
 
-    @classmethod
-    def generate_option_b_attribution(
-        cls,
-        ticker: str,
-        entity_name: str,
-        sector: str = "",
-        industry: str = "",
-        force_refresh: bool = False,
-    ) -> Dict[str, Any]:
-        """
-        Option B: 4-Week Pure LLM Attribution & Forward Volatility Outlook.
-        Evaluates 4-week price moves and volatility, scrutinizing attribution across 4 mandatory pillars:
-        1. Balance sheet & fundamental earnings mechanics
-        2. Macro, commodity, and market structure/liquidity flows
-        3. Sub-national, state, or federal political, regulatory, and permitting shocks
-        4. Non-consensus tail risks or sentiment reversals.
-        Captures terminal valuation/timeline developments with source links [Link](url)
-        and details expected reports/volatility triggers for the next 4 weeks.
-        """
-        clean_t = ticker.strip().upper()
-        now_ts = int(time.time())
-
-        # Check in-memory cache
-        if not force_refresh and clean_t in _OPTION_B_CACHE:
-            cached = _OPTION_B_CACHE[clean_t]
-            if now_ts - cached.get("_cached_at", 0) < _OPTION_B_TTL_SECONDS:
-                return cached["data"]
-
-        today_dt = datetime.now(timezone.utc).date()
-        window_start_dt = today_dt - timedelta(days=28)
-        start_str = window_start_dt.strftime("%Y-%m-%d")
-        end_str = today_dt.strftime("%Y-%m-%d")
-
-        # Fetch 28-day price bars & news
-        bars_by_date = cls.fetch_price_bars(clean_t, start_str, end_str)
-        articles = cls.fetch_company_news(clean_t, start_str, end_str)
-
-        # Compute price volatility metrics
-        valid_bars = [
-            b for d, b in sorted(bars_by_date.items())
-            if b and b.get("close") is not None and b.get("traded", True)
-        ]
-
-        start_price = 0.0
-        end_price = 0.0
-        high_price = 0.0
-        low_price = 0.0
-        net_change_pct = 0.0
-        range_pct = 0.0
-        max_daily_gain = 0.0
-        max_daily_drop = 0.0
-
-        if valid_bars:
-            start_price = float(valid_bars[0].get("open") or valid_bars[0].get("close") or 0.0)
-            end_price = float(valid_bars[-1].get("close") or 0.0)
-            high_price = max(float(b.get("high") or b.get("close") or 0.0) for b in valid_bars)
-            low_price = min(float(b.get("low") or b.get("close") or 0.0) for b in valid_bars)
-            changes = [float(b.get("change_pct", 0.0) or 0.0) for b in valid_bars]
-            max_daily_gain = max(changes) if changes else 0.0
-            max_daily_drop = min(changes) if changes else 0.0
-            if start_price > 0:
-                net_change_pct = ((end_price - start_price) / start_price) * 100.0
-                range_pct = ((high_price - low_price) / start_price) * 100.0
-
-        has_significant_volatility = (
-            abs(net_change_pct) >= 7.0 or
-            range_pct >= 12.0 or
-            max_daily_gain >= 3.5 or
-            max_daily_drop <= -3.5
-        )
-
-        # Check for upcoming earnings or events
-        upcoming_events = []
-        try:
-            yf_t = yf.Ticker(clean_t)
-            cal = getattr(yf_t, "calendar", None)
-            if cal is not None:
-                if isinstance(cal, dict) and "Earnings Date" in cal:
-                    ed_list = cal["Earnings Date"]
-                    if ed_list:
-                        upcoming_events.append({
-                            "event_name": f"{clean_t} Quarterly Earnings Announcement",
-                            "expected_date": str(ed_list[0])[:10],
-                            "potential_impact": "HIGH",
-                            "description": "Quarterly earnings results and forward guidance.",
-                            "link_url": f"https://finance.yahoo.com/quote/{clean_t}/analysis"
-                        })
-                elif hasattr(cal, "loc") and "Earnings Date" in cal.index:
-                    ed_vals = cal.loc["Earnings Date"].values
-                    if len(ed_vals) > 0:
-                        upcoming_events.append({
-                            "event_name": f"{clean_t} Quarterly Earnings Announcement",
-                            "expected_date": str(ed_vals[0])[:10],
-                            "potential_impact": "HIGH",
-                            "description": "Quarterly earnings results and forward guidance.",
-                            "link_url": f"https://finance.yahoo.com/quote/{clean_t}/analysis"
-                        })
-        except Exception:
-            pass
-
-        # Partition the 28-day window into 4 consecutive 7-day weeks (Week 1 = most recent)
-        weeks_spec: List[Dict[str, Any]] = []
-        for w_idx in range(4):
-            w_end_d = today_dt - timedelta(days=w_idx * 7)
-            w_start_d = today_dt - timedelta(days=(w_idx + 1) * 7)
-            w_start_str = w_start_d.strftime("%Y-%m-%d")
-            w_end_str = w_end_d.strftime("%Y-%m-%d")
-
-            # Collect price bars within this 7-day interval
-            w_bars = [
-                b for d, b in sorted(bars_by_date.items())
-                if w_start_str <= d <= w_end_str and b and b.get("close") is not None and b.get("traded", True)
-            ]
-            w_start_p = float(w_bars[0].get("open") or w_bars[0].get("close") or 0.0) if w_bars else 0.0
-            w_end_p = float(w_bars[-1].get("close") or 0.0) if w_bars else 0.0
-            w_move = 0.0
-            if w_start_p > 0 and w_end_p > 0:
-                w_move = round(((w_end_p - w_start_p) / w_start_p) * 100.0, 2)
-
-            w_articles = [
-                a for a in articles
-                if w_start_str <= str(a.get("date", "")) <= w_end_str
-            ]
-
-            label = "Week 1 (Current / Most Recent)" if w_idx == 0 else f"Week {w_idx + 1} ({w_idx * 7}-{(w_idx + 1) * 7} Days Ago)"
-            weeks_spec.append({
-                "week_number": w_idx + 1,
-                "week_label": label,
-                "start_date": w_start_str,
-                "end_date": w_end_str,
-                "date_range": f"{w_start_d.strftime('%b %d')} - {w_end_d.strftime('%b %d, %Y')}",
-                "start_price": w_start_p,
-                "end_price": w_end_p,
-                "weekly_price_move_pct": w_move,
-                "articles": w_articles,
-            })
-
-        # Try Groq LLM synthesis
-        result = cls._call_groq_option_b_attribution(
-            ticker=clean_t,
-            entity_name=entity_name,
-            sector=sector,
-            industry=industry,
-            start_str=start_str,
-            end_str=end_str,
-            start_price=start_price,
-            end_price=end_price,
-            high_price=high_price,
-            low_price=low_price,
-            net_change_pct=net_change_pct,
-            range_pct=range_pct,
-            max_daily_gain=max_daily_gain,
-            max_daily_drop=max_daily_drop,
-            has_significant_volatility=has_significant_volatility,
-            articles=articles,
-            upcoming_events=upcoming_events,
-            weeks_spec=weeks_spec,
-        )
-
-        if not result:
-            result = cls._build_grounded_option_b_fallback(
-                ticker=clean_t,
-                entity_name=entity_name,
-                sector=sector,
-                industry=industry,
-                start_str=start_str,
-                end_str=end_str,
-                start_price=start_price,
-                end_price=end_price,
-                high_price=high_price,
-                low_price=low_price,
-                net_change_pct=net_change_pct,
-                range_pct=range_pct,
-                max_daily_gain=max_daily_gain,
-                max_daily_drop=max_daily_drop,
-                has_significant_volatility=has_significant_volatility,
-                articles=articles,
-                upcoming_events=upcoming_events,
-                weeks_spec=weeks_spec,
-            )
-
-        # Store in cache
-        _OPTION_B_CACHE[clean_t] = {
-            "data": result,
-            "_cached_at": now_ts,
-        }
-        return result
-
-    @classmethod
-    def _call_groq_option_b_attribution(
-        cls,
-        ticker: str,
-        entity_name: str,
-        sector: str,
-        industry: str,
-        start_str: str,
-        end_str: str,
-        start_price: float,
-        end_price: float,
-        high_price: float,
-        low_price: float,
-        net_change_pct: float,
-        range_pct: float,
-        max_daily_gain: float,
-        max_daily_drop: float,
-        has_significant_volatility: bool,
-        articles: List[Dict[str, Any]],
-        upcoming_events: List[Dict[str, Any]],
-        weeks_spec: Optional[List[Dict[str, Any]]] = None,
-    ) -> Optional[Dict[str, Any]]:
-        """Invokes Groq LLM Gateway with the exact user attribution prompt."""
-        if not settings.GROQ_API_KEY:
-            return None
-
-        asset_label = f"{entity_name} ({ticker})"
-        prompt_template = (
-            "Analyse the recent 4 weeks price moves in [Ticker/Asset] and put a short summary (3-4 sentences) for every week about events that could have triggered significant price volatility in this asset. Do not hallucinate, use only the data that is available to you.\n"
-            "When analysing news, break down your attribution analysis across five mandatory pillars:\n"
-            "1. Balance sheet & fundamental earnings mechanics\n"
-            "2. Macro, commodity, and market structure/liquidity flows\n"
-            "3. Sub-national, state, or federal political, regulatory, and permitting shocks\n"
-            "4. Non-consensus tail risks or sentiment reversals.\n"
-            "5. Beyond the categories mentioned above, what other internal or external developments occurred over the last 4 weeks that altered the terminal valuation or timeline of [Ticker/Asset]?\n"
-            "Do not merge these categories when analysing but present all of them as a one flow for each week. Put links to the source as a short summary title for every significant piece of news in each week (limit to 3-4 items maximum in each week). If you can associate a price move of the [Ticker/Asset] with a particualr piece of news - put % size of the price move next to the news header in Red (price down) or Green (price up)\n"
-            "Put a short executive summary of all news flow in the last 4 weeks at the top. Next question: is there any scheduled report or will there be any other expected internal or external update that could trigger price volatility of [Ticker/Asset] in the next 4 weeks?"
-        )
-        prompt_sent = prompt_template.replace("[Ticker/Asset]", asset_label)
-
-        # Build weekly context lines
-        weeks_context_lines = []
-        if weeks_spec:
-            for w in weeks_spec:
-                w_arts = "\n".join([
-                    f"    * [{a.get('date', '')}] {a.get('headline', '')} (Source: {a.get('source', 'News')}, Link: {a.get('url') or 'https://finance.yahoo.com/quote/' + ticker + '/news'})\n      Summary: {a.get('summary', '')[:200]}"
-                    for a in w.get("articles", [])[:6]
-                ]) if w.get("articles") else "    * No discrete company press releases captured for this week."
-                weeks_context_lines.append(
-                    f"- {w.get('week_label')} ({w.get('date_range')}):\n"
-                    f"  Weekly Net Move: {w.get('weekly_price_move_pct', 0.0):+.2f}% (${w.get('start_price', 0.0):.2f} -> ${w.get('end_price', 0.0):.2f})\n"
-                    f"  Articles Captured:\n{w_arts}"
-                )
-        weeks_context_block = "\n\n".join(weeks_context_lines) if weeks_context_lines else "No weekly partition available."
-
-        upcoming_preview = "\n".join([
-            f"- Event: {e.get('event_name')} | Date: {e.get('expected_date')} | Impact: {e.get('potential_impact')} | Link: {e.get('link_url')}"
-            for e in upcoming_events
-        ]) if upcoming_events else "- Next scheduled corporate quarterly earnings release / investor presentation."
-
-        context_block = (
-            f"VERIFIED FINANCIAL & MARKET DATA CONTEXT:\n"
-            f"Company: {entity_name} ({ticker}) | Sector: {sector or 'General'} | Industry: {industry or 'General'}\n"
-            f"Analysis Time Window: Recent 4 Weeks ({start_str} to {end_str})\n"
-            f"4-Week Net Trajectory: Start ${start_price:.2f} -> Current ${end_price:.2f} (Net Move: {net_change_pct:+.2f}%)\n"
-            f"4-Week Range: High ${high_price:.2f} | Low ${low_price:.2f} (Range: {range_pct:.1f}%)\n"
-            f"Daily Swings: Max Gain {max_daily_gain:+.2f}% | Max Drop {max_daily_drop:+.2f}%\n"
-            f"Volatility State: {'SIGNIFICANT VOLATILITY (Exceeds 7% net move or 12% range)' if has_significant_volatility else 'NORMAL / LOW VOLATILITY'}\n\n"
-            f"WEEKLY BREAKDOWN CONTEXT (PAST 4 WEEKS):\n{weeks_context_block}\n\n"
-            f"SCHEDULED FORWARD DATES:\n{upcoming_preview}\n"
-        )
-
-        system_instruction = (
-            "You are a Senior Quantitative Equity Attribution & Institutional Risk Analyst. "
-            "Execute the prompt strictly adhering to the user instructions with zero hallucinations.\n\n"
-            "CRITICAL INSTRUCTIONS:\n"
-            "1. At the top, provide an 'executive_summary': a short, high-impact executive summary (2-3 sentences) synthesizing all news flow and fundamental price drivers in the last 4 weeks.\n"
-            "2. Break down the analysis into 4 weekly blocks (Week 1 through Week 4).\n"
-            "3. For EACH week, provide a 'weekly_summary' consisting of 3-4 sentences about events that could have triggered significant price volatility in this asset during that week.\n"
-            "4. When analysing news, break down attribution across the five mandatory pillars: "
-            "(1) Balance sheet & fundamental earnings mechanics, "
-            "(2) Macro, commodity, and market structure/liquidity flows, "
-            "(3) Sub-national, state, or federal political, regulatory, and permitting shocks, "
-            "(4) Non-consensus tail risks or sentiment reversals, "
-            "(5) Terminal valuation or timeline shifts. "
-            "DO NOT split these into columns or separate sections. Present all of them as ONE unified flow for each week ('news_items').\n"
-            "5. For every significant piece of news in each week (limit to 3-4 items maximum per week), provide 'title' as a short summary title, 'link_url' to the source, 'source_name', and 'date'.\n"
-            "6. If you can associate a price move of the asset with a particular piece of news, specify 'price_move_pct' (as a signed number, e.g. +3.4 or -4.8).\n"
-            "7. Detail any scheduled report or expected update that could trigger price volatility in the next 4 weeks ('forward_catalysts_next_4w').\n"
-            "8. Output STRICT JSON conforming to the schema below."
-        )
-
-        user_prompt_full = f"{prompt_sent}\n\n{context_block}\n\nOUTPUT STRICT JSON SCHEMA:\n" + """{
-  "status": "ok",
-  "source": "GROQ_LLAMA_3_3_70B",
-  "ticker": "%s",
-  "company_name": "%s",
-  "time_window": "Recent 4 Weeks (28 Days)",
-  "prompt_template": "...",
-  "prompt_sent": "...",
-  "executive_summary": "Short executive summary of all news flow in the last 4 weeks at the top.",
-  "volatility_assessment": {
-    "has_significant_volatility": true,
-    "volatility_label": "SIGNIFICANT VOLATILITY" or "MODERATE / NORMAL VOLATILITY",
-    "net_price_change_pct": 0.0,
-    "start_price": 0.0,
-    "end_price": 0.0,
-    "high_price": 0.0,
-    "low_price": 0.0,
-    "price_range_pct": 0.0,
-    "max_daily_gain_pct": 0.0,
-    "max_daily_drop_pct": 0.0,
-    "summary": "1-2 sentence overview of 4-week price moves and volatility diagnosis."
-  },
-  "weeks": [
-    {
-      "week_number": 1,
-      "week_label": "Week 1 (Current / Most Recent)",
-      "date_range": "Nov 02 - Nov 09, 2026",
-      "weekly_price_move_pct": 2.4,
-      "weekly_summary": "Short 3-4 sentence summary about events that could have triggered significant price volatility in this asset this week.",
-      "news_items": [
-        {
-          "title": "Short summary title as link",
-          "link_url": "https://...",
-          "source_name": "Bloomberg / SEC / Reuters",
-          "date": "YYYY-MM-DD",
-          "price_move_pct": 3.2 or -4.5 or null,
-          "detail": "Sharp attribution explaining why this moved or impacted the stock across the five pillars."
-        }
-      ]
-    }
-  ],
-  "forward_catalysts_next_4w": {
-    "title": "Scheduled Reports & Volatility Triggers (Next 4 Weeks)",
-    "has_scheduled_events": true,
-    "summary": "Forward outlook on catalysts.",
-    "events": [
-      {
-        "event_name": "Event Title",
-        "expected_date": "YYYY-MM-DD",
-        "potential_impact": "HIGH" or "MEDIUM" or "LOW",
-        "description": "Why this could trigger volatility.",
-        "link_url": "https://..."
-      }
-    ]
-  }
-}""" % (ticker, entity_name)
-
-        try:
-            resp = llm_gateway.complete_sync(
-                prompt=user_prompt_full,
-                system_instruction=system_instruction,
-                temperature=0.2,
-                max_tokens=3800,
-            )
-            raw_text = resp if isinstance(resp, str) else json.dumps(resp)
-            raw_text = raw_text.strip()
-            if "```json" in raw_text:
-                raw_text = raw_text.split("```json")[1].split("```")[0].strip()
-            elif "```" in raw_text:
-                raw_text = raw_text.split("```")[1].split("```")[0].strip()
-
-            parsed = json.loads(raw_text)
-            parsed["status"] = "ok"
-            parsed["source"] = "GROQ_LLAMA_3_3_70B"
-            parsed["ticker"] = ticker
-            parsed["company_name"] = entity_name
-            parsed["time_window"] = "Recent 4 Weeks (28 Days)"
-            parsed["prompt_template"] = prompt_template
-            parsed["prompt_sent"] = prompt_sent
-
-            # Build flattened news_items for backward compatibility
-            all_flat = []
-            if "weeks" in parsed and isinstance(parsed["weeks"], list):
-                for w in parsed["weeks"]:
-                    if isinstance(w, dict) and isinstance(w.get("news_items"), list):
-                        all_flat.extend(w["news_items"])
-            parsed["news_items"] = all_flat
-
-            if not parsed.get("executive_summary"):
-                parsed["executive_summary"] = (
-                    parsed.get("volatility_assessment", {}).get("summary")
-                    or f"Executive 4-week news intelligence synthesis for {entity_name} ({ticker})."
-                )
-
-            if not parsed.get("volatility_assessment"):
-                parsed["volatility_assessment"] = {
-                    "has_significant_volatility": has_significant_volatility,
-                    "volatility_label": "SIGNIFICANT VOLATILITY" if has_significant_volatility else "NORMAL VOLATILITY",
-                    "net_price_change_pct": round(net_change_pct, 2),
-                    "start_price": round(start_price, 2),
-                    "end_price": round(end_price, 2),
-                    "high_price": round(high_price, 2),
-                    "low_price": round(low_price, 2),
-                    "price_range_pct": round(range_pct, 2),
-                    "max_daily_gain_pct": round(max_daily_gain, 2),
-                    "max_daily_drop_pct": round(max_daily_drop, 2),
-                    "summary": f"{entity_name} recorded a 4-week move of {net_change_pct:+.2f}% with {range_pct:.1f}% trading range."
-                }
-            return parsed
-        except Exception as e:
-            logger.warning(f"Groq Option B attribution synthesis failed for {ticker}: {e}")
-
-        return None
-
-    @classmethod
-    def _build_grounded_option_b_fallback(
-        cls,
-        ticker: str,
-        entity_name: str,
-        sector: str,
-        industry: str,
-        start_str: str,
-        end_str: str,
-        start_price: float,
-        end_price: float,
-        high_price: float,
-        low_price: float,
-        net_change_pct: float,
-        range_pct: float,
-        max_daily_gain: float,
-        max_daily_drop: float,
-        has_significant_volatility: bool,
-        articles: List[Dict[str, Any]],
-        upcoming_events: List[Dict[str, Any]],
-        weeks_spec: Optional[List[Dict[str, Any]]] = None,
-    ) -> Dict[str, Any]:
-        """Grounded fallback for Option B using verified Finnhub news & price action."""
-        asset_label = f"{entity_name} ({ticker})"
-        prompt_template = (
-            "Analyse the recent 4 weeks price moves in [Ticker/Asset] and put a short summary (3-4 sentences) for every week about events that could have triggered significant price volatility in this asset. Do not hallucinate, use only the data that is available to you.\n"
-            "When analysing news, break down your attribution analysis across five mandatory pillars:\n"
-            "1. Balance sheet & fundamental earnings mechanics\n"
-            "2. Macro, commodity, and market structure/liquidity flows\n"
-            "3. Sub-national, state, or federal political, regulatory, and permitting shocks\n"
-            "4. Non-consensus tail risks or sentiment reversals.\n"
-            "5. Beyond the categories mentioned above, what other internal or external developments occurred over the last 4 weeks that altered the terminal valuation or timeline of [Ticker/Asset]?\n"
-            "Do not merge these categories when analysing but present all of them as a one flow for each week. Put links to the source as a short summary title for every significant piece of news in each week (limit to 3-4 items maximum in each week). If you can associate a price move of the [Ticker/Asset] with a particualr piece of news - put % size of the price move next to the news header in Red (price down) or Green (price up)\n"
-            "Put a short executive summary of all news flow in the last 4 weeks at the top. Next question: is there any scheduled report or will there be any other expected internal or external update that could trigger price volatility of [Ticker/Asset] in the next 4 weeks?"
-        )
-        prompt_sent = prompt_template.replace("[Ticker/Asset]", asset_label)
-
-        # Build daily price change lookup
-        bars_by_date = cls.fetch_price_bars(ticker, start_str, end_str)
-
-        weeks_data = []
-        all_flattened_news = []
-
-        if weeks_spec:
-            for w in weeks_spec:
-                w_arts = w.get("articles", [])
-                w_news_items = []
-                for a in w_arts[:4]:
-                    hl = a.get("headline", "").strip()
-                    if not hl:
-                        continue
-                    sum_text = a.get("summary", "").strip()
-                    a_date = a.get("date", "")
-                    url = a.get("url") or f"https://finance.yahoo.com/quote/{ticker}/news"
-                    src = a.get("source", "Finnhub")
-
-                    price_move = None
-                    bar = bars_by_date.get(a_date)
-                    if bar and bar.get("change_pct") is not None and abs(bar.get("change_pct", 0.0)) >= 0.25:
-                        price_move = round(float(bar["change_pct"]), 2)
-
-                    short_title = hl if len(hl) <= 85 else (hl[:82] + "...")
-                    item_dict = {
-                        "title": short_title,
-                        "headline": hl,
-                        "link_url": url,
-                        "source_name": src,
-                        "date": a_date,
-                        "price_move_pct": price_move,
-                        "detail": sum_text[:200] + "..." if len(sum_text) > 200 else (sum_text or "Verified institutional/corporate disclosure."),
-                    }
-                    w_news_items.append(item_dict)
-                    all_flattened_news.append(item_dict)
-
-                w_move_pct = w.get("weekly_price_move_pct", 0.0)
-                sign_str = "+" if w_move_pct >= 0 else ""
-                direction = "advanced" if w_move_pct >= 0 else "declined"
-                vol_state = "heightened volatility" if abs(w_move_pct) >= 3.0 else "steady consolidation"
-
-                if not w_news_items:
-                    # Provide grounded flow item for week without discrete press releases
-                    default_item = {
-                        "title": f"{entity_name} Trading Flow & Liquidity Positioning",
-                        "headline": f"{entity_name} Trading Flow & Liquidity Positioning",
-                        "link_url": f"https://finance.yahoo.com/quote/{ticker}/news",
-                        "source_name": "Market Flow",
-                        "date": w.get("end_date", ""),
-                        "price_move_pct": w_move_pct if abs(w_move_pct) >= 0.25 else None,
-                        "detail": f"{entity_name} recorded a weekly net move of {sign_str}{w_move_pct}%, consolidating between ${w.get('start_price', 0.0):.2f} and ${w.get('end_price', 0.0):.2f} driven by broader {sector or industry or 'equity'} benchmark dynamics and systematic liquidity flows.",
-                    }
-                    w_news_items.append(default_item)
-                    all_flattened_news.append(default_item)
-
-                w_sum = (
-                    f"During {w.get('week_label', 'this week')} ({w.get('date_range', '')}), {entity_name} ({ticker}) {direction} {sign_str}{w_move_pct}% from ${w.get('start_price', 0.0):.2f} to ${w.get('end_price', 0.0):.2f} exhibiting {vol_state}. "
-                    f"Price movement was primarily shaped by {sector or 'market'} factor exposures and liquidity flow adjustments across balance sheet fundamentals. "
-                    f"Sub-national regulatory parameters and commodity/rate structures remained within anticipated corridors with no major structural permitting disruptions. "
-                    f"Overall positioning reflected consensus institutional holding patterns with terminal valuation metrics tracking steady operational execution."
-                )
-
-                weeks_data.append({
-                    "week_number": w.get("week_number"),
-                    "week_label": w.get("week_label"),
-                    "date_range": w.get("date_range"),
-                    "weekly_price_move_pct": w_move_pct,
-                    "weekly_summary": w_sum,
-                    "news_items": w_news_items[:4],
-                })
-
-        # Forward catalysts
-        fwd_events = upcoming_events if upcoming_events else [
-            {
-                "event_name": f"{ticker} Forward Earnings & Operational Update",
-                "expected_date": (datetime.now(timezone.utc).date() + timedelta(days=21)).strftime("%Y-%m-%d"),
-                "potential_impact": "HIGH",
-                "description": f"Quarterly operational disclosures and guidance checkpoint for {industry or sector}.",
-                "link_url": f"https://finance.yahoo.com/quote/{ticker}/analysis",
-            }
-        ]
-
-        vol_label = "SIGNIFICANT VOLATILITY" if has_significant_volatility else "MODERATE / NORMAL VOLATILITY"
-        exec_summary = (
-            f"Over the last 4 weeks, {entity_name} ({ticker}) experienced {vol_label.lower()} "
-            f"with a net price move of {net_change_pct:+.2f}% (${start_price:.2f} → ${end_price:.2f}) and a {range_pct:.1f}% trading range. "
-            f"Primary catalysts centered on {industry or sector} operational updates, macroeconomic rate positioning, and capital allocation milestones."
-        )
-
-        return {
-            "status": "ok",
-            "source": "GROUNDED_VERIFIED_DATA",
-            "ticker": ticker,
-            "company_name": entity_name,
-            "time_window": "Recent 4 Weeks (28 Days)",
-            "prompt_template": prompt_template,
-            "prompt_sent": prompt_sent,
-            "executive_summary": exec_summary,
-            "volatility_assessment": {
-                "has_significant_volatility": has_significant_volatility,
-                "volatility_label": vol_label,
-                "net_price_change_pct": round(net_change_pct, 2),
-                "start_price": round(start_price, 2),
-                "end_price": round(end_price, 2),
-                "high_price": round(high_price, 2),
-                "low_price": round(low_price, 2),
-                "price_range_pct": round(range_pct, 2),
-                "max_daily_gain_pct": round(max_daily_gain, 2),
-                "max_daily_drop_pct": round(max_daily_drop, 2),
-                "summary": f"{entity_name} recorded a 4-week move of {net_change_pct:+.2f}% with high of ${high_price:.2f} and low of ${low_price:.2f}."
-            },
-            "weeks": weeks_data,
-            "news_items": all_flattened_news[:16],
-            "forward_catalysts_next_4w": {
-                "title": "Scheduled Reports & Volatility Triggers (Next 4 Weeks)",
-                "has_scheduled_events": len(fwd_events) > 0,
-                "summary": "Scheduled macro and company-specific catalysts that could trigger volatility in the next 28 days.",
-                "events": fwd_events,
-            },
-        }
