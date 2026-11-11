@@ -723,6 +723,62 @@ export const METRIC_GLOSSARY: Record<string, { formula?: string; explanation: st
     formula: "Calendar overlap of Treasury Refill / Tax Collection Dates with Post-OpEx Window of Weakness",
     explanation: "A systematic high-risk collision window. When large TGA cash drains coincide with the post-OpEx period where dealer shock absorbers are offline, the market faces maximum vulnerability to abrupt drawdowns.",
   },
+  "OUTLIERSCORE": {
+    formula: "25% Quad Factor + 25% VAMS Momentum + 25% Asymmetry + 25% Timing Factor",
+    explanation: "Composite 0–100 institutional conviction score. Scores above 85 designate high-conviction asymmetric longs; 75–84 represent cyclical momentum compounders; below 65 indicate tactical holds.",
+  },
+  "OUTLIER SCORE": {
+    formula: "25% Quad Factor + 25% VAMS Momentum + 25% Asymmetry + 25% Timing Factor",
+    explanation: "Composite 0–100 institutional conviction score. Scores above 85 designate high-conviction asymmetric longs; 75–84 represent cyclical momentum compounders; below 65 indicate tactical holds.",
+  },
+  "ASYMMETRY": {
+    formula: "Upside Potential to Range High / Downside Risk to 15D Probable Low (or 200D SMA)",
+    explanation: "Reward-to-risk ratio. A 4.5 : 1 asymmetry indicates that the mathematically modeled upside toward cycle resistance is 4.5 times larger than the defined stop-loss risk.",
+  },
+  "ASYMMETRY RATIO": {
+    formula: "Upside Potential to Range High / Downside Risk to 15D Probable Low (or 200D SMA)",
+    explanation: "Reward-to-risk ratio. A 4.5 : 1 asymmetry indicates that the mathematically modeled upside toward cycle resistance is 4.5 times larger than the defined stop-loss risk.",
+  },
+  "OPEX CYCLE": {
+    formula: "Cem Karsan Temporal Phase: Pre-OpEx (Structural Pin) vs Post-OpEx (Window of Weakness)",
+    explanation: "The monthly options expiration cadence. Prior to the third Friday of the month, market maker hedging (Vanna and Charm) dampens volatility. Once options expire, dealer hedging vanishes, opening a window of acute vulnerability.",
+  },
+  "PARADIGM C": {
+    formula: "Sovereign Fiscal Dominance: Persistent Deficits + Yield Curve Control + Re-industrialization",
+    explanation: "42 Macro / Luke Gromen secular regime: When public debt-to-GDP prevents central banks from running positive real rates without fiscal insolvency, policy shifts to financial repression, nominal GDP growth, and capital rotation into hard assets.",
+  },
+  "52W RANGE": {
+    formula: "((Current Price - 52W Low) / (52W High - 52W Low)) * 100",
+    explanation: "Position within the 1-year trading boundary. Readings below 48% flag unloved low-base pullback zones; readings above 85% flag extended conditions vulnerable to consolidation.",
+  },
+  "2Y RANGE": {
+    formula: "((Current Price - 2-Year Low) / (2-Year High - 2-Year Low)) * 100",
+    explanation: "Intermediate cyclical position over 104 trading weeks. Filters out short-term noise to evaluate multi-quarter base breakouts and compounder runways.",
+  },
+  "5Y RELATIVE RATIO": {
+    formula: "Percentile Rank of (Asset Price / SPY Price) over 1,260 Trading Sessions (5 Years)",
+    explanation: "Long-term secular valuation gauge comparing an asset's price to the S&P 500 index. Low percentiles (<45th) highlight generational capital rotation opportunities into hard assets.",
+  },
+  "14W RSI": {
+    formula: "14-Week Weekly Relative Strength Index",
+    explanation: "Cyclical momentum oscillator. Smooths out daily noise to track intermediate business cycle trends without false whip-saws.",
+  },
+  "14M RSI": {
+    formula: "14-Month Monthly Relative Strength Index",
+    explanation: "Secular supercycle momentum oscillator. Identifies generational multi-year trend inflections across commodities and sovereign assets.",
+  },
+  "1ST ORDER": {
+    formula: "Direct Headline Beneficiary of Macro / Thematic Catalyst",
+    explanation: "Direct primary exposure to a secular or cyclical theme (e.g. NVDA for AI compute, TPL for Permian oil royalties, CBOE for options volatility).",
+  },
+  "2ND ORDER": {
+    formula: "Downstream Infrastructure & Physical Bottleneck Solvers",
+    explanation: "Secondary beneficiaries that supply essential components, power, or logistics to 1st-order leaders (e.g. Arista Ethernet networking, MPWR power ICs, Williams gas pipelines).",
+  },
+  "3RD ORDER": {
+    formula: "Knock-On Policy, Sovereign Wealth, and Margin Defense Beneficiaries",
+    explanation: "Tertiary beneficiaries capturing secondary wealth effects, regulatory relief, or corporate margin defense (e.g. Constellation nuclear PPAs, JPMorgan SLR relief, Palantir enterprise automation).",
+  },
 };
 
 export interface MetricTipProps {

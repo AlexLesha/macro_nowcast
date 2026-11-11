@@ -310,6 +310,18 @@ def get_multi_horizon_outliers(force: bool = False):
     return get_multi_horizon_actionable_ideas(force_refresh=force)
 
 
+@app.get("/api/v1/trade-ideas")
+@app.get("/api/trade-ideas")
+def get_trade_ideas(force: bool = False):
+    """Returns the Unified Multi-Horizon Trade Ideas dataset combining Outliers, Speculation, Macro Regimes, and DB caching."""
+    try:
+        from backend.app.quant_engine.trade_ideas_engine import TradeIdeasEngine
+    except ImportError:
+        from app.quant_engine.trade_ideas_engine import TradeIdeasEngine
+
+    return TradeIdeasEngine.build_trade_ideas_payload(force_refresh=force)
+
+
 @app.get("/api/v1/options-lab/dashboard")
 @app.get("/api/options-lab/dashboard")
 async def get_options_lab_dashboard(ticker: str = "SPY", force: bool = False):

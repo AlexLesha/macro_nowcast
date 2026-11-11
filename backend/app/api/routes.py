@@ -1530,6 +1530,18 @@ def get_synthesis_dashboard(db: Session = Depends(get_db)):
     })
 
 
+@api_router.get("/v1/trade-ideas")
+@api_router.get("/trade-ideas")
+def get_trade_ideas_api(force: bool = False):
+    """Unified Trade Ideas API endpoint."""
+    try:
+        from backend.app.quant_engine.trade_ideas_engine import TradeIdeasEngine
+    except ImportError:
+        from app.quant_engine.trade_ideas_engine import TradeIdeasEngine
+
+    return TradeIdeasEngine.build_trade_ideas_payload(force_refresh=force)
+
+
 @api_router.get("/v1/speculation")
 @api_router.get("/speculation")
 async def get_speculation_ideas(force: bool = False, db: Session = Depends(get_db)):

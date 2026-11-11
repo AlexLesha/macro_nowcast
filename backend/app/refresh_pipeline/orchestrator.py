@@ -218,6 +218,16 @@ class RefreshPipelineOrchestrator:
                 delta.affected_tickers = ", ".join(author.bullish_tickers + author.bearish_tickers)
             db.commit()
 
+            # Synchronize Trade Ideas Cache with freshly refreshed macro regime
+            try:
+                try:
+                    from backend.app.quant_engine.trade_ideas_engine import TradeIdeasEngine
+                except ImportError:
+                    from app.quant_engine.trade_ideas_engine import TradeIdeasEngine
+                TradeIdeasEngine.build_trade_ideas_payload(force_refresh=True)
+            except Exception as ti_err:
+                logger.warning(f"[Pipeline] TradeIdeasEngine refresh notice: {ti_err}")
+
             return {
                 "status": "success",
                 "timestamp_utc": datetime.now(timezone.utc).isoformat(),
@@ -463,6 +473,16 @@ async def run_refresh_pipeline_stream() -> AsyncGenerator[str, None]:
                     delta_rec.extracted_json = json.dumps(author_item.model_dump())
 
                 db.commit()
+
+                # Refresh Trade Ideas Cache in background
+                try:
+                    try:
+                        from backend.app.quant_engine.trade_ideas_engine import TradeIdeasEngine
+                    except ImportError:
+                        from app.quant_engine.trade_ideas_engine import TradeIdeasEngine
+                    TradeIdeasEngine.build_trade_ideas_payload(force_refresh=True)
+                except Exception as ti_err:
+                    logger.warning(f"[Orchestrator] TradeIdeasEngine stream refresh notice: {ti_err}")
             except Exception as db_err:
                 if db:
                     db.rollback()
