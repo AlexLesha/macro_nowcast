@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, Suspense } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   Sparkles,
   ArrowRight,
@@ -19,13 +20,15 @@ import {
 } from "lucide-react";
 import { getApiUrl } from "@/lib/api";
 import { MetricTip } from "@/components/FinancialTooltip";
+import { ReversalsDashboard } from "@/components/ReversalsDashboard";
 
-type HorizonKey = "1_to_3_months" | "12_months" | "3_plus_years";
+type HorizonKey = "1_to_3_months" | "12_months" | "3_plus_years" | "reversals";
 
 const SUBMENU_TITLES: Record<HorizonKey, string> = {
   "1_to_3_months": "1-3 months",
   "12_months": "12 months",
   "3_plus_years": "3+ Years",
+  "reversals": "Reversals (T+3)",
 };
 
 function extractFirstTicker(displayTicker: string): string {
@@ -34,13 +37,21 @@ function extractFirstTicker(displayTicker: string): string {
   return first || "SPY";
 }
 
-export default function TradeIdeasPage() {
+function TradeIdeasContent() {
+  const searchParams = useSearchParams();
   const [horizon, setHorizon] = useState<HorizonKey>("1_to_3_months");
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [themeFilter, setThemeFilter] = useState<string>("ALL");
   const [orderFilter, setOrderFilter] = useState<string>("ALL");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
+
+  useEffect(() => {
+    const h = searchParams.get("horizon") || searchParams.get("tab");
+    if (h === "reversals" || h === "1_to_3_months" || h === "12_months" || h === "3_plus_years") {
+      setHorizon(h as HorizonKey);
+    }
+  }, [searchParams]);
 
   const fetchTradeIdeas = (force = false) => {
     setLoading(true);
@@ -66,9 +77,12 @@ export default function TradeIdeasPage() {
     return () => window.removeEventListener("macro-nowcast-global-refresh", handleGlobalRefresh);
   }, []);
 
-  const activeHorizonData = data?.horizons?.[horizon] || {
+  const activeHorizonData = (horizon !== "reversals" ? data?.horizons?.[horizon] : null) || {
     label: SUBMENU_TITLES[horizon],
-    subtitle: "Fetching live 5-year price series, Weekly/Monthly RSIs, and central macro regimes...",
+    subtitle:
+      horizon === "reversals"
+        ? "Daily Residual Shock Scanner (Residual < -2.25σ vs SPY & Sector ETF, IBS < 0.15, RVOL > 1.8x, T+3 Mean-Reversion Target)"
+        : "Fetching live 5-year price series, Weekly/Monthly RSIs, and central macro regimes...",
     range_bar_label: "Range Position",
     priority_1_unloved_pivots: [],
     priority_2_trend_compounders: [],
@@ -143,14 +157,15 @@ export default function TradeIdeasPage() {
               </h1>
               <p className="text-xs md:text-sm text-slate-400 mt-1 max-w-3xl">
                 Cross-framework institutional trade ideas synthesizing <strong>1-3 Month Tactical Pivots</strong>,{" "}
-                <strong>12-Month Cyclical Compounders</strong>, and <strong>3+ Year Secular Supercycles</strong> with explicit{" "}
-                <em>&quot;Why this trade&quot;</em>, <em>Actionable Directions</em>, and <em>Invalidation Stops</em>.
+                <strong>12-Month Cyclical Compounders</strong>, <strong>3+ Year Secular Supercycles</strong>, and{" "}
+                <strong>T+3 Microstructural Reversals</strong> with explicit <em>&quot;Why this trade&quot;</em>,{" "}
+                <em>Actionable Directions</em>, and <em>Invalidation Stops</em>.
               </p>
             </div>
 
             {/* TIME HORIZON TABS & RECALCULATE LIVE */}
             <div className="flex flex-wrap items-center gap-2 font-mono text-xs">
-              {(["1_to_3_months", "12_months", "3_plus_years"] as HorizonKey[]).map((hKey) => (
+              {(["1_to_3_months", "12_months", "3_plus_years", "reversals"] as HorizonKey[]).map((hKey) => (
                 <button
                   key={hKey}
                   id={`trade-ideas-tab-${hKey}`}
@@ -158,15 +173,35 @@ export default function TradeIdeasPage() {
                     setHorizon(hKey);
                     setThemeFilter("ALL");
                   }}
-                  className={`px-4 py-2 rounded-lg border font-semibold transition ${
+                  className={`px-3.5 py-2 rounded-lg border font-semibold transition flex items-center gap-1.5 ${
                     horizon === hKey
-                      ? "bg-blue-600 border-blue-400 text-white shadow-md shadow-blue-900/40"
+                      ? hKey === "reversals"
+                        ? "bg-emerald-600 border-emerald-400 text-white shadow-md shadow-emerald-900/40"
+                        : "bg-blue-600 border-blue-400 text-white shadow-md shadow-blue-900/40"
                       : "bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-800"
                   }`}
                 >
-                  {SUBMENU_TITLES[hKey]}
+                  {hKey === "reversals" && <Zap className="w-3.5 h-3.5 text-amber-300" />}
+                  <span>{SUBMENU_TITLES[hKey]}</span>
+                  {hKey === "reversals" && (data?.reversals?.candidates?.length || 0) > 0 && (
+                    <span className="px-1.5 py-0.2 rounded-full bg-emerald-950 border border-emerald-500/50 text-emerald-300 text-[10px] font-mono">
+                      {data.reversals.candidates.length}
+                    </span>
+                  )}
                 </button>
               ))}
+
+              {/* Dedicated Sub-Page Link Next to Timeframes */}
+              <Link
+                href="/trade-ideas/reversals"
+                id="reversals-subpage-link"
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-emerald-500/40 bg-emerald-950/30 text-emerald-300 hover:bg-emerald-900/50 hover:border-emerald-500/70 transition font-mono text-xs font-semibold"
+                title="Open full dedicated Reversals workstation in isolated sub-page"
+              >
+                <span>Sub-Page</span>
+                <ExternalLink className="w-3.5 h-3.5 text-emerald-400" />
+              </Link>
+
               <button
                 id="recalculate-live-trade-ideas"
                 onClick={() => fetchTradeIdeas(true)}
@@ -271,469 +306,392 @@ export default function TradeIdeasPage() {
           </div>
         </section>
 
-        {/* INTERACTIVE FILTERS BAR */}
-        <section className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-xl border border-slate-800 bg-[#111827]">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs font-mono uppercase text-slate-400 flex items-center gap-1">
-              <Filter className="w-3.5 h-3.5 text-cyan-400" /> Filters:
-            </span>
-
-            {/* Theme Filter */}
-            <select
-              value={themeFilter}
-              onChange={(e) => setThemeFilter(e.target.value)}
-              className="bg-slate-900 border border-slate-700 text-xs font-mono text-slate-200 rounded px-2.5 py-1.5 focus:outline-none focus:border-cyan-500"
-            >
-              <option value="ALL">All Themes ({activeHorizonData.all_ideas?.length || 0})</option>
-              {distinctThemes.map((t) => (
-                <option key={t} value={t}>{t}</option>
-              ))}
-            </select>
-
-            {/* Order Filter */}
-            <select
-              value={orderFilter}
-              onChange={(e) => setOrderFilter(e.target.value)}
-              className="bg-slate-900 border border-slate-700 text-xs font-mono text-slate-200 rounded px-2.5 py-1.5 focus:outline-none focus:border-cyan-500"
-            >
-              <option value="ALL">All Orders (1st, 2nd, 3rd)</option>
-              <option value="1st Order">1st Order (Direct Beneficiaries)</option>
-              <option value="2nd Order">2nd Order (Infrastructure &amp; Enablers)</option>
-              <option value="3rd Order">3rd Order (Policy, Wealth &amp; Power)</option>
-            </select>
-
-            {/* Status Filter */}
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="bg-slate-900 border border-slate-700 text-xs font-mono text-slate-200 rounded px-2.5 py-1.5 focus:outline-none focus:border-cyan-500"
-            >
-              <option value="ALL">All Conviction Tiers</option>
-              <option value="PIVOT">Priority 1 — Unloved Pivots</option>
-              <option value="COMPOUNDER">Priority 2 — Trend Compounders</option>
-              <option value="HIGHS">Caution — Played Out at Highs</option>
-            </select>
-          </div>
-
-          <div className="text-xs font-mono text-slate-400">
-            Showing <span className="text-cyan-300 font-bold">{p1Ideas.length + p2Ideas.length + playedOutIdeas.length}</span> ideas in {SUBMENU_TITLES[horizon]}
-          </div>
-        </section>
-
-        {/* ================================================================== */}
-        {/* BUCKET 1: PRIORITY 1 — VERIFIED LOW-BASE / PULLBACK PIVOTS        */}
-        {/* ================================================================== */}
-        <section className="rounded-xl border border-emerald-500/40 bg-[#111827] p-5 space-y-4 shadow-lg">
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3">
-            <div>
-              <span className="text-xs font-mono uppercase px-2.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold">
-                🥇 Priority 1 — Verified Low-Base / Pullback Pivots
-              </span>
-              <h2 className="text-base font-bold text-white mt-1.5">
-                Unloved Bottoming Pivots &amp; Coiled Springs ({SUBMENU_TITLES[horizon]})
-              </h2>
-            </div>
-            <span className="text-xs font-mono text-slate-400">
-              {horizon === "1_to_3_months"
-                ? "Tactical Gate: 52W Range <= 48% | RSI <= 46 | Near 15D Probable Low"
-                : horizon === "12_months"
-                ? "Cyclical Gate: 2Y Range <= 52% | 14W RSI <= 48 | Near 200D SMA"
-                : "Secular Gate: 5Y Relative Ratio vs SPY <= 52nd Pct | 14M RSI <= 50"}
-            </span>
-          </div>
-
-          {p1Ideas.length === 0 ? (
-            <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-4 text-xs font-mono text-slate-400">
-              {loading
-                ? "Computing live horizon metrics from Yahoo Finance & database..."
-                : "No tracked candidates in this horizon currently sit in a verified low-base/pullback zone with active filters."}
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {p1Ideas.map((idea: any, i: number) => {
-                const primaryTicker = extractFirstTicker(idea.ticker);
-                return (
-                  <div
-                    key={i}
-                    className="rounded-lg border border-slate-800 bg-slate-900/80 p-4 space-y-3.5 flex flex-col justify-between hover:border-emerald-500/50 transition shadow-sm"
-                  >
-                    <div className="space-y-2.5">
-                      {/* CARD HEADER */}
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <Link
-                              href={`/stock-analysis?ticker=${encodeURIComponent(primaryTicker)}`}
-                              className="text-base font-black font-mono text-emerald-400 hover:underline"
-                              title="Open Deep-Dive Stock Analysis"
-                            >
-                              {idea.display_ticker || `$${idea.ticker}`}
-                            </Link>
-                            <Link
-                              href={`/stock-xray?ticker=${encodeURIComponent(primaryTicker)}`}
-                              className="text-slate-400 hover:text-cyan-300 transition"
-                              title="Sector-Aware Stock X-Ray"
-                            >
-                              <ExternalLink className="w-3.5 h-3.5" />
-                            </Link>
-                            <span className="text-sm font-bold text-white">
-                              — {idea.name}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2 mt-1">
-                            <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-cyan-950/70 border border-cyan-500/40 text-cyan-300">
-                              {idea.order}
-                            </span>
-                            <span className="text-xs text-slate-400 font-mono">
-                              {idea.theme}
-                            </span>
-                          </div>
-                        </div>
-
-                        <div className="text-right space-y-0.5 flex-shrink-0">
-                          <span className="px-2.5 py-0.5 rounded bg-emerald-950 border border-emerald-500/50 text-emerald-300 font-mono text-xs font-bold inline-block">
-                            <MetricTip term="OUTLIERSCORE">
-                              Score: {idea.outlier_score}/100
-                            </MetricTip>
-                          </span>
-                          <div className="text-[10px] font-mono text-emerald-400 font-semibold">
-                            <MetricTip term="ASYMMETRY">
-                              Asym: {idea.asymmetry}
-                            </MetricTip>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* LIVE METRICS STRIP */}
-                      <div className="flex flex-wrap items-center gap-3 text-xs font-mono p-2 rounded bg-black/40 border border-slate-800/80">
-                        <span className="text-white font-bold">
-                          ${idea.live_price?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </span>
-                        <span className="text-slate-400">|</span>
-                        <span className={idea.vams_state === 1 ? "text-emerald-400" : idea.vams_state === -1 ? "text-rose-400" : "text-amber-400"}>
-                          <MetricTip term="VAMS">
-                            VAMS: {idea.vams_label}
-                          </MetricTip>
-                        </span>
-                        <span className="text-slate-400">|</span>
-                        <span className="text-cyan-300">
-                          <MetricTip term={idea.rsi_label || "14D RSI"}>
-                            {idea.rsi_label}: {idea.rsi}
-                          </MetricTip>
-                        </span>
-                        {idea.prob_low && (
-                          <>
-                            <span className="text-slate-400">|</span>
-                            <span className="text-slate-300 text-[11px]">
-                              <MetricTip term="PROBABLE RANGE">
-                                15D Range: ${idea.prob_low} – ${idea.prob_high}
-                              </MetricTip>
-                            </span>
-                          </>
-                        )}
-                      </div>
-
-                      {/* RANGE POSITION PROGRESS BAR */}
-                      <div className="space-y-1">
-                        <div className="flex justify-between text-xs font-mono text-slate-400">
-                          <span>0% (Low)</span>
-                          <span className="text-emerald-300 font-semibold">
-                            <MetricTip term={idea.range_bar_label || "52W RANGE"}>
-                              {idea.range_bar_label}: {idea.range_bar_pct}%
-                            </MetricTip>
-                          </span>
-                          <span>100% (High)</span>
-                        </div>
-                        <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-emerald-500 rounded-full transition-all duration-500"
-                            style={{ width: `${Math.max(4, Math.min(100, idea.range_bar_pct))}%` }}
-                          />
-                        </div>
-                      </div>
-
-                      {/* PLAIN ENGLISH: WHY THIS TRADE */}
-                      <div className="p-3 rounded-lg bg-slate-900/90 border border-slate-800 space-y-1">
-                        <div className="text-xs font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1">
-                          <Sparkles className="w-3.5 h-3.5" /> Why This Trade (Macro &amp; Fundamentals)
-                        </div>
-                        <p className="text-xs text-slate-200 leading-relaxed font-sans">
-                          {idea.why_this_trade}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* ACTIONABLE DIRECTIONS & INVALIDATION / STOPS */}
-                    <div className="pt-2 border-t border-slate-800/80 space-y-2">
-                      <div className="text-xs font-semibold text-emerald-300 flex items-start gap-1.5 leading-relaxed">
-                        <ArrowRight className="w-4 h-4 text-emerald-400 flex-shrink-0 mt-0.5" />
-                        <div>
-                          <strong className="text-white uppercase font-mono text-[11px] block">Actionable Direction:</strong>
-                          <span>{idea.actionable_direction}</span>
-                        </div>
-                      </div>
-                      <div className="text-xs font-mono text-slate-400 flex items-start gap-1.5 bg-slate-950/60 p-2 rounded border border-slate-800">
-                        <AlertTriangle className="w-3.5 h-3.5 text-rose-400 flex-shrink-0 mt-0.5" />
-                        <div>
-                          <span className="text-rose-400 font-bold uppercase">Invalidation / Stop:</span> {idea.invalidation_stop}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </section>
-
-        {/* ================================================================== */}
-        {/* BUCKET 2: PRIORITY 2 — TREND CONTINUATION COMPOUNDERS             */}
-        {/* ================================================================== */}
-        <section className="rounded-xl border border-blue-500/40 bg-[#111827] p-5 space-y-4 shadow-lg">
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3">
-            <div>
-              <span className="text-xs font-mono uppercase px-2.5 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/40 font-bold">
-                🥈 Priority 2 — Trend Continuation Compounders
-              </span>
-              <h2 className="text-base font-bold text-white mt-1.5">
-                Mid-Runway Compounders with Expansion Room ({SUBMENU_TITLES[horizon]})
-              </h2>
-            </div>
-            <span className="text-xs font-mono text-slate-400">
-              Balanced Momentum • Healthy Pullback Opportunities • High FCF Quality
-            </span>
-          </div>
-
-          {p2Ideas.length === 0 ? (
-            <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-4 text-xs font-mono text-slate-400">
-              No compounders currently match the selected theme/order filters in this section.
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {p2Ideas.map((idea: any, i: number) => {
-                const primaryTicker = extractFirstTicker(idea.ticker);
-                return (
-                  <div
-                    key={i}
-                    className="rounded-lg border border-slate-800 bg-slate-900/80 p-4 space-y-3.5 flex flex-col justify-between hover:border-blue-500/50 transition shadow-sm"
-                  >
-                    <div className="space-y-2.5">
-                      {/* CARD HEADER */}
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <Link
-                              href={`/stock-analysis?ticker=${encodeURIComponent(primaryTicker)}`}
-                              className="text-base font-black font-mono text-blue-400 hover:underline"
-                              title="Open Deep-Dive Stock Analysis"
-                            >
-                              {idea.display_ticker || `$${idea.ticker}`}
-                            </Link>
-                            <Link
-                              href={`/stock-xray?ticker=${encodeURIComponent(primaryTicker)}`}
-                              className="text-slate-400 hover:text-cyan-300 transition"
-                              title="Sector-Aware Stock X-Ray"
-                            >
-                              <ExternalLink className="w-3.5 h-3.5" />
-                            </Link>
-                            <span className="text-sm font-bold text-white">
-                              — {idea.name}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2 mt-1">
-                            <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-cyan-950/70 border border-cyan-500/40 text-cyan-300">
-                              {idea.order}
-                            </span>
-                            <span className="text-xs text-slate-400 font-mono">
-                              {idea.theme}
-                            </span>
-                          </div>
-                        </div>
-
-                        <div className="text-right space-y-0.5 flex-shrink-0">
-                          <span className="px-2.5 py-0.5 rounded bg-blue-950 border border-blue-500/50 text-blue-300 font-mono text-xs font-bold inline-block">
-                            <MetricTip term="OUTLIERSCORE">
-                              Score: {idea.outlier_score}/100
-                            </MetricTip>
-                          </span>
-                          <div className="text-[10px] font-mono text-blue-300 font-semibold">
-                            <MetricTip term="ASYMMETRY">
-                              Asym: {idea.asymmetry}
-                            </MetricTip>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* LIVE METRICS STRIP */}
-                      <div className="flex flex-wrap items-center gap-3 text-xs font-mono p-2 rounded bg-black/40 border border-slate-800/80">
-                        <span className="text-white font-bold">
-                          ${idea.live_price?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </span>
-                        <span className="text-slate-400">|</span>
-                        <span className={idea.vams_state === 1 ? "text-emerald-400" : idea.vams_state === -1 ? "text-rose-400" : "text-amber-400"}>
-                          <MetricTip term="VAMS">
-                            VAMS: {idea.vams_label}
-                          </MetricTip>
-                        </span>
-                        <span className="text-slate-400">|</span>
-                        <span className="text-cyan-300">
-                          <MetricTip term={idea.rsi_label || "14D RSI"}>
-                            {idea.rsi_label}: {idea.rsi}
-                          </MetricTip>
-                        </span>
-                        {idea.prob_low && (
-                          <>
-                            <span className="text-slate-400">|</span>
-                            <span className="text-slate-300 text-[11px]">
-                              <MetricTip term="PROBABLE RANGE">
-                                15D Range: ${idea.prob_low} – ${idea.prob_high}
-                              </MetricTip>
-                            </span>
-                          </>
-                        )}
-                      </div>
-
-                      {/* RANGE PROGRESS BAR */}
-                      <div className="space-y-1">
-                        <div className="flex justify-between text-xs font-mono text-slate-400">
-                          <span>0% (Low)</span>
-                          <span className="text-blue-300 font-semibold">
-                            <MetricTip term={idea.range_bar_label || "52W RANGE"}>
-                              {idea.range_bar_label}: {idea.range_bar_pct}%
-                            </MetricTip>
-                          </span>
-                          <span>100% (High)</span>
-                        </div>
-                        <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-blue-500 rounded-full transition-all duration-500"
-                            style={{ width: `${Math.max(4, Math.min(100, idea.range_bar_pct))}%` }}
-                          />
-                        </div>
-                      </div>
-
-                      {/* PLAIN ENGLISH: WHY THIS TRADE */}
-                      <div className="p-3 rounded-lg bg-slate-900/90 border border-slate-800 space-y-1">
-                        <div className="text-xs font-bold uppercase tracking-wider text-blue-400 flex items-center gap-1">
-                          <Sparkles className="w-3.5 h-3.5" /> Why This Trade (Macro &amp; Fundamentals)
-                        </div>
-                        <p className="text-xs text-slate-200 leading-relaxed font-sans">
-                          {idea.why_this_trade}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* ACTIONABLE DIRECTIONS & INVALIDATION / STOPS */}
-                    <div className="pt-2 border-t border-slate-800/80 space-y-2">
-                      <div className="text-xs font-semibold text-blue-300 flex items-start gap-1.5 leading-relaxed">
-                        <ArrowRight className="w-4 h-4 text-blue-400 flex-shrink-0 mt-0.5" />
-                        <div>
-                          <strong className="text-white uppercase font-mono text-[11px] block">Actionable Direction:</strong>
-                          <span>{idea.actionable_direction}</span>
-                        </div>
-                      </div>
-                      <div className="text-xs font-mono text-slate-400 flex items-start gap-1.5 bg-slate-950/60 p-2 rounded border border-slate-800">
-                        <AlertTriangle className="w-3.5 h-3.5 text-rose-400 flex-shrink-0 mt-0.5" />
-                        <div>
-                          <span className="text-rose-400 font-bold uppercase">Invalidation / Stop:</span> {idea.invalidation_stop}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </section>
-
-        {/* ================================================================== */}
-        {/* BUCKET 3: PLAYED OUT AT HIGHS — CAUTION & TAKE-PROFIT ZONE        */}
-        {/* ================================================================== */}
-        {playedOutIdeas.length > 0 && (
-          <section className="rounded-xl border border-rose-500/40 bg-[#111827] p-5 space-y-4 shadow-lg">
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3">
-              <div>
-                <span className="text-xs font-mono uppercase px-2.5 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/40 font-bold flex items-center gap-1 w-fit">
-                  <AlertTriangle className="w-3.5 h-3.5" /> ⚠️ Tactical Caution — Played-Out at Cyclical Highs
-                </span>
-                <h2 className="text-base font-bold text-white mt-1.5">
-                  Overextended at Resistance ({SUBMENU_TITLES[horizon]}) — Do NOT Chase Long
-                </h2>
-              </div>
-              <span className="text-xs font-mono text-rose-400">
-                Range Position &gt;= 82% &amp; Overbought RSI • Wait for Pullback or Harvest Gains
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {playedOutIdeas.map((idea: any, i: number) => {
-                const primaryTicker = extractFirstTicker(idea.ticker);
-                return (
-                  <div
-                    key={i}
-                    className="rounded-lg border border-slate-800 bg-slate-900/80 p-4 space-y-3.5 flex flex-col justify-between hover:border-rose-500/50 transition shadow-sm"
-                  >
-                    <div className="space-y-2.5">
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <Link
-                              href={`/stock-analysis?ticker=${encodeURIComponent(primaryTicker)}`}
-                              className="text-base font-black font-mono text-rose-400 hover:underline"
-                            >
-                              {idea.display_ticker || `$${idea.ticker}`}
-                            </Link>
-                            <span className="text-sm font-bold text-white">
-                              — {idea.name}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2 mt-1">
-                            <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-slate-800 text-slate-300">
-                              {idea.order}
-                            </span>
-                            <span className="text-xs text-slate-400 font-mono">
-                              {idea.theme}
-                            </span>
-                          </div>
-                        </div>
-
-                        <span className="px-2.5 py-0.5 rounded bg-rose-950 border border-rose-500/40 text-rose-300 font-mono text-xs font-bold">
-                          Caution Tier
-                        </span>
-                      </div>
-
-                      <div className="flex flex-wrap items-center gap-3 text-xs font-mono p-2 rounded bg-black/40 border border-slate-800/80">
-                        <span className="text-white font-bold">
-                          ${idea.live_price?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </span>
-                        <span className="text-slate-400">|</span>
-                        <span className="text-rose-400 font-semibold">
-                          Range: {idea.range_bar_pct}%
-                        </span>
-                        <span className="text-slate-400">|</span>
-                        <span className="text-amber-300">
-                          {idea.rsi_label}: {idea.rsi}
-                        </span>
-                      </div>
-
-                      <p className="text-xs text-slate-300 leading-relaxed font-sans">
-                        {idea.why_this_trade}
-                      </p>
-                    </div>
-
-                    <div className="pt-2 border-t border-slate-800/80 space-y-1">
-                      <div className="text-xs font-semibold text-rose-300">
-                        ► Tactical Guidance: Do NOT chase new long exposure here. Await consolidation toward ${idea.prob_low || "support"} before accumulating.
-                      </div>
-                      <div className="text-xs font-mono text-slate-400">
-                        Invalidation / Exit: Tight trailing stop at ${idea.prob_low || "recent support"}.
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+        {/* CONDITIONAL RENDER: REVERSALS DASHBOARD VS THEMATIC TIME HORIZONS */}
+        {horizon === "reversals" ? (
+          <section className="pt-1">
+            <ReversalsDashboard isSubPage={false} initialData={data?.reversals || null} />
           </section>
+        ) : (
+          <>
+            {/* CROSS-LINK REVERSALS RADAR BANNER (ON THEMATIC HORIZONS) */}
+            {data?.reversals?.candidates?.length > 0 && (
+              <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-xl border border-emerald-500/30 bg-emerald-950/20 text-xs font-mono">
+                <div className="flex items-center gap-2 text-emerald-300">
+                  <Zap className="w-4 h-4 text-emerald-400 animate-pulse" />
+                  <span>
+                    <strong>T+3 Reversals Radar Active:</strong>{" "}
+                    <span className="text-white font-bold">{data.reversals.candidates.length} candidates</span> flagged with idiosyncratic residual shock (&epsilon; &lt; -2.25&sigma;, IBS &lt; 0.15).
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setHorizon("reversals")}
+                    className="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-semibold transition"
+                  >
+                    View Reversals Tab →
+                  </button>
+                  <Link
+                    href="/trade-ideas/reversals"
+                    className="px-2.5 py-1 rounded border border-emerald-500/50 hover:bg-emerald-900/40 text-emerald-300 transition flex items-center gap-1"
+                  >
+                    Dedicated Sub-Page ↗
+                  </Link>
+                </div>
+              </div>
+            )}
+
+            {/* INTERACTIVE FILTERS BAR */}
+            <section className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-xl border border-slate-800 bg-[#111827]">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs font-mono uppercase text-slate-400 flex items-center gap-1">
+                  <Filter className="w-3.5 h-3.5 text-cyan-400" /> Filters:
+                </span>
+
+                {/* Theme Filter */}
+                <select
+                  value={themeFilter}
+                  onChange={(e) => setThemeFilter(e.target.value)}
+                  className="bg-slate-900 border border-slate-700 text-xs font-mono text-slate-200 rounded px-2.5 py-1.5 focus:outline-none focus:border-cyan-500"
+                >
+                  <option value="ALL">All Themes ({activeHorizonData.all_ideas?.length || 0})</option>
+                  {distinctThemes.map((t) => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
+
+                {/* Order Filter */}
+                <select
+                  value={orderFilter}
+                  onChange={(e) => setOrderFilter(e.target.value)}
+                  className="bg-slate-900 border border-slate-700 text-xs font-mono text-slate-200 rounded px-2.5 py-1.5 focus:outline-none focus:border-cyan-500"
+                >
+                  <option value="ALL">All Orders (1st, 2nd, 3rd)</option>
+                  <option value="1st Order">1st Order (Direct Beneficiaries)</option>
+                  <option value="2nd Order">2nd Order (Infrastructure &amp; Enablers)</option>
+                  <option value="3rd Order">3rd Order (Policy, Wealth &amp; Power)</option>
+                </select>
+
+                {/* Status Filter */}
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="bg-slate-900 border border-slate-700 text-xs font-mono text-slate-200 rounded px-2.5 py-1.5 focus:outline-none focus:border-cyan-500"
+                >
+                  <option value="ALL">All Conviction Tiers</option>
+                  <option value="PIVOT">Priority 1 — Unloved Pivots</option>
+                  <option value="COMPOUNDER">Priority 2 — Trend Compounders</option>
+                  <option value="HIGHS">Caution — Played Out at Highs</option>
+                </select>
+              </div>
+
+              <div className="text-xs font-mono text-slate-400">
+                Showing <span className="text-cyan-300 font-bold">{p1Ideas.length + p2Ideas.length + playedOutIdeas.length}</span> ideas in {SUBMENU_TITLES[horizon]}
+              </div>
+            </section>
+
+            {/* ================================================================== */}
+            {/* BUCKET 1: PRIORITY 1 — VERIFIED LOW-BASE / PULLBACK PIVOTS        */}
+            {/* ================================================================== */}
+            <section className="rounded-xl border border-emerald-500/40 bg-[#111827] p-5 space-y-4 shadow-lg">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3">
+                <div>
+                  <span className="text-xs font-mono uppercase px-2.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold">
+                    🥇 Priority 1 — Verified Low-Base / Pullback Pivots
+                  </span>
+                  <h2 className="text-base font-bold text-white mt-1.5">
+                    Unloved Bottoming Pivots &amp; Coiled Springs ({SUBMENU_TITLES[horizon]})
+                  </h2>
+                </div>
+                <span className="text-xs font-mono text-slate-400">
+                  {horizon === "1_to_3_months"
+                    ? "Tactical Gate: 52W Range <= 48% | RSI <= 46 | Near 15D Probable Low"
+                    : horizon === "12_months"
+                    ? "Cyclical Gate: 2Y Range <= 52% | 14W RSI <= 48 | Near 200D SMA"
+                    : "Secular Gate: 5Y Relative Ratio vs SPY <= 52nd Pct | 14M RSI <= 50"}
+                </span>
+              </div>
+
+              {p1Ideas.length === 0 ? (
+                <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-4 text-xs font-mono text-slate-400">
+                  {loading
+                    ? "Computing live horizon metrics from Yahoo Finance & database..."
+                    : "No tracked candidates in this horizon currently sit in a verified low-base/pullback zone with active filters."}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {p1Ideas.map((idea: any) => {
+                    const firstTk = extractFirstTicker(idea.ticker);
+                    return (
+                      <div
+                        key={idea.ticker}
+                        className="rounded-xl border border-emerald-500/30 bg-slate-900/70 p-4 space-y-3 flex flex-col justify-between hover:border-emerald-500/60 transition shadow-md"
+                      >
+                        <div className="space-y-2.5">
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <div className="flex items-center gap-1.5">
+                                <Link
+                                  href={`/stock-analysis?ticker=${firstTk}`}
+                                  className="text-base font-bold text-white hover:text-emerald-400 transition font-mono flex items-center gap-1"
+                                >
+                                  <span>{idea.ticker}</span>
+                                  <ExternalLink className="w-3.5 h-3.5 text-slate-500 hover:text-emerald-400" />
+                                </Link>
+                                <span className="text-xs px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-mono font-bold">
+                                  Score: {idea.outlier_score}
+                                </span>
+                              </div>
+                              <div className="text-xs text-slate-400 font-medium">
+                                {idea.name}
+                              </div>
+                            </div>
+                            <span className="px-2 py-0.5 rounded bg-slate-800 text-[10px] font-mono text-cyan-300 border border-slate-700">
+                              {idea.theme}
+                            </span>
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-2 text-xs font-mono p-2 rounded bg-black/40 border border-slate-800/80">
+                            <span className="text-white font-bold">
+                              ${idea.live_price?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </span>
+                            <span className="text-slate-400">|</span>
+                            <span className="text-emerald-400 font-semibold">
+                              Range: {idea.range_bar_pct}%
+                            </span>
+                            <span className="text-slate-400">|</span>
+                            <span className="text-amber-300">
+                              {idea.rsi_label}: {idea.rsi}
+                            </span>
+                            {idea.relative_vs_spy_percentile !== null && (
+                              <>
+                                <span className="text-slate-400">|</span>
+                                <span className="text-cyan-300">
+                                  vs SPY: {idea.relative_vs_spy_percentile}th %ile
+                                </span>
+                              </>
+                            )}
+                          </div>
+
+                          {idea.prob_low && idea.prob_high && (
+                            <div className="text-[11px] font-mono text-slate-400 flex items-center justify-between px-1">
+                              <span>Low: ${idea.prob_low}</span>
+                              <span className="text-slate-500">Probable Range</span>
+                              <span>High: ${idea.prob_high}</span>
+                            </div>
+                          )}
+
+                          <p className="text-xs text-slate-300 leading-relaxed font-sans">
+                            {idea.why_this_trade}
+                          </p>
+                        </div>
+
+                        <div className="pt-2 border-t border-slate-800/80 space-y-1.5">
+                          <div className="text-xs font-semibold text-emerald-400 flex items-center gap-1">
+                            <span>► Actionable:</span>
+                            <span className="text-slate-200">{idea.actionable_direction}</span>
+                          </div>
+                          <div className="text-xs font-mono text-rose-300/90 flex items-center gap-1">
+                            <span>■ Stop / Invalidation:</span>
+                            <span className="text-slate-300">{idea.invalidation_stop}</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+
+            {/* ================================================================== */}
+            {/* BUCKET 2: PRIORITY 2 — VERIFIED TRENDING COMPOUNDERS               */}
+            {/* ================================================================== */}
+            <section className="rounded-xl border border-blue-500/40 bg-[#111827] p-5 space-y-4 shadow-lg">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3">
+                <div>
+                  <span className="text-xs font-mono uppercase px-2.5 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/40 font-bold">
+                    🥈 Priority 2 — Verified Trend Compounders
+                  </span>
+                  <h2 className="text-base font-bold text-white mt-1.5">
+                    Structural Trend Accumulations &amp; Pullback Entries ({SUBMENU_TITLES[horizon]})
+                  </h2>
+                </div>
+                <span className="text-xs font-mono text-slate-400">
+                  {horizon === "1_to_3_months"
+                    ? "Tactical Trend Gate: Range 48% - 75% | RSI 46 - 65 | Bullish VAMS"
+                    : horizon === "12_months"
+                    ? "Cyclical Trend Gate: 2Y Range 52% - 78% | RSI 48 - 65 | Above 200D SMA"
+                    : "Secular Trend Gate: 5Y Relative Ratio 52nd - 80th Pct | Above 20M SMA"}
+                </span>
+              </div>
+
+              {p2Ideas.length === 0 ? (
+                <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-4 text-xs font-mono text-slate-400">
+                  {loading
+                    ? "Computing live horizon metrics from Yahoo Finance & database..."
+                    : "No tracked candidates currently qualify for Priority 2 with active filters."}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {p2Ideas.map((idea: any) => {
+                    const firstTk = extractFirstTicker(idea.ticker);
+                    return (
+                      <div
+                        key={idea.ticker}
+                        className="rounded-xl border border-blue-500/30 bg-slate-900/70 p-4 space-y-3 flex flex-col justify-between hover:border-blue-500/60 transition shadow-md"
+                      >
+                        <div className="space-y-2.5">
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <div className="flex items-center gap-1.5">
+                                <Link
+                                  href={`/stock-analysis?ticker=${firstTk}`}
+                                  className="text-base font-bold text-white hover:text-blue-400 transition font-mono flex items-center gap-1"
+                                >
+                                  <span>{idea.ticker}</span>
+                                  <ExternalLink className="w-3.5 h-3.5 text-slate-500 hover:text-blue-400" />
+                                </Link>
+                                <span className="text-xs px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 font-mono font-bold">
+                                  Score: {idea.outlier_score}
+                                </span>
+                              </div>
+                              <div className="text-xs text-slate-400 font-medium">
+                                {idea.name}
+                              </div>
+                            </div>
+                            <span className="px-2 py-0.5 rounded bg-slate-800 text-[10px] font-mono text-cyan-300 border border-slate-700">
+                              {idea.theme}
+                            </span>
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-2 text-xs font-mono p-2 rounded bg-black/40 border border-slate-800/80">
+                            <span className="text-white font-bold">
+                              ${idea.live_price?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </span>
+                            <span className="text-slate-400">|</span>
+                            <span className="text-blue-400 font-semibold">
+                              Range: {idea.range_bar_pct}%
+                            </span>
+                            <span className="text-slate-400">|</span>
+                            <span className="text-amber-300">
+                              {idea.rsi_label}: {idea.rsi}
+                            </span>
+                            {idea.relative_vs_spy_percentile !== null && (
+                              <>
+                                <span className="text-slate-400">|</span>
+                                <span className="text-cyan-300">
+                                  vs SPY: {idea.relative_vs_spy_percentile}th %ile
+                                </span>
+                              </>
+                            )}
+                          </div>
+
+                          <p className="text-xs text-slate-300 leading-relaxed font-sans">
+                            {idea.why_this_trade}
+                          </p>
+                        </div>
+
+                        <div className="pt-2 border-t border-slate-800/80 space-y-1.5">
+                          <div className="text-xs font-semibold text-blue-400 flex items-center gap-1">
+                            <span>► Actionable:</span>
+                            <span className="text-slate-200">{idea.actionable_direction}</span>
+                          </div>
+                          <div className="text-xs font-mono text-rose-300/90 flex items-center gap-1">
+                            <span>■ Stop / Invalidation:</span>
+                            <span className="text-slate-300">{idea.invalidation_stop}</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+
+            {/* ================================================================== */}
+            {/* BUCKET 3: CAUTION — EXTENDED / PLAYED OUT AT HIGHS                */}
+            {/* ================================================================== */}
+            {playedOutIdeas.length > 0 && (
+              <section className="rounded-xl border border-rose-500/30 bg-[#111827] p-5 space-y-4 shadow-lg">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3">
+                  <div>
+                    <span className="text-xs font-mono uppercase px-2.5 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/40 font-bold flex items-center gap-1 w-fit">
+                      <AlertTriangle className="w-3.5 h-3.5 text-rose-400" /> Caution — Structurally Extended at Highs
+                    </span>
+                    <h2 className="text-base font-bold text-white mt-1.5">
+                      Crowded or Extended Trades (Do NOT Chase at Resistance)
+                    </h2>
+                  </div>
+                  <span className="text-xs font-mono text-slate-400">
+                    Range &gt; 78% | Overbought RSI | Near Upper Risk Boundary
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {playedOutIdeas.map((idea: any) => {
+                    const firstTk = extractFirstTicker(idea.ticker);
+                    return (
+                      <div
+                        key={idea.ticker}
+                        className="rounded-xl border border-rose-900/40 bg-slate-900/40 p-4 space-y-3 flex flex-col justify-between opacity-85 hover:opacity-100 transition shadow-sm"
+                      >
+                        <div className="space-y-2">
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <div className="flex items-center gap-1.5">
+                                <Link
+                                  href={`/stock-analysis?ticker=${firstTk}`}
+                                  className="text-base font-bold text-white hover:text-rose-400 transition font-mono flex items-center gap-1"
+                                >
+                                  <span>{idea.ticker}</span>
+                                  <ExternalLink className="w-3.5 h-3.5 text-slate-500 hover:text-rose-400" />
+                                </Link>
+                                <span className="text-xs px-2 py-0.5 rounded bg-slate-800 text-slate-400 font-mono">
+                                  {idea.theme}
+                                </span>
+                              </div>
+                              <div className="text-xs text-slate-500 font-medium">
+                                {idea.name}
+                              </div>
+                            </div>
+                            <span className="px-2.5 py-0.5 rounded bg-rose-950 border border-rose-500/40 text-rose-300 font-mono text-xs font-bold">
+                              Caution Tier
+                            </span>
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-3 text-xs font-mono p-2 rounded bg-black/40 border border-slate-800/80">
+                            <span className="text-white font-bold">
+                              ${idea.live_price?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </span>
+                            <span className="text-slate-400">|</span>
+                            <span className="text-rose-400 font-semibold">
+                              Range: {idea.range_bar_pct}%
+                            </span>
+                            <span className="text-slate-400">|</span>
+                            <span className="text-amber-300">
+                              {idea.rsi_label}: {idea.rsi}
+                            </span>
+                          </div>
+
+                          <p className="text-xs text-slate-300 leading-relaxed font-sans">
+                            {idea.why_this_trade}
+                          </p>
+                        </div>
+
+                        <div className="pt-2 border-t border-slate-800/80 space-y-1">
+                          <div className="text-xs font-semibold text-rose-300">
+                            ► Tactical Guidance: Do NOT chase new long exposure here. Await consolidation toward ${idea.prob_low || "support"} before accumulating.
+                          </div>
+                          <div className="text-xs font-mono text-slate-400">
+                            Invalidation / Exit: Tight trailing stop at ${idea.prob_low || "recent support"}.
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
+          </>
         )}
 
       </div>
@@ -741,3 +699,19 @@ export default function TradeIdeasPage() {
   );
 }
 
+export default function TradeIdeasPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-[#090D16] text-slate-100 flex items-center justify-center font-mono text-sm">
+          <div className="flex items-center gap-2">
+            <RefreshCw className="w-4 h-4 text-cyan-400 animate-spin" />
+            <span>Loading Trade Ideas &amp; Reversals Engine...</span>
+          </div>
+        </div>
+      }
+    >
+      <TradeIdeasContent />
+    </Suspense>
+  );
+}

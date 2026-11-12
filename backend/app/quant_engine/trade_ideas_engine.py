@@ -863,12 +863,24 @@ class TradeIdeasEngine:
             horizons_dict[h_key]["played_out_at_highs"].sort(key=lambda x: x["outlier_score"], reverse=True)
             horizons_dict[h_key]["all_ideas"].sort(key=lambda x: x["outlier_score"], reverse=True)
 
+        # Integrated Short-Term Reversals Radar
+        reversals_summary = {}
+        try:
+            try:
+                from backend.app.quant_engine.reversal_scanner import ReversalScanner
+            except ImportError:
+                from app.quant_engine.reversal_scanner import ReversalScanner
+            reversals_summary = ReversalScanner.run_reversal_scan(force=force_refresh)
+        except Exception as rev_err:
+            logger.debug(f"[TradeIdeasEngine] Reversal scan integration notice: {rev_err}")
+
         payload = {
             "status": "success",
             "as_of_utc": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
             "macro_context": macro_ctx,
             "live_gold_oil_ratio": gold_oil_ratio,
             "horizons": horizons_dict,
+            "reversals": reversals_summary,
             "total_candidates_tracked": len(TRADE_IDEAS_UNIVERSE),
             "_cache_hit": False,
         }
