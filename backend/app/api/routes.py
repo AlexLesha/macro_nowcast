@@ -967,9 +967,8 @@ def get_standalone_html_export(db: Session = Depends(get_db)):
     <button class="nav-btn active" onclick="switchTab('tab-exec')">1. Executive Summary</button>
     <button class="nav-btn" onclick="switchTab('tab-synthesis')">2. Framework Synthesis</button>
     <button class="nav-btn" onclick="switchTab('tab-liquidity')">3. Macro Liquidity &amp; Allocation</button>
-    <button class="nav-btn" onclick="switchTab('tab-outliers')">4. 1–3M Outlier Scanner</button>
-    <button class="nav-btn" onclick="switchTab('tab-speculation')">5. Speculation Matrix</button>
-    <button class="nav-btn" onclick="switchTab('tab-scenarios')">6. 4-Quarter Scenarios</button>
+    <button class="nav-btn" onclick="switchTab('tab-trade-ideas')">4. Trade Ideas</button>
+    <button class="nav-btn" onclick="switchTab('tab-scenarios')">5. 4-Quarter Scenarios</button>
   </div>
 
   <div id="tab-exec" class="tab-pane active">
@@ -1092,9 +1091,9 @@ def get_standalone_html_export(db: Session = Depends(get_db)):
     </div>
   </div>
 
-  <div id="tab-outliers" class="tab-pane">
+  <div id="tab-trade-ideas" class="tab-pane">
     <div class="card">
-      <div class="card-title"><span>Top 1–3 Month Positioned Assets</span></div>
+      <div class="card-title"><span>Unified Trade Ideas &amp; Capital Flow Synthesis</span></div>
       <div class="table-container">
         <table>
           <thead><tr><th>Asset</th><th>VAMS</th><th>Options GEX</th><th>Quad Fit</th><th>"Why" Rationale</th></tr></thead>
@@ -1103,33 +1102,6 @@ def get_standalone_html_export(db: Session = Depends(get_db)):
             <tr><td><strong>VST</strong></td><td><span class="badge badge-emerald">VAMS +1</span></td><td>+$1.8M (Call: $135)</td><td><span class="badge badge-emerald">Quad 2/3 Power</span></td><td>Nuclear &amp; gas baseload power contracts for AI hyperscaler datacenters.</td></tr>
             <tr><td><strong>GLD</strong></td><td><span class="badge badge-emerald">VAMS +1</span></td><td>+$3.1M (Call: $255)</td><td><span class="badge badge-amber">Accord 2.0</span></td><td>Central bank de-dollarization flows and US Debt-to-Liquidity at 114%.</td></tr>
             <tr><td><strong>TLT</strong></td><td><span class="badge badge-rose">VAMS -1</span></td><td>-$2.4M (Put: $88)</td><td><span class="badge badge-rose">Quad 2 Bear</span></td><td>Term premium expansion &amp; Treasury issuance absorption pressure.</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-
-  <div id="tab-speculation" class="tab-pane">
-    <div class="card">
-      <div class="card-title"><span>1st, 2nd &amp; 3rd Order Speculation Matrix</span></div>
-      <div class="table-container">
-        <table>
-          <thead><tr><th>Order of Effect</th><th>Stock</th><th>Ticker</th><th>Industry</th><th>Reasons for Selection</th></tr></thead>
-          <tbody>
-            <tr><td><span class="badge badge-cyan">1st Order</span></td><td>NVIDIA Corp</td><td><strong>NVDA</strong></td><td>Semiconductors</td><td>Hyperscaler AI compute spend beneficiary; CUDA software lock-in moat.</td></tr>
-            <tr><td><span class="badge badge-cyan">1st Order</span></td><td>Taiwan Semiconductor</td><td><strong>TSM</strong></td><td>Foundry / Packaging</td><td>Exclusive monopoly supplier of CoWoS packaging and sub-3nm nodes.</td></tr>
-            <tr><td><span class="badge badge-cyan">1st Order</span></td><td>ASML Holding</td><td><strong>ASML</strong></td><td>Semiconductor Equip</td><td>Exclusive global supplier of High-NA EUV lithography systems.</td></tr>
-            <tr><td><span class="badge badge-emerald">2nd Order</span></td><td>Vistra Corp</td><td><strong>VST</strong></td><td>Independent Power</td><td>Baseload merchant nuclear and gas capacity contracted for 24/7 power.</td></tr>
-            <tr><td><span class="badge badge-emerald">2nd Order</span></td><td>Constellation Energy</td><td><strong>CEG</strong></td><td>Nuclear Power</td><td>Clean nuclear fleet with 20-year Microsoft Three Mile Island PPA.</td></tr>
-            <tr><td><span class="badge badge-emerald">2nd Order</span></td><td>Cameco Corp</td><td><strong>CCJ</strong></td><td>Uranium Mining</td><td>Structural uranium supply deficit with exponential nuclear restarts.</td></tr>
-            <tr><td><span class="badge badge-emerald">2nd Order</span></td><td>GE Vernova</td><td><strong>GEV</strong></td><td>Power Grid &amp; Turbines</td><td>Gas turbine backlogs extended past 2028; transmission upgrade wave.</td></tr>
-            <tr><td><span class="badge badge-purple">3rd Order</span></td><td>CrowdStrike Holdings</td><td><strong>CRWD</strong></td><td>Cybersecurity</td><td>AI agent expansion exponentially increases enterprise endpoint vectors.</td></tr>
-            <tr><td><span class="badge badge-purple">3rd Order</span></td><td>Palantir Technologies</td><td><strong>PLTR</strong></td><td>Enterprise AI</td><td>AIP ontology platform connecting LLMs to mission-critical operations.</td></tr>
-            <tr><td><span class="badge badge-purple">3rd Order</span></td><td>Microsoft Corp</td><td><strong>MSFT</strong></td><td>Cloud / Software</td><td>Copilot monetization layer capturing enterprise seat expansion.</td></tr>
-            <tr><td><span class="badge badge-purple">3rd Order</span></td><td>Amazon.com Inc</td><td><strong>AMZN</strong></td><td>Cloud Computing</td><td>AWS Bedrock enterprise infrastructure scaling with high margins.</td></tr>
-            <tr><td><span class="badge badge-amber">Macro Hedge</span></td><td>SPDR Gold Shares</td><td><strong>GLD</strong></td><td>Monetary Metal</td><td>Fiscal deficit expansion and foreign central bank reserve diversification.</td></tr>
-            <tr><td><span class="badge badge-amber">Macro Hedge</span></td><td>Newmont Corp</td><td><strong>NEM</strong></td><td>Gold Mining Major</td><td>Operating leverage to physical gold prices; massive FCF expansion.</td></tr>
-            <tr><td><span class="badge badge-amber">Macro Hedge</span></td><td>iShares Bitcoin Trust</td><td><strong>IBIT</strong></td><td>Digital Asset</td><td>High-beta proxy for global fiat money supply expansion.</td></tr>
           </tbody>
         </table>
       </div>
@@ -1578,27 +1550,6 @@ def send_reversals_alert_api(force: bool = False):
         from app.quant_engine.email_alerter import EmailAlerter
 
     return EmailAlerter.dispatch_morning_briefing()
-
-
-@api_router.get("/v1/speculation")
-@api_router.get("/speculation")
-async def get_speculation_ideas(force: bool = False, db: Session = Depends(get_db)):
-    """Returns unified dynamic 1st, 2nd, and 3rd order institutional speculation ideas, ranked outliers, and cascade mechanics."""
-    try:
-        try:
-            from backend.app.main import get_live_speculation_matrix
-        except ImportError:
-            from app.main import get_live_speculation_matrix
-        return await get_live_speculation_matrix(force=force)
-    except Exception as e:
-        logger.warning(f"Error resolving speculation matrix: {e}")
-        outlier_scan = scan_1_to_3_month_outliers()
-        return _sanitize_floats({
-            "ranked_outliers": outlier_scan.get("ranked_outliers", []),
-            "speculation_ripple_effects": outlier_scan.get("speculation_ripple_effects", []),
-            "speculation_rows": [],
-            "timestamp_utc": datetime.now(timezone.utc).isoformat(),
-        })
 
 
 @api_router.get("/v1/commodities-alternatives/dashboard")

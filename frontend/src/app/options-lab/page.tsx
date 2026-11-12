@@ -68,7 +68,7 @@ const FALLBACK_OPTIONS_DATA: any = {
     kspy_overlay_regime: "MID-CORRIDOR POSITIVE GAMMA PIN -> NO DIRECTIONAL INDEX EDGE",
     signal_status: "NO_STANDALONE_ACTION",
     plain_english_verdict: "NO STANDALONE DIRECTIONAL OPTIONS TRADE: $SPY is pinned between its Put Wall and Call Wall under Positive Dealer Gamma. Dealers mechanically sell rips and buy dips, crushing option buyers via theta decay.",
-    model_complement_and_next_step: "Alpha shifts to single-stock and sector rotation; check Module 2 and /outliers.",
+    model_complement_and_next_step: "Alpha shifts to single-stock and sector rotation; check Module 2 and /trade-ideas.",
   },
   module_2_correlation_and_dispersion: {
     implied_sector_corr_pct: 34.2,
@@ -79,7 +79,7 @@ const FALLBACK_OPTIONS_DATA: any = {
     sector_rankings: [],
     signal_status: "NO_STANDALONE_ACTION",
     plain_english_verdict: "Sector correlation and dispersion are both sitting in neutral mid-ranges.",
-    model_complement_and_next_step: "Rely on /stock-analysis and /outliers for fundamental selection.",
+    model_complement_and_next_step: "Rely on /stock-analysis and /trade-ideas for fundamental selection.",
   },
   module_3_move_vix_cosigner: {
     move_index: 73.5,
@@ -93,7 +93,7 @@ const FALLBACK_OPTIONS_DATA: any = {
     cosigner_state: "BULLISH CO-SIGNER ACTIVE (Bond Vol Calm While Equity Vol Elevated)",
     signal_status: "ACTIONABLE_BULLISH",
     plain_english_verdict: "Treasury Bond Volatility is subdued while Equity Volatility is elevated. Buy equity dips.",
-    model_complement_and_next_step: "Deploy capital into /outliers candidates.",
+    model_complement_and_next_step: "Deploy capital into /trade-ideas candidates.",
   },
   module_4_term_structure_and_vrp: {
     vix9d: 17.5,
@@ -180,7 +180,7 @@ export default function OptionsLabPage() {
     fetchDashboard(selectedTicker, false);
 
     const handleGlobalRefresh = () => {
-      fetchDashboard(selectedTicker, false);
+      fetchDashboard(selectedTicker, true);
     };
     window.addEventListener("macro-nowcast-global-refresh", handleGlobalRefresh);
     return () => window.removeEventListener("macro-nowcast-global-refresh", handleGlobalRefresh);

@@ -15,6 +15,7 @@ eliminates external API latency (<15ms response time) and prevents Finnhub/Polyg
 exhaustion when evaluating dozens of industry peers.
 """
 
+import contextlib
 import json
 import os
 import sqlite3
@@ -52,10 +53,15 @@ class StockFundamentalsCacheManager:
         self.db_path = db_path
         self.init_db()
 
-    def _get_conn(self) -> sqlite3.Connection:
+    @contextlib.contextmanager
+    def _get_conn(self):
         conn = sqlite3.connect(self.db_path, timeout=10.0)
         conn.row_factory = sqlite3.Row
-        return conn
+        try:
+            with conn:
+                yield conn
+        finally:
+            conn.close()
 
     def init_db(self) -> None:
         """Creates the 3 caching tables if they do not already exist."""

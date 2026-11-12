@@ -168,7 +168,7 @@ export const Navigation: React.FC = () => {
             {/* Date, API Status, Refresh & Export */}
             <div className="flex flex-wrap items-center gap-1.5 font-mono text-xs">
               <span className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-300">
-                {displayDate || "2026-10-26"}
+                {displayDate || new Date().toISOString().slice(0, 10)}
               </span>
 
               <button

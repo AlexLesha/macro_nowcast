@@ -18,11 +18,11 @@ const NAV_ITEMS_ROW_1 = [
   { label: "1. Executive Summary", href: "/" },
   { label: "2. Framework Synthesis", href: "/synthesis" },
   { label: "3. Liquidity & Allocation", href: "/liquidity-allocation" },
-  { label: "4. Outliers", href: "/outliers" },
+  { label: "4. Trade Ideas", href: "/trade-ideas" },
 ];
 
 const NAV_ITEMS_ROW_2 = [
-  { label: "5. 1st/2nd/3rd Order Speculation", href: "/speculation" },
+  { label: "5. Stock Analysis", href: "/stock-analysis" },
   { label: "6. 4Q Scenarios & Policy", href: "/scenarios" },
   { label: "7. 42 Macro Deep-Dive", href: "/42-macro" },
   { label: "8. Commodities & Alts", href: "/commodities-alternatives" },

@@ -17,6 +17,7 @@ import {
   Activity,
   AlertCircle,
   Compass,
+  RefreshCw,
 } from "lucide-react";
 import { LiquidityEngineCard } from "@/components/LiquidityEngineCard";
 import { getApiUrl } from "@/lib/api";
@@ -28,23 +29,29 @@ export default function LiquidityAllocationPage() {
   const [categoryFilter, setCategoryFilter] = useState<string>("ALL");
   const [liveAllocationData, setLiveAllocationData] = useState<any>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const [refreshing, setRefreshing] = useState<boolean>(false);
 
-  const fetchAllocation = () => {
-    setLoading(true);
-    fetch(getApiUrl("/api/v1/liquidity-allocation"))
+  const fetchAllocation = (force: boolean = false) => {
+    if (force) setRefreshing(true);
+    else setLoading(true);
+
+    fetch(getApiUrl(`/api/v1/liquidity-allocation${force ? "?force=true" : ""}`))
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (data) setLiveAllocationData(data);
       })
       .catch((e) => console.error("Error loading live liquidity allocation:", e))
-      .finally(() => setLoading(false));
+      .finally(() => {
+        setLoading(false);
+        setRefreshing(false);
+      });
   };
 
   useEffect(() => {
-    fetchAllocation();
+    fetchAllocation(false);
 
     const handleGlobalRefresh = () => {
-      fetchAllocation();
+      fetchAllocation(true);
     };
     window.addEventListener("macro-nowcast-global-refresh", handleGlobalRefresh);
     return () => window.removeEventListener("macro-nowcast-global-refresh", handleGlobalRefresh);
@@ -229,19 +236,23 @@ export default function LiquidityAllocationPage() {
           <span>MACRO LIQUIDITY &amp; MULTI-HORIZON ASSET ALLOCATION</span>
         </div>
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
-          <div>
-            <h1 className="text-base font-bold font-mono tracking-tight text-slate-100">
-              Sovereign Fiscal Stress, Net Liquidity &amp; Multi-Horizon Deployments
-            </h1>
-            <p className="text-xs text-slate-400 font-mono mt-0.5 max-w-3xl">
-              Live quantitative tracking of US Net Liquidity ($L_t), central bank balance sheets, Fed-Treasury Accord 2.0 triggers, and systematic 0–36M asset positioning.
-            </p>
-          </div>
           {liveAllocationData?.as_of_utc && (
             <div className="text-xs font-mono text-slate-400 bg-slate-900 border border-slate-800 px-2.5 py-1 rounded shrink-0">
               Synced: <span className="text-cyan-300 font-semibold">{liveAllocationData.as_of_utc}</span>
             </div>
           )}
+          <button
+            onClick={() => {
+              fetchAllocation(true);
+              window.dispatchEvent(new CustomEvent("macro-nowcast-global-refresh"));
+            }}
+            disabled={refreshing}
+            className="flex items-center gap-1.5 px-3 py-1 bg-cyan-950/80 border border-cyan-800 hover:border-cyan-600 text-cyan-300 rounded text-xs font-mono font-medium transition shadow-sm hover:shadow-cyan-950/50 disabled:opacity-50"
+            title="Force refresh liquidity and multi-horizon allocation live"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin text-cyan-400" : ""}`} />
+            <span>{refreshing ? "Recalculating..." : "Force Refresh"}</span>
+          </button>
         </div>
       </div>
 
@@ -252,7 +263,7 @@ export default function LiquidityAllocationPage() {
             <div className="flex flex-wrap items-center gap-2">
               <span className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-cyan-950/80 border border-cyan-800 text-cyan-300 font-bold">
                 <Compass className="h-3.5 w-3.5 text-cyan-400" />
-                GLOBAL REGIME: {macroRegime.regime_name || macroRegime.primary_regime || "STAGFLATION"} ({macroRegime.active_quad || "QUAD 3"})
+                {macroRegime.regime_name || macroRegime.primary_regime || "STAGFLATION"} ({macroRegime.active_quad || "QUAD 3"})
               </span>
               <span
                 className={`px-2.5 py-1 rounded border font-semibold ${macroRegime.probability_risk_off_pct >= 60

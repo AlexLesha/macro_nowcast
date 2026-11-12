@@ -139,10 +139,10 @@ export default function FrameworkSynthesisPage() {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [lastUpdated, setLastUpdated] = useState<string>("");
 
-  const fetchSynthesisData = async () => {
+  const fetchSynthesisData = async (force: boolean = false) => {
     setIsLoading(true);
     try {
-      const res = await fetch(getApiUrl("/api/v1/synthesis/dashboard"), { cache: "no-store" });
+      const res = await fetch(getApiUrl(`/api/v1/synthesis/dashboard${force ? "?force=true" : ""}`), { cache: "no-store" });
       if (res.ok) {
         const json = await res.json();
         setData(json);
@@ -158,10 +158,10 @@ export default function FrameworkSynthesisPage() {
   };
 
   useEffect(() => {
-    fetchSynthesisData();
+    fetchSynthesisData(false);
 
     // Listen to top navigation "Refresh Data" button
-    const handleGlobalRefresh = () => fetchSynthesisData();
+    const handleGlobalRefresh = () => fetchSynthesisData(true);
     window.addEventListener("macro-nowcast-global-refresh", handleGlobalRefresh);
     return () => window.removeEventListener("macro-nowcast-global-refresh", handleGlobalRefresh);
   }, []);
@@ -196,7 +196,10 @@ export default function FrameworkSynthesisPage() {
             </span>
           )}
           <button
-            onClick={fetchSynthesisData}
+            onClick={() => {
+              fetchSynthesisData(true);
+              window.dispatchEvent(new CustomEvent("macro-nowcast-global-refresh"));
+            }}
             disabled={isLoading}
             className="p-1.5 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 transition"
             title="Refresh synthesis telemetry"

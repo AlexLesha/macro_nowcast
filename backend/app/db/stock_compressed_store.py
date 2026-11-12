@@ -35,6 +35,31 @@ def _get_pg_dsn(url: str) -> str:
     return dsn
 
 
+class _ClosingContext:
+    """Context manager wrapper that commits/rollbacks and guarantees connection closure on exit."""
+    def __init__(self, conn):
+        self.conn = conn
+    def __enter__(self):
+        self.conn.__enter__()
+        return self.conn
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        try:
+            return self.conn.__exit__(exc_type, exc_val, exc_tb)
+        finally:
+            try:
+                self.conn.close()
+            except Exception:
+                pass
+
+def _pg_connect(*args, **kwargs):
+    import psycopg2
+    return _ClosingContext(psycopg2.connect(*args, **kwargs))
+
+def _sqlite_connect(*args, **kwargs):
+    return _ClosingContext(sqlite3.connect(*args, **kwargs))
+
+
+
 class StockCompressedStore:
     """High-speed storage engine for compressed 12-quarter XBRL walks and fundamentals."""
 
@@ -54,7 +79,7 @@ class StockCompressedStore:
             try:
                 import psycopg2
                 dsn = _get_pg_dsn(db_url)
-                with psycopg2.connect(dsn) as conn:
+                with _pg_connect(dsn) as conn:
                     with conn.cursor() as cursor:
                         cursor.execute("""
                             CREATE TABLE IF NOT EXISTS stock_payload_cache (
@@ -199,7 +224,7 @@ class StockCompressedStore:
         else:
             db_path = db_url.replace("sqlite:///", "")
             os.makedirs(os.path.dirname(db_path) if os.path.dirname(db_path) else ".", exist_ok=True)
-            with sqlite3.connect(db_path) as conn:
+            with _sqlite_connect(db_path) as conn:
                 cursor = conn.cursor()
                 cursor.execute("""
                     CREATE TABLE IF NOT EXISTS stock_payload_cache (
@@ -351,7 +376,7 @@ class StockCompressedStore:
                 import psycopg2
                 dsn = _get_pg_dsn(db_url)
                 row = None
-                with psycopg2.connect(dsn) as conn:
+                with _pg_connect(dsn) as conn:
                     with conn.cursor() as cursor:
                         cursor.execute("""
                             SELECT header_strip_json, solvency_matrix_json, hedgeye_pods_json,
@@ -369,7 +394,7 @@ class StockCompressedStore:
             if not os.path.exists(db_path):
                 return None
             try:
-                with sqlite3.connect(db_path) as conn:
+                with _sqlite_connect(db_path) as conn:
                     cursor = conn.cursor()
                     cursor.execute("""
                         SELECT header_strip_json, solvency_matrix_json, hedgeye_pods_json,
@@ -410,7 +435,7 @@ class StockCompressedStore:
             try:
                 import psycopg2
                 dsn = _get_pg_dsn(db_url)
-                with psycopg2.connect(dsn) as conn:
+                with _pg_connect(dsn) as conn:
                     with conn.cursor() as cursor:
                         cursor.execute("""
                             INSERT INTO stock_payload_cache (
@@ -437,7 +462,7 @@ class StockCompressedStore:
         else:
             db_path = db_url.replace("sqlite:///", "")
             try:
-                with sqlite3.connect(db_path) as conn:
+                with _sqlite_connect(db_path) as conn:
                     cursor = conn.cursor()
                     cursor.execute("""
                         INSERT INTO stock_payload_cache (
@@ -523,7 +548,7 @@ class StockCompressedStore:
             try:
                 import psycopg2
                 dsn = _get_pg_dsn(db_url)
-                with psycopg2.connect(dsn) as conn:
+                with _pg_connect(dsn) as conn:
                     with conn.cursor() as cursor:
                         cursor.execute("SELECT quarters_payload_json, updated_at FROM stock_12q_walk_cache WHERE ticker = %s;", (clean_t,))
                         row = cursor.fetchone()
@@ -536,7 +561,7 @@ class StockCompressedStore:
         else:
             db_path = db_url.replace("sqlite:///", "")
             try:
-                with sqlite3.connect(db_path) as conn:
+                with _sqlite_connect(db_path) as conn:
                     cursor = conn.cursor()
                     cursor.execute("SELECT quarters_payload_json, updated_at FROM stock_12q_walk_cache WHERE ticker = ?;", (clean_t,))
                     row = cursor.fetchone()
@@ -562,7 +587,7 @@ class StockCompressedStore:
             try:
                 import psycopg2
                 dsn = _get_pg_dsn(db_url)
-                with psycopg2.connect(dsn) as conn:
+                with _pg_connect(dsn) as conn:
                     with conn.cursor() as cursor:
                         cursor.execute("""
                             INSERT INTO stock_12q_walk_cache (ticker, quarters_payload_json, updated_at)
@@ -578,7 +603,7 @@ class StockCompressedStore:
         else:
             db_path = db_url.replace("sqlite:///", "")
             try:
-                with sqlite3.connect(db_path) as conn:
+                with _sqlite_connect(db_path) as conn:
                     cursor = conn.cursor()
                     cursor.execute("""
                         INSERT INTO stock_12q_walk_cache (ticker, quarters_payload_json, updated_at)
@@ -608,7 +633,7 @@ class StockCompressedStore:
             try:
                 import psycopg2
                 dsn = _get_pg_dsn(db_url)
-                with psycopg2.connect(dsn) as conn:
+                with _pg_connect(dsn) as conn:
                     with conn.cursor() as cursor:
                         placeholders = ",".join(["%s"] * len(dates))
                         sql = f"""
@@ -636,7 +661,7 @@ class StockCompressedStore:
         else:
             db_path = db_url.replace("sqlite:///", "")
             try:
-                with sqlite3.connect(db_path) as conn:
+                with _sqlite_connect(db_path) as conn:
                     cursor = conn.cursor()
                     placeholders = ",".join(["?"] * len(dates))
                     sql = f"""
@@ -687,7 +712,7 @@ class StockCompressedStore:
             try:
                 import psycopg2
                 dsn = _get_pg_dsn(db_url)
-                with psycopg2.connect(dsn) as conn:
+                with _pg_connect(dsn) as conn:
                     with conn.cursor() as cursor:
                         cursor.execute("""
                             INSERT INTO stock_daily_news_cache (
@@ -711,7 +736,7 @@ class StockCompressedStore:
         else:
             db_path = db_url.replace("sqlite:///", "")
             try:
-                with sqlite3.connect(db_path) as conn:
+                with _sqlite_connect(db_path) as conn:
                     cursor = conn.cursor()
                     cursor.execute("""
                         INSERT INTO stock_daily_news_cache (
@@ -746,7 +771,7 @@ class StockCompressedStore:
             try:
                 import psycopg2
                 dsn = _get_pg_dsn(db_url)
-                with psycopg2.connect(dsn) as conn:
+                with _pg_connect(dsn) as conn:
                     with conn.cursor() as cursor:
                         cursor.execute("""
                             SELECT cik10, entity_name, sic_code, sic_description, gics_sector, gics_industry
@@ -767,7 +792,7 @@ class StockCompressedStore:
         else:
             db_path = db_url.replace("sqlite:///", "")
             try:
-                with sqlite3.connect(db_path) as conn:
+                with _sqlite_connect(db_path) as conn:
                     cursor = conn.cursor()
                     cursor.execute("""
                         SELECT cik10, entity_name, sic_code, sic_description, gics_sector, gics_industry
@@ -810,7 +835,7 @@ class StockCompressedStore:
             try:
                 import psycopg2
                 dsn = _get_pg_dsn(db_url)
-                with psycopg2.connect(dsn) as conn:
+                with _pg_connect(dsn) as conn:
                     with conn.cursor() as cursor:
                         cursor.execute("""
                             INSERT INTO sec_company_metadata (
@@ -831,7 +856,7 @@ class StockCompressedStore:
         else:
             db_path = db_url.replace("sqlite:///", "")
             try:
-                with sqlite3.connect(db_path) as conn:
+                with _sqlite_connect(db_path) as conn:
                     cursor = conn.cursor()
                     cursor.execute("""
                         INSERT INTO sec_company_metadata (
@@ -883,7 +908,7 @@ class StockCompressedStore:
             try:
                 import psycopg2
                 dsn = _get_pg_dsn(db_url)
-                with psycopg2.connect(dsn) as conn:
+                with _pg_connect(dsn) as conn:
                     with conn.cursor() as cursor:
                         cursor.execute("""
                             INSERT INTO options_microstructure (
@@ -906,7 +931,7 @@ class StockCompressedStore:
         else:
             db_path = db_url.replace("sqlite:///", "")
             try:
-                with sqlite3.connect(db_path) as conn:
+                with _sqlite_connect(db_path) as conn:
                     cursor = conn.cursor()
                     cursor.execute("""
                         INSERT INTO options_microstructure (
@@ -937,7 +962,7 @@ class StockCompressedStore:
             try:
                 import psycopg2
                 dsn = _get_pg_dsn(db_url)
-                with psycopg2.connect(dsn) as conn:
+                with _pg_connect(dsn) as conn:
                     with conn.cursor() as cursor:
                         cursor.execute("""
                             SELECT date, total_gex, zero_dte_heat_ratio, gamma_flip_level,
@@ -962,7 +987,7 @@ class StockCompressedStore:
         else:
             db_path = db_url.replace("sqlite:///", "")
             try:
-                with sqlite3.connect(db_path) as conn:
+                with _sqlite_connect(db_path) as conn:
                     cursor = conn.cursor()
                     cursor.execute("""
                         SELECT date, total_gex, zero_dte_heat_ratio, gamma_flip_level,
@@ -1000,7 +1025,7 @@ class StockCompressedStore:
             try:
                 import psycopg2
                 dsn = _get_pg_dsn(db_url)
-                with psycopg2.connect(dsn) as conn:
+                with _pg_connect(dsn) as conn:
                     with conn.cursor() as cursor:
                         cursor.execute("SELECT payload_json, updated_at FROM macro_liquidity_cache WHERE cache_key = %s;", (cache_key,))
                         row = cursor.fetchone()
@@ -1017,7 +1042,7 @@ class StockCompressedStore:
         else:
             db_path = db_url.replace("sqlite:///", "")
             try:
-                with sqlite3.connect(db_path) as conn:
+                with _sqlite_connect(db_path) as conn:
                     cursor = conn.cursor()
                     cursor.execute("SELECT payload_json, updated_at FROM macro_liquidity_cache WHERE cache_key = ?;", (cache_key,))
                     row = cursor.fetchone()
@@ -1050,7 +1075,7 @@ class StockCompressedStore:
             try:
                 import psycopg2
                 dsn = _get_pg_dsn(db_url)
-                with psycopg2.connect(dsn) as conn:
+                with _pg_connect(dsn) as conn:
                     with conn.cursor() as cursor:
                         cursor.execute("""
                             CREATE TABLE IF NOT EXISTS macro_liquidity_cache (
@@ -1071,7 +1096,7 @@ class StockCompressedStore:
         else:
             db_path = db_url.replace("sqlite:///", "")
             try:
-                with sqlite3.connect(db_path) as conn:
+                with _sqlite_connect(db_path) as conn:
                     cursor = conn.cursor()
                     cursor.execute("""
                         CREATE TABLE IF NOT EXISTS macro_liquidity_cache (
@@ -1155,7 +1180,7 @@ class StockCompressedStore:
                 import psycopg2
                 from psycopg2.extras import execute_values
                 dsn = _get_pg_dsn(db_url)
-                with psycopg2.connect(dsn) as conn:
+                with _pg_connect(dsn) as conn:
                     with conn.cursor() as cursor:
                         insert_query = """
                             INSERT INTO global_grid_historical_records (
@@ -1193,7 +1218,7 @@ class StockCompressedStore:
         else:
             db_path = db_url.replace("sqlite:///", "")
             try:
-                with sqlite3.connect(db_path) as conn:
+                with _sqlite_connect(db_path) as conn:
                     cursor = conn.cursor()
                     cursor.executemany("""
                         INSERT INTO global_grid_historical_records (
@@ -1258,7 +1283,7 @@ class StockCompressedStore:
             try:
                 import psycopg2
                 dsn = _get_pg_dsn(db_url)
-                with psycopg2.connect(dsn) as conn:
+                with _pg_connect(dsn) as conn:
                     with conn.cursor() as cursor:
                         query = f"""
                             SELECT country, ticker, period, frequency, region,
@@ -1289,7 +1314,7 @@ class StockCompressedStore:
         else:
             db_path = db_url.replace("sqlite:///", "")
             try:
-                with sqlite3.connect(db_path) as conn:
+                with _sqlite_connect(db_path) as conn:
                     cursor = conn.cursor()
                     query = f"""
                         SELECT country, ticker, period, frequency, region,
@@ -1377,7 +1402,7 @@ class StockCompressedStore:
                 import psycopg2
                 from psycopg2.extras import execute_values
                 dsn = _get_pg_dsn(db_url)
-                with psycopg2.connect(dsn) as conn:
+                with _pg_connect(dsn) as conn:
                     with conn.cursor() as cursor:
                         insert_query = """
                             INSERT INTO global_grid_forward_forecasts (
@@ -1409,7 +1434,7 @@ class StockCompressedStore:
         else:
             db_path = db_url.replace("sqlite:///", "")
             try:
-                with sqlite3.connect(db_path) as conn:
+                with _sqlite_connect(db_path) as conn:
                     cursor = conn.cursor()
                     cursor.executemany("""
                         INSERT INTO global_grid_forward_forecasts (
@@ -1452,7 +1477,7 @@ class StockCompressedStore:
             try:
                 import psycopg2
                 dsn = _get_pg_dsn(db_url)
-                with psycopg2.connect(dsn) as conn:
+                with _pg_connect(dsn) as conn:
                     with conn.cursor() as cursor:
                         query = f"""
                             SELECT country, ticker, forward_period, horizon_steps,
@@ -1482,7 +1507,7 @@ class StockCompressedStore:
         else:
             db_path = db_url.replace("sqlite:///", "")
             try:
-                with sqlite3.connect(db_path) as conn:
+                with _sqlite_connect(db_path) as conn:
                     cursor = conn.cursor()
                     query = f"""
                         SELECT country, ticker, forward_period, horizon_steps,
@@ -1523,7 +1548,7 @@ class StockCompressedStore:
                 import psycopg2
                 from psycopg2.extras import execute_values
                 dsn = _get_pg_dsn(db_url)
-                with psycopg2.connect(dsn) as conn:
+                with _pg_connect(dsn) as conn:
                     with conn.cursor() as cursor:
                         query = """
                             INSERT INTO central_bank_speeches (
@@ -1573,7 +1598,7 @@ class StockCompressedStore:
         else:
             db_path = db_url.replace("sqlite:///", "")
             try:
-                with sqlite3.connect(db_path) as conn:
+                with _sqlite_connect(db_path) as conn:
                     cursor = conn.cursor()
                     query = """
                         INSERT OR REPLACE INTO central_bank_speeches (
@@ -1625,7 +1650,7 @@ class StockCompressedStore:
                 import psycopg2
                 from psycopg2.extras import RealDictCursor
                 dsn = _get_pg_dsn(db_url)
-                with psycopg2.connect(dsn) as conn:
+                with _pg_connect(dsn) as conn:
                     with conn.cursor(cursor_factory=RealDictCursor) as cursor:
                         query = f"""
                             SELECT id, institution, speaker, speaker_role, speech_date,
@@ -1648,7 +1673,7 @@ class StockCompressedStore:
         else:
             db_path = db_url.replace("sqlite:///", "")
             try:
-                with sqlite3.connect(db_path) as conn:
+                with _sqlite_connect(db_path) as conn:
                     cursor = conn.cursor()
                     query = f"""
                         SELECT id, institution, speaker, speaker_role, speech_date,

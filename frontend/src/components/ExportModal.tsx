@@ -71,10 +71,10 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
 
   const handleDownloadJson = async () => {
     try {
-      const [regime, quant, outliers] = await Promise.all([
+      const [regime, quant, tradeIdeas] = await Promise.all([
         fetch(getApiUrl("/api/regime/current")).then((r) => (r.ok ? r.json() : {})),
         fetch(getApiUrl("/api/quant/signals")).then((r) => (r.ok ? r.json() : {})),
-        fetch(getApiUrl("/api/outliers/scan")).then((r) => (r.ok ? r.json() : {})),
+        fetch(getApiUrl("/api/v1/trade-ideas")).then((r) => (r.ok ? r.json() : {})),
       ]);
 
       const payload = {
@@ -82,7 +82,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
         terminal: "MacroPulse Alpha v1.0",
         regime_snapshot: regime,
         quantitative_signals: quant,
-        outlier_screener: outliers,
+        trade_ideas: tradeIdeas,
       };
 
       const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
@@ -259,7 +259,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
                   Raw JSON Data Snapshot
                 </div>
                 <div className="text-xs text-slate-400 font-mono">
-                  Unified dump of regime, signals, and outliers for quant backtesting.
+                  Unified dump of regime, signals, and trade ideas for quant backtesting.
                 </div>
               </div>
             </div>

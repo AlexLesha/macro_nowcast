@@ -79,8 +79,8 @@ export default function ScenariosPlaybookPage() {
     activeRegimeId === 3
       ? "bg-rose-950/80 text-rose-300 border-rose-700"
       : activeRegimeId === 2
-      ? "bg-amber-950/80 text-amber-300 border-amber-700"
-      : "bg-emerald-950/80 text-emerald-300 border-emerald-700";
+        ? "bg-amber-950/80 text-amber-300 border-amber-700"
+        : "bg-emerald-950/80 text-emerald-300 border-emerald-700";
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
@@ -88,29 +88,21 @@ export default function ScenariosPlaybookPage() {
       <div className="border-b border-slate-800/80 pb-4">
         <div className="flex items-center gap-2 text-cyan-400 text-xs font-mono uppercase tracking-wider font-semibold mb-1">
           <Compass className="h-4 w-4" />
-          <span>Systematic Policy Playbook &bull; Rolling 4-Quarter Forward Scenarios &bull; Cem Karsan / Noel Smith Framework</span>
+          <span>Forward Macro Scenarios, Crash Windows &amp; Systematic Policy Playbook</span>
         </div>
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          <h1 className="text-base font-bold font-mono tracking-tight text-slate-100">
-            Forward Macro Scenarios, Crash Windows &amp; Systematic Policy Playbook
-          </h1>
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-mono px-2.5 py-1 rounded bg-slate-900 border border-slate-800 text-slate-400">
-              As of: <strong className="text-cyan-400">{scenariosData?.as_of_utc ? new Date(scenariosData.as_of_utc).toLocaleDateString() : "Live Stream"}</strong>
-            </span>
-            <button
-              onClick={() => loadData(true)}
-              disabled={refreshing}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-cyan-950/60 hover:bg-cyan-900/60 border border-cyan-500/40 text-cyan-300 text-xs font-mono transition"
-            >
-              <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin text-cyan-400" : ""}`} />
-              <span>{refreshing ? "Recalculating..." : "Force Refresh"}</span>
-            </button>
-          </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-mono px-2.5 py-1 rounded bg-slate-900 border border-slate-800 text-slate-400">
+            As of: <strong className="text-cyan-400">{scenariosData?.as_of_utc ? new Date(scenariosData.as_of_utc).toLocaleDateString() : "Live Stream"}</strong>
+          </span>
+          <button
+            onClick={() => loadData(true)}
+            disabled={refreshing}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-cyan-950/60 hover:bg-cyan-900/60 border border-cyan-500/40 text-cyan-300 text-xs font-mono transition"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin text-cyan-400" : ""}`} />
+            <span>{refreshing ? "Recalculating..." : "Force Refresh"}</span>
+          </button>
         </div>
-        <p className="text-xs text-slate-400 font-mono mt-1 max-w-4xl">
-          Unified institutional dashboard combining dynamic quarterly macro regimes, live FRED trigger telemetry, sovereign real interest rate dynamics (<MetricTip term="r - g">r &minus; g spread</MetricTip>), Treasury refill crash windows, and 8-week central bank speech sentiment analysis across the Fed, ECB, BoE, BoJ, PBOC, and RBA.
-        </p>
       </div>
 
       {/* ========================================================================= */}
@@ -253,11 +245,10 @@ export default function ScenariosPlaybookPage() {
       <div className="flex flex-wrap gap-2 border-b border-slate-800 pb-2">
         <button
           onClick={() => setActiveTab("scenarios")}
-          className={`px-4 py-2 rounded-lg font-mono text-xs font-bold transition flex items-center gap-2 ${
-            activeTab === "scenarios"
+          className={`px-4 py-2 rounded-lg font-mono text-xs font-bold transition flex items-center gap-2 ${activeTab === "scenarios"
               ? "bg-cyan-950/80 text-cyan-300 border border-cyan-500/50"
               : "bg-[#0c121e] text-slate-400 border border-slate-800 hover:text-slate-200"
-          }`}
+            }`}
         >
           <Compass className="h-4 w-4" />
           <span>Forward Macro Scenarios &amp; Policy Playbook</span>
@@ -265,11 +256,10 @@ export default function ScenariosPlaybookPage() {
 
         <button
           onClick={() => setActiveTab("crash-windows")}
-          className={`px-4 py-2 rounded-lg font-mono text-xs font-bold transition flex items-center gap-2 ${
-            activeTab === "crash-windows"
+          className={`px-4 py-2 rounded-lg font-mono text-xs font-bold transition flex items-center gap-2 ${activeTab === "crash-windows"
               ? "bg-cyan-950/80 text-cyan-300 border border-cyan-500/50"
               : "bg-[#0c121e] text-slate-400 border border-slate-800 hover:text-slate-200"
-          }`}
+            }`}
         >
           <Calendar className="h-4 w-4 text-amber-400" />
           <span>Forward Crash Windows &amp; Fragility Matrix</span>
@@ -277,11 +267,10 @@ export default function ScenariosPlaybookPage() {
 
         <button
           onClick={() => setActiveTab("central-banks")}
-          className={`px-4 py-2 rounded-lg font-mono text-xs font-bold transition flex items-center gap-2 ${
-            activeTab === "central-banks"
+          className={`px-4 py-2 rounded-lg font-mono text-xs font-bold transition flex items-center gap-2 ${activeTab === "central-banks"
               ? "bg-cyan-950/80 text-cyan-300 border border-cyan-500/50"
               : "bg-[#0c121e] text-slate-400 border border-slate-800 hover:text-slate-200"
-          }`}
+            }`}
         >
           <Landmark className="h-4 w-4" />
           <span>Central Bank Speeches &amp; Monetary Matrix</span>
@@ -289,11 +278,10 @@ export default function ScenariosPlaybookPage() {
 
         <button
           onClick={() => setActiveTab("real-rates")}
-          className={`px-4 py-2 rounded-lg font-mono text-xs font-bold transition flex items-center gap-2 ${
-            activeTab === "real-rates"
+          className={`px-4 py-2 rounded-lg font-mono text-xs font-bold transition flex items-center gap-2 ${activeTab === "real-rates"
               ? "bg-cyan-950/80 text-cyan-300 border border-cyan-500/50"
               : "bg-[#0c121e] text-slate-400 border border-slate-800 hover:text-slate-200"
-          }`}
+            }`}
         >
           <Scale className="h-4 w-4" />
           <span>Real Interest Rates &amp; Sovereign Debt Squeeze</span>
@@ -315,22 +303,20 @@ export default function ScenariosPlaybookPage() {
                 <button
                   key={idx}
                   onClick={() => setSelectedIdx(idx)}
-                  className={`p-3.5 rounded-xl border text-left font-mono transition shadow-md flex flex-col justify-between space-y-2 ${
-                    isSelected
+                  className={`p-3.5 rounded-xl border text-left font-mono transition shadow-md flex flex-col justify-between space-y-2 ${isSelected
                       ? "bg-gradient-to-br from-cyan-950/60 to-slate-900 border-cyan-500/50 shadow-cyan-950/40"
                       : "bg-[#0c121e] border-slate-800 hover:border-slate-700 text-slate-400"
-                  }`}
+                    }`}
                 >
                   <div className="flex items-center justify-between text-xs">
                     <span className={`font-bold ${isSelected ? "text-cyan-400" : "text-slate-300"}`}>
                       {item.quarter}
                     </span>
                     <span
-                      className={`text-xs px-1.5 py-0.5 rounded font-bold uppercase border ${
-                        isWarning
+                      className={`text-xs px-1.5 py-0.5 rounded font-bold uppercase border ${isWarning
                           ? "bg-amber-950/80 text-amber-300 border-amber-800"
                           : "bg-emerald-950/80 text-emerald-300 border-emerald-800"
-                      }`}
+                        }`}
                     >
                       {item.trigger_status?.split("(")[0].trim() || "NORMAL"}
                     </span>
@@ -486,18 +472,18 @@ export default function ScenariosPlaybookPage() {
               const cardBorder = isExtreme
                 ? "border-rose-700 bg-gradient-to-br from-rose-950/40 via-[#0e1628] to-[#080d17]"
                 : isHigh
-                ? "border-amber-700 bg-gradient-to-br from-amber-950/30 via-[#0e1628] to-[#080d17]"
-                : isElevated
-                ? "border-cyan-800/60 bg-[#0c121e]"
-                : "border-slate-800 bg-[#0a0f1a]";
+                  ? "border-amber-700 bg-gradient-to-br from-amber-950/30 via-[#0e1628] to-[#080d17]"
+                  : isElevated
+                    ? "border-cyan-800/60 bg-[#0c121e]"
+                    : "border-slate-800 bg-[#0a0f1a]";
 
               const badgeColor = isExtreme
                 ? "bg-rose-950 text-rose-300 border-rose-700"
                 : isHigh
-                ? "bg-amber-950 text-amber-300 border-amber-700"
-                : isElevated
-                ? "bg-cyan-950 text-cyan-300 border-cyan-700"
-                : "bg-slate-900 text-slate-400 border-slate-800";
+                  ? "bg-amber-950 text-amber-300 border-amber-700"
+                  : isElevated
+                    ? "bg-cyan-950 text-cyan-300 border-cyan-700"
+                    : "bg-slate-900 text-slate-400 border-slate-800";
 
               return (
                 <div key={idx} className={`p-4 rounded-xl border ${cardBorder} font-mono text-xs flex flex-col justify-between space-y-3 shadow-lg`}>
@@ -566,17 +552,16 @@ export default function ScenariosPlaybookPage() {
                 const borderCol = isRose
                   ? "border-rose-900/60 bg-gradient-to-b from-rose-950/20 to-[#080e1b]"
                   : isAmber
-                  ? "border-amber-900/60 bg-gradient-to-b from-amber-950/20 to-[#080e1b]"
-                  : "border-emerald-900/60 bg-gradient-to-b from-emerald-950/20 to-[#080e1b]";
+                    ? "border-amber-900/60 bg-gradient-to-b from-amber-950/20 to-[#080e1b]"
+                    : "border-emerald-900/60 bg-gradient-to-b from-emerald-950/20 to-[#080e1b]";
 
                 return (
                   <div key={sc.id} className={`p-4 rounded-xl border ${borderCol} flex flex-col justify-between space-y-3`}>
                     <div>
                       <div className="flex items-center justify-between border-b border-slate-800 pb-2 mb-2">
                         <span className="font-bold text-sm text-white">{sc.title}</span>
-                        <span className={`px-2 py-0.5 rounded font-black text-[10px] uppercase border ${
-                          isRose ? "bg-rose-950 text-rose-300 border-rose-800" : isAmber ? "bg-amber-950 text-amber-300 border-amber-800" : "bg-emerald-950 text-emerald-300 border-emerald-800"
-                        }`}>
+                        <span className={`px-2 py-0.5 rounded font-black text-[10px] uppercase border ${isRose ? "bg-rose-950 text-rose-300 border-rose-800" : isAmber ? "bg-amber-950 text-amber-300 border-amber-800" : "bg-emerald-950 text-emerald-300 border-emerald-800"
+                          }`}>
                           {sc.probability} PROB
                         </span>
                       </div>
@@ -658,13 +643,12 @@ export default function ScenariosPlaybookPage() {
                       </td>
                       <td className="p-3">
                         <span
-                          className={`px-2 py-0.5 rounded font-bold uppercase text-xs ${
-                            sp.hawkish_dovish_score > 10
+                          className={`px-2 py-0.5 rounded font-bold uppercase text-xs ${sp.hawkish_dovish_score > 10
                               ? "bg-rose-950 text-rose-300 border border-rose-800"
                               : sp.hawkish_dovish_score < -10
-                              ? "bg-emerald-950 text-emerald-300 border border-emerald-800"
-                              : "bg-slate-800 text-slate-300 border border-slate-700"
-                          }`}
+                                ? "bg-emerald-950 text-emerald-300 border border-emerald-800"
+                                : "bg-slate-800 text-slate-300 border border-slate-700"
+                            }`}
                         >
                           {sp.tone_label} ({sp.hawkish_dovish_score > 0 ? `+${sp.hawkish_dovish_score}` : sp.hawkish_dovish_score})
                         </span>
@@ -728,13 +712,12 @@ export default function ScenariosPlaybookPage() {
                         </td>
                         <td className="p-3">
                           <span
-                            className={`px-2 py-0.5 rounded font-bold uppercase text-xs border ${
-                              row.debt_compounding_status?.includes("CRITICAL") || row.debt_compounding_status?.includes("RESTRICTION")
+                            className={`px-2 py-0.5 rounded font-bold uppercase text-xs border ${row.debt_compounding_status?.includes("CRITICAL") || row.debt_compounding_status?.includes("RESTRICTION")
                                 ? "bg-rose-950 text-rose-300 border-rose-800"
                                 : row.debt_compounding_status?.includes("REPRESSION")
-                                ? "bg-indigo-950 text-indigo-300 border-indigo-800"
-                                : "bg-emerald-950 text-emerald-300 border-emerald-800"
-                            }`}
+                                  ? "bg-indigo-950 text-indigo-300 border-indigo-800"
+                                  : "bg-emerald-950 text-emerald-300 border-emerald-800"
+                              }`}
                           >
                             {row.debt_compounding_status}
                           </span>
@@ -788,13 +771,12 @@ export default function ScenariosPlaybookPage() {
                       <td className="p-3 font-bold text-slate-200">{s.sector}</td>
                       <td className="p-3">
                         <span
-                          className={`px-2 py-0.5 rounded font-bold uppercase text-xs border ${
-                            s.duration_risk.includes("EXTREME") || s.duration_risk.includes("VERY HIGH")
+                          className={`px-2 py-0.5 rounded font-bold uppercase text-xs border ${s.duration_risk.includes("EXTREME") || s.duration_risk.includes("VERY HIGH")
                               ? "bg-rose-950 text-rose-300 border border-rose-800"
                               : s.duration_risk.includes("HIGH")
-                              ? "bg-amber-950 text-amber-300 border border-amber-800"
-                              : "bg-emerald-950 text-emerald-300 border border-emerald-800"
-                          }`}
+                                ? "bg-amber-950 text-amber-300 border border-amber-800"
+                                : "bg-emerald-950 text-emerald-300 border border-emerald-800"
+                            }`}
                         >
                           {s.duration_risk}
                         </span>

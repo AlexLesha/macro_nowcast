@@ -404,8 +404,8 @@ export default function CommoditiesAlternativesPage() {
               <Link href="/synthesis" className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-300 hover:text-cyan-300 hover:border-slate-700 transition">
                 ⚖️ Framework Synthesis
               </Link>
-              <Link href="/speculation" className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-300 hover:text-cyan-300 hover:border-slate-700 transition">
-                🎯 Speculation Matrix
+              <Link href="/trade-ideas" className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-300 hover:text-cyan-300 hover:border-slate-700 transition">
+                🎯 Trade Ideas
               </Link>
             </div>
             <div className="text-slate-400 text-xs">

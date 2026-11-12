@@ -362,33 +362,6 @@ export function ReversalsDashboard({ isSubPage = false, initialData = null }: Re
 
   return (
     <div className="space-y-6">
-      {/* Subpage Breadcrumbs (if rendered inside dedicated subpage) */}
-      {isSubPage && (
-        <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-900/60 p-3 rounded-lg border border-slate-800 text-xs">
-          <div className="flex items-center gap-2 text-slate-400">
-            <Link href="/trade-ideas" className="hover:text-cyan-400 transition flex items-center gap-1 font-semibold">
-              <ArrowLeft className="w-3.5 h-3.5" />
-              <span>Trade Ideas</span>
-            </Link>
-            <span>/</span>
-            <span className="text-emerald-400 font-bold">Reversals (T+3 Microstructure Shock)</span>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <span className="text-slate-500">Jump to Timeframe:</span>
-            <Link href="/trade-ideas?horizon=1_to_3_months" className="px-2 py-1 rounded bg-slate-800 text-slate-300 hover:text-white transition font-mono">
-              1-3M
-            </Link>
-            <Link href="/trade-ideas?horizon=12_months" className="px-2 py-1 rounded bg-slate-800 text-slate-300 hover:text-white transition font-mono">
-              12M
-            </Link>
-            <Link href="/trade-ideas?horizon=3_plus_years" className="px-2 py-1 rounded bg-slate-800 text-slate-300 hover:text-white transition font-mono">
-              3Y+
-            </Link>
-          </div>
-        </div>
-      )}
-
       {/* Top Header & Action Controls */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800/80 pb-5">
         <div>

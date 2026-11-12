@@ -221,7 +221,7 @@ class RefreshPipelineOrchestrator:
                 delta.affected_tickers = ", ".join(author.bullish_tickers + author.bearish_tickers)
             db.commit()
 
-            # Synchronize Trade Ideas Cache with freshly refreshed macro regime
+            # Synchronize Trade Ideas & Idiosyncratic Reversals with freshly refreshed macro regime
             try:
                 try:
                     from backend.app.quant_engine.trade_ideas_engine import TradeIdeasEngine
@@ -230,6 +230,15 @@ class RefreshPipelineOrchestrator:
                 TradeIdeasEngine.build_trade_ideas_payload(force_refresh=True)
             except Exception as ti_err:
                 logger.warning(f"[Pipeline] TradeIdeasEngine refresh notice: {ti_err}")
+
+            try:
+                try:
+                    from backend.app.quant_engine.reversal_scanner import ReversalScanner
+                except ImportError:
+                    from app.quant_engine.reversal_scanner import ReversalScanner
+                ReversalScanner.run_reversal_scan(force=True, universe_limit=150)
+            except Exception as rev_err:
+                logger.warning(f"[Pipeline] ReversalScanner refresh notice: {rev_err}")
 
             return {
                 "status": "success",

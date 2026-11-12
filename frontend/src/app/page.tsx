@@ -30,7 +30,6 @@ export default function UnifiedNowcastDashboard() {
   const [regime, setRegime] = useState<any>(null);
   const [quantSignals, setQuantSignals] = useState<any>(null);
   const [liquidity, setLiquidity] = useState<any>(null);
-  const [outliers, setOutliers] = useState<any>(null);
   const [deltas, setDeltas] = useState<any[]>([]);
   const [execData, setExecData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -52,15 +51,14 @@ export default function UnifiedNowcastDashboard() {
   };
 
 
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = async (force: boolean = false) => {
     try {
-      const [regimeRes, quantRes, liqRes, outliersRes, deltasRes, execRes] = await Promise.allSettled([
+      const [regimeRes, quantRes, liqRes, deltasRes, execRes] = await Promise.allSettled([
         fetch(getApiUrl("/api/regime/current")),
         fetch(getApiUrl("/api/quant/signals?ticker=SPY")),
         fetch(getApiUrl("/api/liquidity/us-net")),
-        fetch(getApiUrl("/api/outliers/scan")),
         fetch(getApiUrl("/api/intelligence/deltas")),
-        fetch(getApiUrl("/api/v1/executive-summary")),
+        fetch(getApiUrl(`/api/v1/executive-summary${force ? "?force=true" : ""}`)),
       ]);
 
       if (regimeRes.status === "fulfilled" && regimeRes.value.ok) {
@@ -71,9 +69,6 @@ export default function UnifiedNowcastDashboard() {
       }
       if (liqRes.status === "fulfilled" && liqRes.value.ok) {
         setLiquidity(await liqRes.value.json());
-      }
-      if (outliersRes.status === "fulfilled" && outliersRes.value.ok) {
-        setOutliers(await outliersRes.value.json());
       }
       if (deltasRes.status === "fulfilled" && deltasRes.value.ok) {
         setDeltas(await deltasRes.value.json());
@@ -89,9 +84,9 @@ export default function UnifiedNowcastDashboard() {
   };
 
   useEffect(() => {
-    fetchDashboardData();
+    fetchDashboardData(false);
     const handleGlobalRefresh = () => {
-      fetchDashboardData();
+      fetchDashboardData(true);
     };
     window.addEventListener("macro-nowcast-global-refresh", handleGlobalRefresh);
     return () => window.removeEventListener("macro-nowcast-global-refresh", handleGlobalRefresh);

@@ -191,17 +191,6 @@ function TradeIdeasContent() {
                 </button>
               ))}
 
-              {/* Dedicated Sub-Page Link Next to Timeframes */}
-              <Link
-                href="/trade-ideas/reversals"
-                id="reversals-subpage-link"
-                className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-emerald-500/40 bg-emerald-950/30 text-emerald-300 hover:bg-emerald-900/50 hover:border-emerald-500/70 transition font-mono text-xs font-semibold"
-                title="Open full dedicated Reversals workstation in isolated sub-page"
-              >
-                <span>Sub-Page</span>
-                <ExternalLink className="w-3.5 h-3.5 text-emerald-400" />
-              </Link>
-
               <button
                 id="recalculate-live-trade-ideas"
                 onClick={() => fetchTradeIdeas(true)}
@@ -326,16 +315,11 @@ function TradeIdeasContent() {
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => setHorizon("reversals")}
-                    className="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-semibold transition"
+                    className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold transition text-xs font-mono flex items-center gap-1 shadow-md shadow-emerald-950"
                   >
-                    View Reversals Tab →
+                    <span>View Reversals Tab</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
                   </button>
-                  <Link
-                    href="/trade-ideas/reversals"
-                    className="px-2.5 py-1 rounded border border-emerald-500/50 hover:bg-emerald-900/40 text-emerald-300 transition flex items-center gap-1"
-                  >
-                    Dedicated Sub-Page ↗
-                  </Link>
                 </div>
               </div>
             )}

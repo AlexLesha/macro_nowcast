@@ -313,9 +313,8 @@ function generateStandaloneHtml(liveData: any) {
     <button class="nav-btn active" onclick="switchTab('tab-exec')">1. Executive Summary</button>
     <button class="nav-btn" onclick="switchTab('tab-synthesis')">2. Framework Synthesis</button>
     <button class="nav-btn" onclick="switchTab('tab-liquidity')">3. Macro Liquidity &amp; Allocation</button>
-    <button class="nav-btn" onclick="switchTab('tab-outliers')">4. 1–3M Outlier Scanner</button>
-    <button class="nav-btn" onclick="switchTab('tab-speculation')">5. Speculation Matrix</button>
-    <button class="nav-btn" onclick="switchTab('tab-scenarios')">6. 4-Quarter Scenarios</button>
+    <button class="nav-btn" onclick="switchTab('tab-trade-ideas')">4. Trade Ideas</button>
+    <button class="nav-btn" onclick="switchTab('tab-scenarios')">5. 4-Quarter Scenarios</button>
   </div>
 
   <!-- ================= SUB-PAGE 1: EXECUTIVE SUMMARY ================= -->
@@ -637,12 +636,12 @@ function generateStandaloneHtml(liveData: any) {
     </div>
   </div>
 
-  <!-- ================= SUB-PAGE 4: OUTLIER SCANNER ================= -->
-  <div id="tab-outliers" class="tab-pane">
+  <!-- ================= SUB-PAGE 4: TRADE IDEAS ================= -->
+  <div id="tab-trade-ideas" class="tab-pane">
     <div class="card">
       <div class="card-title">
-        <span>1–3 Month Positioned Assets &amp; Outlier Screener</span>
-        <span class="badge badge-cyan">QUANT + OPTIONS GEX INTEGRATED</span>
+        <span>Trade Ideas &amp; Capital Flow Synthesis</span>
+        <span class="badge badge-cyan">MULTI-HORIZON + MACRO ALIGNED</span>
       </div>
       <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;">
         Cross-asset positioning screening combining Hedgeye Risk Ranges, 42 Macro VAMS Badges (+1/0/-1), Net Dealer Gamma (GEX), and Quad Fit.
@@ -748,13 +747,11 @@ function generateStandaloneHtml(liveData: any) {
         </table>
       </div>
     </div>
-  </div>
 
-  <!-- ================= SUB-PAGE 5: SPECULATION MATRIX ================= -->
-  <div id="tab-speculation" class="tab-pane">
-    <div class="card">
+    <!-- Thematic Capital Flow Transmission -->
+    <div class="card" style="margin-top: 1.5rem;">
       <div class="card-title">
-        <span>1st, 2nd &amp; 3rd Order Speculation Matrix</span>
+        <span>Thematic Capital Allocation Cascade</span>
         <span class="badge badge-cyan">CAPITAL CASCADE ANALYSIS</span>
       </div>
       <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;">

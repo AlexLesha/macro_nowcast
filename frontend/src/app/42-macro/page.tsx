@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
+import { RefreshCw } from "lucide-react";
 import { getApiUrl } from "@/lib/api";
 
 // ============================================================================
@@ -214,9 +215,11 @@ export default function FortyTwoMacroSubPage() {
   const [selectedStance, setSelectedStance] = useState<string>("ALL");
   const [gridRegionFilter, setGridRegionFilter] = useState<"ALL" | "G7" | "EM">("ALL");
   const [apiStatus, setApiStatus] = useState<"synced" | "cached" | "fallback">("fallback");
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
 
-  const fetch42Macro = () => {
-    fetch(getApiUrl("/api/v1/42macro/dashboard"), { cache: "no-store" })
+  const fetch42Macro = (force: boolean = false) => {
+    if (force) setIsRefreshing(true);
+    fetch(getApiUrl(`/api/v1/42macro/dashboard${force ? "?force=true" : ""}`), { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
       .then((json) => {
         if (json && typeof json === "object") {
@@ -273,14 +276,17 @@ export default function FortyTwoMacroSubPage() {
       })
       .catch(() => {
         setApiStatus("fallback");
+      })
+      .finally(() => {
+        setIsRefreshing(false);
       });
   };
 
   useEffect(() => {
-    fetch42Macro();
+    fetch42Macro(false);
 
     const handleGlobalRefresh = () => {
-      fetch42Macro();
+      fetch42Macro(true);
     };
     window.addEventListener("macro-nowcast-global-refresh", handleGlobalRefresh);
     return () => window.removeEventListener("macro-nowcast-global-refresh", handleGlobalRefresh);
@@ -405,6 +411,18 @@ export default function FortyTwoMacroSubPage() {
             <span className="px-3 py-1 rounded-full bg-blue-500/20 border border-blue-500/40 text-blue-300 font-semibold">
               REGIME: {matrix.active_regime_label || "DEFLATION"}
             </span>
+            <button
+              onClick={() => {
+                fetch42Macro(true);
+                window.dispatchEvent(new CustomEvent("macro-nowcast-global-refresh"));
+              }}
+              disabled={isRefreshing}
+              className="flex items-center gap-1.5 px-3 py-1 bg-cyan-950/80 border border-cyan-800 hover:border-cyan-600 text-cyan-300 rounded text-xs font-mono font-medium transition shadow-sm hover:shadow-cyan-950/50 disabled:opacity-50"
+              title="Force recalculate 42 Macro Bayesian dashboard live"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? "animate-spin text-cyan-400" : ""}`} />
+              <span>{isRefreshing ? "Recalculating..." : "Force Refresh"}</span>
+            </button>
           </div>
         </div>
 
