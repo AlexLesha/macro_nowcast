@@ -240,16 +240,17 @@ class FortyTwoMacroEngine:
         21-Day Forward Max Drawdown conditioned on VAMS state.
         """
         if len(close) < 65:
+            p_last = float(close.iloc[-1]) if not close.empty else 100.0
             return {
-                "price": float(close.iloc[-1]) if not close.empty else 100.0,
-                "vams_state": 1, "vams_label": "BULLISH", "vam_score": 1.45, "vams_score": 0.82,
-                "prob_low": round(float(close.iloc[-1]) * 0.96, 2) if not close.empty else 96.0,
-                "prob_high": round(float(close.iloc[-1]) * 1.04, 2) if not close.empty else 104.0,
-                "range_position_pct": 52.0,
+                "price": p_last,
+                "vams_state": 0, "vams_label": "INSUFFICIENT_HISTORY", "vam_score": 0.0, "vams_score": 0.0,
+                "prob_low": round(p_last * 0.95, 2),
+                "prob_high": round(p_last * 1.05, 2),
+                "range_position_pct": 50.0,
                 "status_flag": "IN_RANGE",
-                "fwd_5d_when_below_low_pct": 0.9, "fwd_5d_when_above_high_pct": -0.2,
-                "n_size_low": 12, "n_size_high": 15,
-                "mean_21d_max_dd_bullish_pct": -2.2, "mean_21d_max_dd_neutral_pct": -3.8, "mean_21d_max_dd_bearish_pct": -4.0
+                "fwd_5d_when_below_low_pct": 0.0, "fwd_5d_when_above_high_pct": 0.0,
+                "n_size_low": 0, "n_size_high": 0,
+                "mean_21d_max_dd_bullish_pct": 0.0, "mean_21d_max_dd_neutral_pct": 0.0, "mean_21d_max_dd_bearish_pct": 0.0
             }
 
         log_ret = np.log(close / close.shift(1))
@@ -733,6 +734,21 @@ class FortyTwoMacroLiveBuilder:
         all_tickers = list(set(list(MATRIX_42_LIVE_TICKERS.values()) + drmo_tickers + extra_tickers))
 
         close_df, vol_df = fetch_ohlcv_Slot_with_failover(all_tickers, period="1y")
+
+        # Merge pre-warmed benchmark ETF closes if available
+        try:
+            try:
+                from backend.app.quant_engine.benchmark_etf_cache import BenchmarkETFCacheManager
+            except ImportError:
+                from app.quant_engine.benchmark_etf_cache import BenchmarkETFCacheManager
+            bench_closes = BenchmarkETFCacheManager.get_benchmark_closes()
+            if isinstance(bench_closes, pd.DataFrame) and not bench_closes.empty:
+                for col in bench_closes.columns:
+                    if col not in close_df.columns or close_df[col].dropna().empty:
+                        close_df[col] = bench_closes[col]
+        except Exception:
+            pass
+
         cg_spot = fetch_live_coingecko_prices()
         if cg_spot["btc"] > 10000 and "BTC-USD" in close_df.columns and not close_df["BTC-USD"].dropna().empty:
             close_df.loc[close_df.index[-1], "BTC-USD"] = cg_spot["btc"]

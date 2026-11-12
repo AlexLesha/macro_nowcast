@@ -128,7 +128,7 @@ CURATED_FALLBACK_INTELLIGENCE: List[Dict[str, Any]] = [
 
 
 class MediaScraper:
-    def __init__(self, since_date: Optional[datetime] = None, timeout: float = 10.0):
+    def __init__(self, since_date: Optional[datetime] = None, timeout: float = 3.5):
         self.timeout = timeout
         if since_date is None:
             self.since_date = datetime.now(timezone.utc) - timedelta(days=DEFAULT_LOOKBACK_DAYS)
@@ -231,6 +231,23 @@ class MediaScraper:
                         # Deduplicate by title
                         if not any(x["title"] == item["title"] for x in aggregated_by_author[author]):
                             aggregated_by_author[author].append(item)
+
+        # Fallback to curated baseline if RSS feeds blocked or timed out
+        total_found = sum(len(items) for items in aggregated_by_author.values())
+        if total_found == 0:
+            logger.info("[MediaScraper] No new live RSS entries reached; populating from curated institutional baseline.")
+            for fallback in CURATED_FALLBACK_INTELLIGENCE:
+                author_name = fallback.get("framework_author", "")
+                for author_key in aggregated_by_author:
+                    if author_key in author_name:
+                        aggregated_by_author[author_key].append({
+                            "author": author_key,
+                            "source_type": fallback.get("source_type", "curated_macro"),
+                            "title": fallback.get("source_title", "Institutional Intelligence"),
+                            "url": fallback.get("source_url", "https://macropulse-alpha.dev"),
+                            "published_at": fallback.get("published_at", datetime.now(timezone.utc)).isoformat() if hasattr(fallback.get("published_at"), "isoformat") else str(fallback.get("published_at")),
+                            "content": fallback.get("raw_text", ""),
+                        })
 
         # Build formatted batch text with strict token limits (max 1,500 words per author)
         batch_text_blocks = []

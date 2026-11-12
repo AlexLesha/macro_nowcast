@@ -137,12 +137,15 @@ class RefreshPipelineOrchestrator:
             glob_liq = compute_global_liquidity_and_debt_ratios()
 
             current_quad = quads.get("current_quad", "Quad 3")
-            grid_matrix = FortyTwoMacroEngine.compute_global_macro_risk_matrix(
-                {"GOLDILOCKS": 10, "REFLATION": 14, "INFLATION": 16, "DEFLATION": 29}
-                if "3" in current_quad
-                else {"GOLDILOCKS": 18, "REFLATION": 30, "INFLATION": 19, "DEFLATION": 2}
-            )
-            grid_regime = grid_matrix.get("active_regime_label", "DEFLATION" if "3" in current_quad else "REFLATION")
+            try:
+                from app.quant_engine.forty_two_macro_engine import FortyTwoMacroLiveBuilder
+                live_42 = FortyTwoMacroLiveBuilder.build_live_42macro_dashboard(force=True)
+                grid_matrix = live_42.get("global_macro_risk_matrix", {})
+                grid_regime = grid_matrix.get("active_regime_label", "DEFLATION" if "3" in current_quad else "REFLATION")
+            except Exception as fte_err:
+                logger.warning(f"[Pipeline] FortyTwoMacro live matrix notice: {fte_err}")
+                grid_matrix = {"active_regime_label": "DEFLATION" if "3" in current_quad else "REFLATION"}
+                grid_regime = grid_matrix["active_regime_label"]
 
             # Trigger core engine live recalculations with DB persistence
             try:

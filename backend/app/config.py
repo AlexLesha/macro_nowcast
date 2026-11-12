@@ -88,6 +88,14 @@ class Settings:
     EIA_API_KEY: str = (os.getenv("EIA_API_KEY") or "").strip()
     ALPHA_API_KEY: str = (os.getenv("ALPHA_API_KEY") or os.getenv("ALPHAVANTAGE_API_KEY") or "").strip()
 
+    # Email Alert & Cron Notification Dispatcher Settings
+    SMTP_HOST: str = os.getenv("SMTP_HOST", "smtp.gmail.com").strip()
+    SMTP_PORT: int = int(os.getenv("SMTP_PORT", "587"))
+    SMTP_USER: str = (os.getenv("SMTP_USER") or os.getenv("GMAIL_SMTP_USER") or "").strip()
+    SMTP_PASSWORD: str = (os.getenv("SMTP_PASSWORD") or os.getenv("GMAIL_SMTP_PASS") or "").strip()
+    ALERT_EMAIL_RECIPIENT: str = (os.getenv("ALERT_EMAIL_RECIPIENT") or os.getenv("SMTP_USER") or "").strip()
+    RESEND_API_KEY: str = (os.getenv("RESEND_API_KEY") or "").strip()
+
     DATABASE_URL: str = _resolved_db_url
     REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
@@ -173,6 +181,27 @@ def fetch_fred_series_live(series_id: str, limit: int = 400, ttl_sec: int = 900)
                 s = pd.Series(df[val_col].values, index=pd.DatetimeIndex(df[date_col]), name=series_id)
                 _FRED_SERIES_CACHE[series_id] = {"ts": now, "series": s}
                 return s
+    except Exception:
+        pass
+
+    # Fallback 3: MacroSeries Database Table
+    try:
+        try:
+            from backend.app.db import SessionLocal
+            from backend.app.models.db_models import MacroSeries
+        except ImportError:
+            from app.db import SessionLocal
+            from app.models.db_models import MacroSeries
+        with SessionLocal() as db:
+            rows = db.query(MacroSeries).filter_by(series_id=series_id).order_by(MacroSeries.date.desc()).limit(limit).all()
+            if rows:
+                rows.reverse()
+                dates = [r.date for r in rows if r.value is not None]
+                vals = [float(r.value) for r in rows if r.value is not None]
+                if vals:
+                    s = pd.Series(vals, index=pd.DatetimeIndex(dates), name=series_id)
+                    _FRED_SERIES_CACHE[series_id] = {"ts": now, "series": s}
+                    return s
     except Exception:
         pass
 

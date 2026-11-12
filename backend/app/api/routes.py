@@ -1321,15 +1321,19 @@ def get_synthesis_dashboard(db: Session = Depends(get_db)):
 
     # 3. 42 Macro Live Grid
     try:
-        matrix_42 = FortyTwoMacroEngine.compute_global_macro_risk_matrix(
-            {"GOLDILOCKS": 18, "REFLATION": 30, "INFLATION": 19, "DEFLATION": 2}
-        )
+        try:
+            from backend.app.quant_engine.forty_two_macro_engine import FortyTwoMacroLiveBuilder
+        except ImportError:
+            from app.quant_engine.forty_two_macro_engine import FortyTwoMacroLiveBuilder
+
+        live_42 = FortyTwoMacroLiveBuilder.build_live_42macro_dashboard(force=False)
+        matrix_42 = live_42.get("global_macro_risk_matrix", {})
         regime_42 = (
             latest_snapshot.grid_regime
             if (latest_snapshot and latest_snapshot.grid_regime)
             else matrix_42.get("active_regime_label", "REFLATION")
         )
-        cacri_pct = matrix_42.get("cacri_pct", 30.4)
+        cacri_pct = float(matrix_42.get("cacri_pct", live_42.get("cacri", {}).get("cacri_composite_pct", 30.4)))
     except Exception:
         matrix_42 = {}
         regime_42 = (
@@ -1540,6 +1544,40 @@ def get_trade_ideas_api(force: bool = False):
         from app.quant_engine.trade_ideas_engine import TradeIdeasEngine
 
     return TradeIdeasEngine.build_trade_ideas_payload(force_refresh=force)
+
+
+@api_router.get("/v1/reversals/scan")
+@api_router.get("/reversals/scan")
+def get_reversals_scan_api(
+    force: bool = False,
+    limit: int = 500,
+    equity: float = 100000.0,
+    risk_pct: float = 1.0,
+):
+    """Unified Idiosyncratic Reversals & Liquidity Shock Scanner API endpoint."""
+    try:
+        from backend.app.quant_engine.reversal_scanner import ReversalScanner
+    except ImportError:
+        from app.quant_engine.reversal_scanner import ReversalScanner
+
+    return ReversalScanner.run_reversal_scan(
+        force=force,
+        universe_limit=limit,
+        account_equity=equity,
+        risk_pct=risk_pct,
+    )
+
+
+@api_router.api_route("/v1/reversals/send-alert", methods=["GET", "POST"])
+@api_router.api_route("/reversals/send-alert", methods=["GET", "POST"])
+def send_reversals_alert_api(force: bool = False):
+    """Dispatches or simulates morning briefing alert email."""
+    try:
+        from backend.app.quant_engine.email_alerter import EmailAlerter
+    except ImportError:
+        from app.quant_engine.email_alerter import EmailAlerter
+
+    return EmailAlerter.dispatch_morning_briefing()
 
 
 @api_router.get("/v1/speculation")

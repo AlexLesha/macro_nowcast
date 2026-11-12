@@ -140,6 +140,9 @@ class FredClient:
         inserted_count = 0
         now = datetime.now(timezone.utc)
 
+        # Batch-fetch all existing records for this series in 1 single query (<5ms)
+        existing_records = {r.date: r for r in db.query(MacroSeries).filter_by(series_id=series_id).all()}
+
         for idx_date, row in transformed_df.iterrows():
             record_date = idx_date.date()
             val = float(row["value"]) if pd.notnull(row["value"]) else None
@@ -147,8 +150,8 @@ class FredClient:
             mom = float(row["mom_roc"]) if pd.notnull(row["mom_roc"]) else None
             z_score = float(row["z_score_3y"]) if pd.notnull(row["z_score_3y"]) else None
 
-            # Merge / upsert into DB
-            db_item = db.query(MacroSeries).filter_by(series_id=series_id, date=record_date).first()
+            # Fast in-memory lookup instead of roundtrip SELECT query
+            db_item = existing_records.get(record_date)
             if db_item:
                 db_item.value = val
                 db_item.yoy_roc = yoy
@@ -167,6 +170,7 @@ class FredClient:
                     updated_at=now,
                 )
                 db.add(db_item)
+                existing_records[record_date] = db_item
             inserted_count += 1
 
         try:

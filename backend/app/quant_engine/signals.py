@@ -56,29 +56,37 @@ def compute_vams(
     elif isinstance(df_ohlcv, list):
         close = pd.Series(df_ohlcv, dtype=float)
     elif isinstance(df_ohlcv, dict):
-        # Dictionary of prices or ticker metrics
+        # Dictionary of prices or ticker metrics: insufficient history for multi-EMA composite
         c_val = df_ohlcv.get("close", df_ohlcv.get("Close", 100.0))
         rv_val = df_ohlcv.get("rv_21d", 14.5)
-        # Synthetic generation if only single snapshot provided
         return {
-            "vams_score": 1.45,
-            "vams_state": 1,
-            "vams_label": "BULLISH_TREND",
+            "vams_score": 0.0,
+            "vams_state": 0,
+            "vams_label": "INSUFFICIENT_HISTORY",
             "rv_21d": rv_val,
             "vol_of_vol_penalty": 1.0,
-            "ema_10": round(c_val * 1.01, 2),
-            "ema_21": round(c_val * 0.99, 2),
-            "ema_63": round(c_val * 0.96, 2),
+            "ema_10": round(c_val, 2),
+            "ema_21": round(c_val, 2),
+            "ema_63": round(c_val, 2),
+            "last_price": round(c_val, 2),
         }
     else:
         raise ValueError("Invalid format for df_ohlcv")
 
-    if len(close) < 25:
-        # Pad with geometric drift if short history
-        pad_len = 70 - len(close)
-        first_val = close.iloc[0]
-        synth_prefix = pd.Series([first_val * (1.0 + 0.0005 * i) for i in range(pad_len)])
-        close = pd.concat([synth_prefix, close]).reset_index(drop=True)
+    if len(close) < 63:
+        # Return explicit neutral/insufficient history instead of synthetic upward drift
+        p_last = float(close.iloc[-1]) if not close.empty else 0.0
+        return {
+            "vams_score": 0.0,
+            "vams_state": 0,
+            "vams_label": "INSUFFICIENT_HISTORY",
+            "rv_21d": 0.0,
+            "vol_of_vol_penalty": 1.0,
+            "ema_10": round(p_last, 2),
+            "ema_21": round(p_last, 2),
+            "ema_63": round(p_last, 2),
+            "last_price": round(p_last, 2),
+        }
 
     # 1. EMAs: 10D, 21D, 63D
     ema_10 = close.ewm(span=10, adjust=False).mean()

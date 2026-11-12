@@ -58,6 +58,15 @@ try:
 except ImportError:
     from backend.app.quant_engine.macro_plumbing_state import MacroPlumbingAndOptionsStateEngine
 
+try:
+    from app.quant_engine.universe_provider import UniverseProvider
+    from app.quant_engine.reversal_scanner import ReversalScanner
+    from app.quant_engine.email_alerter import EmailAlerter
+except ImportError:
+    from backend.app.quant_engine.universe_provider import UniverseProvider
+    from backend.app.quant_engine.reversal_scanner import ReversalScanner
+    from backend.app.quant_engine.email_alerter import EmailAlerter
+
 __all__ = [
     "compute_growth_nowcast",
     "compute_inflation_nowcast",
@@ -93,4 +102,7 @@ __all__ = [
     "MacroPlumbingAndOptionsStateEngine",
     "compute_pivot_vs_continuation_scores",
     "get_multi_horizon_actionable_ideas",
+    "UniverseProvider",
+    "ReversalScanner",
+    "EmailAlerter",
 ]

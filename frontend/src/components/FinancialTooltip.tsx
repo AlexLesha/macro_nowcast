@@ -779,6 +779,30 @@ export const METRIC_GLOSSARY: Record<string, { formula?: string; explanation: st
     formula: "Knock-On Policy, Sovereign Wealth, and Margin Defense Beneficiaries",
     explanation: "Tertiary beneficiaries capturing secondary wealth effects, regulatory relief, or corporate margin defense (e.g. Constellation nuclear PPAs, JPMorgan SLR relief, Palantir enterprise automation).",
   },
+  "RESIDUAL SHOCK": {
+    formula: "ε_{i,t} = R_{i,t} - (α_i + β_{SPY} R_{SPY,t} + β_{Sector} R_{Sector,t}) < -2.25σ",
+    explanation: "Measures pure company-specific idiosyncratic dislocation. Stems from trailing 60-day multi-factor OLS regression against SPY and the mapped Sector ETF, proving the price drop was NOT driven by broad market or sector beta.",
+  },
+  "IBS": {
+    formula: "Internal Bar Strength = (Close - Low) / (High - Low)",
+    explanation: "Microstructure capitulation oscillator. An IBS below 0.15 indicates the stock closed within the lowest 15% of its daily range, proving intense panic selling and exhaustion into the close.",
+  },
+  "RVOL": {
+    formula: "Relative Volume = Current Volume / 20-Day SMA(Volume)",
+    explanation: "Liquidity volume climax ratio. Readings above 1.8x confirm heavy institutional liquidity exchange and capitulation turnover.",
+  },
+  "MACRO THROTTLE": {
+    formula: "Regime-Gated Risk Sizing: Goldilocks/Reflation = 100%, Inflation = 50%, Deflation/Stress = 0% HALT",
+    explanation: "Centralized macro circuit-breaker integrating 42 Macro GRID and US Net Liquidity. Automatically scales down position size or completely halts new reversal buying during deflationary deleveraging.",
+  },
+  "3-DAY TIME EXIT": {
+    formula: "Fixed T+3 Market-on-Close Exit Rule",
+    explanation: "Idiosyncratic liquidity shocks resolve rapidly through mean-reversion. Positions are strictly exited at the close of the 3rd trading day if neither the stop-loss nor target price is hit.",
+  },
+  "LIMIT ENTRY ZONE": {
+    formula: "[Current Close - 0.5%, Current Close + 0.2%]",
+    explanation: "Optimal limit order entry band to avoid chasing gap-ups while ensuring execution fill on opening auction liquidity.",
+  },
 };
 
 export interface MetricTipProps {

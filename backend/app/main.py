@@ -3,7 +3,7 @@ import logging
 from contextlib import asynccontextmanager
 from typing import Optional
 from pydantic import BaseModel
-from fastapi import FastAPI, BackgroundTasks
+from fastapi import FastAPI, BackgroundTasks, Request, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.db import init_db
@@ -320,6 +320,142 @@ def get_trade_ideas(force: bool = False):
         from app.quant_engine.trade_ideas_engine import TradeIdeasEngine
 
     return TradeIdeasEngine.build_trade_ideas_payload(force_refresh=force)
+
+
+@app.api_route("/api/v1/cron/daily-scan", methods=["GET", "POST"])
+@app.api_route("/api/cron/daily-scan", methods=["GET", "POST"])
+async def run_daily_cron_scan(
+    request: Request,
+    secret: Optional[str] = None,
+    x_cron_secret: Optional[str] = Header(None, alias="X-Cron-Secret"),
+):
+    """
+    Automated Daily Post-Close Scanner & Render Keep-Alive Endpoint.
+    Triggered by GitHub Actions or cron-job.org at 21:15 UTC (08:15 AEDT).
+    Secured via CRON_SECRET header or query parameter.
+    """
+    expected_secret = os.getenv("CRON_SECRET", "macropulse-cron-key-2026").strip()
+    provided_secret = x_cron_secret or secret or request.headers.get("Authorization", "").replace("Bearer ", "").strip()
+    
+    if expected_secret and provided_secret != expected_secret:
+        raise HTTPException(status_code=401, detail="Unauthorized: invalid or missing cron secret")
+
+    logger.info("[Cron] Executing scheduled daily warmup & post-close ingestion...")
+    t0 = time.perf_counter()
+    results = {}
+
+    # 1. Warm Benchmark ETFs & Ingest Active Windows
+    try:
+        try:
+            from backend.app.quant_engine.scheduled_refresher import AdaptiveDataRefresher
+        except ImportError:
+            from app.quant_engine.scheduled_refresher import AdaptiveDataRefresher
+        refresher_res = await AdaptiveDataRefresher.run_daily_warmup_and_refresh()
+        results["warmup"] = refresher_res
+    except Exception as e:
+        logger.warning(f"[Cron] AdaptiveDataRefresher notice: {e}")
+        results["warmup"] = {"error": str(e)}
+
+    # 2. Recalculate Trade Ideas Payload
+    try:
+        try:
+            from backend.app.quant_engine.trade_ideas_engine import TradeIdeasEngine
+        except ImportError:
+            from app.quant_engine.trade_ideas_engine import TradeIdeasEngine
+        ti_res = TradeIdeasEngine.build_trade_ideas_payload(force_refresh=True)
+        results["trade_ideas"] = {"status": ti_res.get("status"), "tracked": ti_res.get("total_candidates_tracked")}
+    except Exception as e:
+        logger.warning(f"[Cron] TradeIdeasEngine notice: {e}")
+        results["trade_ideas"] = {"error": str(e)}
+
+    # 3. Trigger Global Refresh Pipeline
+    try:
+        try:
+            from backend.app.refresh_pipeline.orchestrator import refresh_orchestrator
+        except ImportError:
+            from app.refresh_pipeline.orchestrator import refresh_orchestrator
+        results["orchestrator"] = refresh_orchestrator.trigger()
+    except Exception as e:
+        logger.warning(f"[Cron] Orchestrator trigger notice: {e}")
+        results["orchestrator"] = {"error": str(e)}
+
+    # 4. Trigger Quantitative Reversal Scanner & DB Persistence
+    reversal_payload = None
+    try:
+        try:
+            from backend.app.quant_engine.reversal_scanner import ReversalScanner
+        except ImportError:
+            from app.quant_engine.reversal_scanner import ReversalScanner
+        reversal_payload = ReversalScanner.run_daily_scan()
+        results["reversal_scan"] = {
+            "status": reversal_payload.get("status"),
+            "candidates": len(reversal_payload.get("candidates", [])),
+            "macro_throttle": reversal_payload.get("macro_throttle", {}).get("status_code"),
+        }
+    except Exception as e:
+        logger.warning(f"[Cron] ReversalScanner trigger notice: {e}")
+        results["reversal_scan"] = {"error": str(e)}
+
+    # 5. Dispatch Morning Briefing Alert Email
+    try:
+        try:
+            from backend.app.notifications.email_alerter import EmailAlerter
+        except ImportError:
+            try:
+                from backend.app.quant_engine.email_alerter import EmailAlerter
+            except ImportError:
+                from app.notifications.email_alerter import EmailAlerter
+        email_res = EmailAlerter.send_daily_brief(payload=reversal_payload)
+        results["morning_alert"] = email_res
+    except Exception as e:
+        logger.warning(f"[Cron] EmailAlerter trigger notice: {e}")
+        results["morning_alert"] = {"error": str(e)}
+
+    elapsed = round(time.perf_counter() - t0, 2)
+    return {
+        "status": "SUCCESS",
+        "action": "DAILY_SCAN_AND_WARMUP",
+        "elapsed_seconds": elapsed,
+        "executed_at_utc": datetime.now(timezone.utc).isoformat(),
+        "details": results,
+    }
+
+
+@app.get("/api/v1/reversals/scan")
+@app.get("/api/reversals/scan")
+def get_reversals_scan(
+    force: bool = False,
+    limit: int = 500,
+    equity: float = 100000.0,
+    risk_pct: float = 1.0,
+):
+    """
+    Executes or retrieves the Idiosyncratic Residual & Microstructure Liquidity Shock Scanner.
+    Regresses universe returns against SPY and sector SPDRs to flag extreme idiosyncratic dislocations (epsilon < -2.25 sigma, IBS < 0.15, RVOL > 1.8x).
+    """
+    try:
+        from backend.app.quant_engine.reversal_scanner import ReversalScanner
+    except ImportError:
+        from app.quant_engine.reversal_scanner import ReversalScanner
+
+    return ReversalScanner.run_reversal_scan(
+        force=force,
+        universe_limit=limit,
+        account_equity=equity,
+        risk_pct=risk_pct,
+    )
+
+
+@app.api_route("/api/v1/reversals/send-alert", methods=["GET", "POST"])
+@app.api_route("/api/reversals/send-alert", methods=["GET", "POST"])
+def send_reversals_alert(force: bool = False):
+    """Manually triggers or tests the Morning Reversals Briefing HTML email dispatcher."""
+    try:
+        from backend.app.quant_engine.email_alerter import EmailAlerter
+    except ImportError:
+        from app.quant_engine.email_alerter import EmailAlerter
+
+    return EmailAlerter.dispatch_morning_briefing()
 
 
 @app.get("/api/v1/options-lab/dashboard")

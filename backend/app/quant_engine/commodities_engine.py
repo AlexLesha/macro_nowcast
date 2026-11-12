@@ -25,13 +25,10 @@ try:
     from backend.app.config import fetch_fred_series_live, fetch_ohlcv_Slot_with_failover
     from backend.app.db.stock_compressed_store import StockCompressedStore
 except ImportError:
-    from app.config import fetch_fred_series_live, fetch_ohlcv_Slot_with_failover
+    from app.config import settings, fetch_fred_series_live, fetch_ohlcv_Slot_with_failover
     from app.db.stock_compressed_store import StockCompressedStore
 
 logger = logging.getLogger("macropulse.commodities_engine")
-
-COINGECKO_DEFAULT_DEMO_KEY = (os.getenv("COINGECKO_API_KEY") or "").strip()
-EIA_DEFAULT_API_KEY = (os.getenv("EIA_API_KEY") or "").strip()
 
 # High-speed in-memory cache to guarantee sub-millisecond repeat hits
 _IN_MEMORY_COMMODITIES_CACHE: Optional[Dict[str, Any]] = None
@@ -438,7 +435,7 @@ class CommoditiesAndAlternativesEngine:
     @classmethod
     async def fetch_eia_physical_inventories_live(cls) -> Dict[str, Any]:
         """Queries EIA v2 API for commercial crude, SPR, and natural gas inventories."""
-        eia_key = os.getenv("EIA_API_KEY", EIA_DEFAULT_API_KEY).strip()
+        eia_key = (settings.EIA_API_KEY or os.getenv("EIA_API_KEY", "")).strip()
         result = {
             "us_crude_commercial_mbbl": 428.5,
             "us_spr_mbbl": 395.2,
@@ -501,7 +498,7 @@ class CommoditiesAndAlternativesEngine:
     @classmethod
     async def fetch_coingecko_and_onchain_live(cls) -> Dict[str, Any]:
         """Queries live BTC & ETH spot prices + global dominance from CoinGecko, OKX, Coinbase, DefiLlama, and Mempool.space."""
-        cg_key = os.getenv("COINGECKO_API_KEY", COINGECKO_DEFAULT_DEMO_KEY).strip()
+        cg_key = (settings.COINGECKO_API_KEY or os.getenv("COINGECKO_API_KEY", "")).strip()
         headers = {"x-cg-demo-api-key": cg_key, "Accept": "application/json"} if cg_key else {"Accept": "application/json"}
 
         btc_spot_usd = 80350.0

@@ -1,0 +1,21 @@
+name: MacroPulse Daily Reversals Scan & Post-Close Ingestion
+
+on:
+  schedule:
+    # 21:15 UTC = 08:15 AEDT (Immediately post US equity close, Mon-Fri US trading sessions)
+    - cron: '15 21 * * 1-5'
+  workflow_dispatch:
+
+jobs:
+  run-daily-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Daily Reversals Scanner & Email Briefing
+        run: |
+          API_URL="${{ secrets.RENDER_API_BASE_URL || 'https://macro-nowcast-wdw2.onrender.com' }}"
+          CRON_SECRET="${{ secrets.CRON_SECRET || 'macropulse-cron-key-2026' }}"
+          echo "Triggering post-close scan at $API_URL/api/v1/cron/daily-scan..."
+          curl -s -f -X POST "$API_URL/api/v1/cron/daily-scan" \
+            -H "X-Cron-Secret: $CRON_SECRET" \
+            -H "Content-Type: application/json"
+

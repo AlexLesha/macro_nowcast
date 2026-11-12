@@ -24,6 +24,7 @@ export const MAIN_NAV_ITEMS: NavItem[] = [
   { label: "Framework Synthesis", href: "/synthesis" },
   { label: "Liquidity & Allocation", href: "/liquidity-allocation" },
   { label: "Trade Ideas", href: "/trade-ideas" },
+  { label: "Reversals", href: "/reversals" },
   { label: "Outliers", href: "/outliers" },
   { label: "Stock Analysis", href: "/stock-analysis" },
   { label: "Speculation", href: "/speculation" },

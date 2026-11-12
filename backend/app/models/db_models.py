@@ -377,3 +377,50 @@ class SecCompanyMetadata(Base):
             "gics_industry": self.gics_industry,
             "updated_at": self.updated_at,
         }
+
+
+class ReversalSignal(Base):
+    """Daily quantitative idiosyncratic reversal candidates and trade tickets."""
+    __tablename__ = "reversal_signals"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    scan_date = Column(Date, nullable=False, index=True)
+    ticker = Column(String(32), nullable=False, index=True)
+    name = Column(String(128), nullable=True)
+    sector = Column(String(64), nullable=True)
+    sector_etf = Column(String(16), nullable=True)
+    current_price = Column(Float, nullable=False)
+    residual_shock_sigma = Column(Float, nullable=False)
+    ibs = Column(Float, nullable=False)
+    rvol_20d = Column(Float, nullable=False)
+    shock_score = Column(Float, nullable=True)
+    entry_limit = Column(Float, nullable=False)
+    stop_loss = Column(Float, nullable=False)
+    target_exit = Column(Float, nullable=False)
+    target_exit_date = Column(String(32), nullable=True)
+    macro_regime = Column(String(64), nullable=True)
+    throttle_pct = Column(Float, nullable=True)
+    thesis = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=utc_now)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "id": self.id,
+            "scan_date": self.scan_date.isoformat() if self.scan_date else None,
+            "ticker": self.ticker,
+            "name": self.name,
+            "sector": self.sector,
+            "sector_etf": self.sector_etf,
+            "current_price": self.current_price,
+            "residual_shock_sigma": self.residual_shock_sigma,
+            "ibs": self.ibs,
+            "rvol_20d": self.rvol_20d,
+            "shock_score": self.shock_score,
+            "entry_limit": self.entry_limit,
+            "stop_loss": self.stop_loss,
+            "target_exit": self.target_exit,
+            "target_exit_date": self.target_exit_date,
+            "macro_regime": self.macro_regime,
+            "throttle_pct": self.throttle_pct,
+            "thesis": self.thesis,
+        }

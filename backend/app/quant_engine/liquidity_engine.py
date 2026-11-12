@@ -147,18 +147,35 @@ class LiquidityEngine:
             for idx, row in df.tail(26).iterrows()
         ]
 
-        # Asset Cross-Market Sensitivity & Gap Analysis (SPY & IBIT) using live spot prices
-        spy_liq_implied = round(520.0 + (curr_nl - 5500.0) * 0.18, 2)
-        ibit_liq_implied = round(34.0 + (curr_nl - 5500.0) * 0.025, 2)
+        # Asset Cross-Market Sensitivity & Gap Analysis (SPY & IBIT) using dynamic 52W empirical liquidity ratios
+        spy_spot = 585.0
+        ibit_spot = 38.0
+        spy_liq_implied = round(curr_nl * 0.1005, 2)
+        ibit_liq_implied = round(curr_nl * 0.0068, 2)
 
-        spy_spot = spy_liq_implied
-        ibit_spot = ibit_liq_implied
         try:
-            spot_df, _ = fetch_ohlcv_Slot_with_failover(["SPY", "IBIT"], period="5d")
+            spot_df, _ = fetch_ohlcv_Slot_with_failover(["SPY", "IBIT"], period="1y")
             if "SPY" in spot_df.columns and not spot_df["SPY"].dropna().empty:
-                spy_spot = round(float(spot_df["SPY"].dropna().iloc[-1]), 2)
+                s_spy = spot_df["SPY"].dropna()
+                spy_spot = round(float(s_spy.iloc[-1]), 2)
+                spy_weekly = s_spy.resample("W-WED").last().dropna()
+                common_dates = spy_weekly.index.intersection(df["net_liq"].dropna().index)
+                if len(common_dates) >= 12:
+                    ratios = spy_weekly.loc[common_dates] / df["net_liq"].loc[common_dates].replace(0, np.nan)
+                    med_ratio = float(ratios.median())
+                    if not np.isnan(med_ratio) and med_ratio > 0.05:
+                        spy_liq_implied = round(curr_nl * med_ratio, 2)
+
             if "IBIT" in spot_df.columns and not spot_df["IBIT"].dropna().empty:
-                ibit_spot = round(float(spot_df["IBIT"].dropna().iloc[-1]), 2)
+                s_ibit = spot_df["IBIT"].dropna()
+                ibit_spot = round(float(s_ibit.iloc[-1]), 2)
+                ibit_weekly = s_ibit.resample("W-WED").last().dropna()
+                common_ibit = ibit_weekly.index.intersection(df["net_liq"].dropna().index)
+                if len(common_ibit) >= 12:
+                    ratios_ibit = ibit_weekly.loc[common_ibit] / df["net_liq"].loc[common_ibit].replace(0, np.nan)
+                    med_ibit_ratio = float(ratios_ibit.median())
+                    if not np.isnan(med_ibit_ratio) and med_ibit_ratio > 0.001:
+                        ibit_liq_implied = round(curr_nl * med_ibit_ratio, 2)
         except Exception as e:
             logger.debug(f"Live SPY/IBIT spot fetch for liquidity gap fallback: {e}")
 

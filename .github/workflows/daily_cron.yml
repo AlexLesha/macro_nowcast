@@ -1,0 +1,21 @@
+name: MacroPulse Daily Cron & Post-Close Ingestion
+
+on:
+  schedule:
+    # 21:15 UTC = 08:15 AEDT (Sydney time, immediately post US market close)
+    - cron: '15 21 * * 1-5'
+  workflow_dispatch: # Allow manual trigger from GitHub UI
+
+jobs:
+  trigger-daily-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger MacroPulse Post-Close Daily Ingestion
+        run: |
+          API_URL="${{ secrets.RENDER_API_BASE_URL || 'https://macropulse-backend.onrender.com' }}"
+          CRON_SECRET="${{ secrets.CRON_SECRET || 'macropulse-cron-key-2026' }}"
+          echo "Triggering post-close scan at $API_URL/api/v1/cron/daily-scan..."
+          curl -s -X POST "$API_URL/api/v1/cron/daily-scan" \
+            -H "X-Cron-Secret: $CRON_SECRET" \
+            -H "Content-Type: application/json"
+

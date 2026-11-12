@@ -922,8 +922,6 @@ def compute_pivot_vs_continuation_scores(
     }
 
 
-COINGECKO_DEFAULT_DEMO_KEY = (os.getenv("COINGECKO_API_KEY") or "").strip()
-
 CANDIDATE_UNIVERSE: List[Dict[str, Any]] = [
     # --- 1-3 months (Immediate Tactical Candidates) ---
     {
@@ -1267,7 +1265,7 @@ def _compute_horizon_specific_metrics(
 
 
 def _fetch_live_coingecko_btc_price() -> Optional[float]:
-    cg_key = os.getenv("COINGECKO_API_KEY", COINGECKO_DEFAULT_DEMO_KEY).strip()
+    cg_key = os.getenv("COINGECKO_API_KEY", "").strip()
     headers = {"x-cg-demo-api-key": cg_key, "Accept": "application/json"} if cg_key else {"Accept": "application/json"}
     url = "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd"
     try:

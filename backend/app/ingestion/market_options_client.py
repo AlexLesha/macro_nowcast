@@ -66,10 +66,10 @@ class MarketOptionsClient:
         return None
 
     def fetch_ticker_daily(self, ticker: str, period: str = "1y") -> pd.DataFrame:
-        """Fetches daily price history via yfinance."""
+        """Fetches daily price history via yfinance with corporate actions auto-adjusted."""
         try:
             t = yf.Ticker(ticker)
-            df = t.history(period=period, auto_adjust=False)
+            df = t.history(period=period, auto_adjust=True)
             if df.empty:
                 logger.warning(f"No history returned for {ticker}")
                 return pd.DataFrame()
@@ -83,54 +83,78 @@ class MarketOptionsClient:
             return pd.DataFrame()
 
     def compute_market_analytics(self, ticker: str, df: pd.DataFrame, asset_class: str = "EQUITY") -> pd.DataFrame:
-        """Calculates 21d realized vol, VAMS momentum score, and Risk Ranges (Trade / Trend / Tail)."""
+        """Calculates 21d realized vol, multi-horizon VAMS momentum score, and Hedgeye Risk Ranges using canonical signals.py as the single source of truth."""
         if df.empty or len(df) < 25:
             return df
 
+        try:
+            from app.quant_engine.signals import compute_vams, compute_hedgeye_risk_ranges
+        except ImportError:
+            from backend.app.quant_engine.signals import compute_vams, compute_hedgeye_risk_ranges
+
         res = df.copy()
-        close = res["close"]
+        close = res["close"].astype(float)
         log_ret = np.log(close / close.shift(1))
 
         # 21-day annualized realized volatility (in %)
-        res["rv_21d"] = log_ret.rolling(21).std() * np.sqrt(252) * 100.0
+        rolling_rv = log_ret.rolling(21, min_periods=10).std() * np.sqrt(252) * 100.0
+        res["rv_21d"] = rolling_rv.fillna(15.0)
 
-        # Estimated 30-day Implied Volatility (fallback to 1.15 * RV if options IV not available)
+        # Estimated 30-day Implied Volatility
         res["iv_30d"] = res["rv_21d"] * 1.12
 
-        # Daily Volatility in absolute dollar terms
-        daily_vol_pct = (res["rv_21d"] / np.sqrt(252)) / 100.0
+        # Pre-compute trailing EMA63 for trend pivot
+        ema_63 = close.ewm(span=63, adjust=False).mean()
 
-        # VAMS: Volatility-Adjusted Momentum Score
-        # (Current Price - 21-day Moving Average) / (21-day Daily Volatility in $)
-        ma_21 = close.rolling(21).mean()
-        daily_vol_dlr = close * daily_vol_pct
-        res["vams_score"] = (close - ma_21) / daily_vol_dlr.replace(0, np.nan)
-        
-        # Categorize VAMS State
-        conditions = [
-            (res["vams_score"] > 1.2),
-            (res["vams_score"] < -1.2),
-        ]
-        choices = ["BULLISH_TREND", "BEARISH_TREND"]
-        res["vams_state"] = np.select(conditions, choices, default="NEUTRAL")
+        vams_scores = []
+        vams_states = []
+        rr_lows = []
+        rr_highs = []
+        rr_pivots = []
+        rr_trend_states = []
+        rr_tail_pivots = []
 
-        # Hedgeye-inspired Risk Ranges:
-        # Trade Low / High (Short term ~10 trading days risk band based on realized dispersion)
-        trade_expansion = 1.05 * np.sqrt(10) * daily_vol_pct
-        res["rr_trade_low"] = close * (1.0 - trade_expansion)
-        res["rr_trade_high"] = close * (1.0 + trade_expansion)
+        # Compute row-by-row using canonical signals.py
+        for i in range(len(res)):
+            if i < 20:
+                vams_scores.append(0.0)
+                vams_states.append("NEUTRAL")
+                rr_lows.append(close.iloc[i] * 0.95)
+                rr_highs.append(close.iloc[i] * 1.05)
+                rr_pivots.append(close.iloc[i])
+                rr_trend_states.append("NEUTRAL")
+                rr_tail_pivots.append(close.iloc[i] * 0.85)
+            else:
+                sub_df = res.iloc[max(0, i - 120):i + 1]
+                v_res = compute_vams(sub_df)
+                vams_scores.append(v_res.get("vams_score", 0.0))
+                vams_states.append(v_res.get("vams_label", "NEUTRAL"))
+                try:
+                    rr_res = compute_hedgeye_risk_ranges(sub_df, ticker=ticker)
+                    rr_lows.append(rr_res.get("risk_range_low", close.iloc[i] * 0.95))
+                    rr_highs.append(rr_res.get("risk_range_high", close.iloc[i] * 1.05))
+                    rr_pivots.append(rr_res.get("trend_pivot_63d", float(ema_63.iloc[i])))
+                    rr_trend_states.append(rr_res.get("trend_state", "BULLISH" if close.iloc[i] >= ema_63.iloc[i] else "BEARISH"))
+                    rr_tail_pivots.append(rr_res.get("tail_pivot_504d", close.iloc[i] * 0.85))
+                except Exception:
+                    rr_lows.append(close.iloc[i] * 0.95)
+                    rr_highs.append(close.iloc[i] * 1.05)
+                    rr_pivots.append(float(ema_63.iloc[i]))
+                    rr_trend_states.append("BULLISH" if close.iloc[i] >= ema_63.iloc[i] else "BEARISH")
+                    rr_tail_pivots.append(close.iloc[i] * 0.85)
 
-        # Trend Pivot (Intermediate ~63-day trend)
-        res["rr_trend_pivot"] = close.rolling(63, min_periods=20).mean()
-        res["rr_trend_state"] = np.where(close >= res["rr_trend_pivot"], "BULLISH", "BEARISH")
-
-        # Tail Risk Pivot (3-sigma tail risk level ~252 day window)
-        res["rr_tail_pivot"] = close.rolling(252, min_periods=50).mean() - (2.5 * close * (res["rv_21d"] / 100.0))
+        res["vams_score"] = vams_scores
+        res["vams_state"] = vams_states
+        res["rr_trade_low"] = rr_lows
+        res["rr_trade_high"] = rr_highs
+        res["rr_trend_pivot"] = rr_pivots
+        res["rr_trend_state"] = rr_trend_states
+        res["rr_tail_pivot"] = rr_tail_pivots
 
         return res
 
     def ingest_market_data(self, db: Session, tickers: Optional[List[str]] = None, days_back: int = 60) -> int:
-        """Ingests and calculates daily metrics for the specified risk matrix tickers."""
+        """Ingests and calculates daily metrics for the specified risk matrix tickers with batched DB operations."""
         target_tickers = tickers or DEFAULT_RISK_MATRIX_TICKERS
         total_ingested = 0
 
@@ -154,16 +178,20 @@ class MarketOptionsClient:
             analyzed = self.compute_market_analytics(ticker, df, asset_class=asset_class)
             recent = analyzed.tail(days_back)
 
+            # Pre-load existing records for this ticker in a single query (<5ms)
+            existing_items = {r.date: r for r in db.query(MarketDaily).filter_by(ticker=ticker).all()}
+
             for dt, row in recent.iterrows():
                 rec_date = dt.date()
                 close_val = float(row["close"]) if pd.notnull(row.get("close")) else None
                 if close_val is None:
                     continue
 
-                item = db.query(MarketDaily).filter_by(ticker=ticker, date=rec_date).first()
+                item = existing_items.get(rec_date)
                 if not item:
                     item = MarketDaily(ticker=ticker, asset_class=asset_class, date=rec_date)
                     db.add(item)
+                    existing_items[rec_date] = item
 
                 item.open = float(row["open"]) if pd.notnull(row.get("open")) else None
                 item.high = float(row["high"]) if pd.notnull(row.get("high")) else None
@@ -185,6 +213,10 @@ class MarketOptionsClient:
         try:
             db.commit()
             logger.info(f"Finished market ingestion: {total_ingested} records")
+            return total_ingested
+        except Exception as e:
+            db.rollback()
+            logger.error(f"Error persisting market daily records: {e}")
             return total_ingested
         except Exception as e:
             db.rollback()
