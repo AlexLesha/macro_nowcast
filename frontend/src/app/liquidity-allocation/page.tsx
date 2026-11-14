@@ -508,6 +508,99 @@ export default function LiquidityAllocationPage() {
         </div>
       </div>
 
+      {/* 2.5 RISKFOLIO-LIB DYNAMIC PORTFOLIO OPTIMIZATION (HRP & REGIME CVaR) */}
+      {liveAllocationData?.portfolio_optimizer && (
+        <div className="p-5 rounded-2xl bg-[#0b1320] border border-cyan-800/60 shadow-xl space-y-4 font-mono text-xs">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b border-cyan-900/40 pb-3">
+            <div>
+              <div className="flex items-center gap-2 text-xs uppercase text-cyan-400 font-bold">
+                <PieChart className="h-4 w-4 text-cyan-400" />
+                <span>Riskfolio-Lib Machine-Learning Asset Optimization</span>
+              </div>
+              <h2 className="text-base font-bold text-slate-100 mt-0.5">
+                Dynamic Hierarchical Risk Parity (HRP) &amp; Regime-Conditioned CVaR
+              </h2>
+              <p className="text-xs text-slate-400 mt-0.5 max-w-3xl font-sans">
+                Replaces static weights with mathematical <MetricTip term="RISKFOLIO HRP" explanation="Hierarchical Risk Parity (Lopez de Prado): clusters assets into a correlation tree dendrogram, allocating risk inverse to cluster variance to prevent Markowitz matrix instability.">HRP tree clustering</MetricTip> and regime-conditioned <MetricTip term="CVAR" explanation="Conditional Value at Risk (Expected Shortfall beyond 95% quantile): minimizes tail risk during liquidity contractions.">CVaR minimization</MetricTip>.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="px-3 py-1 rounded bg-cyan-950/80 border border-cyan-700 text-cyan-300 text-xs font-semibold">
+                Objective: {liveAllocationData.portfolio_optimizer.active_model}
+              </span>
+            </div>
+          </div>
+
+          {/* Regime Conditioned Banner */}
+          <div className="p-3 rounded-xl bg-slate-950/80 border border-cyan-900/50 space-y-1">
+            <div className="flex items-center gap-2 text-cyan-300 font-bold">
+              <Zap className="h-3.5 w-3.5 text-cyan-400" />
+              <span>{liveAllocationData.portfolio_optimizer.regime_verdict}</span>
+            </div>
+            <p className="text-slate-300 text-[11px] leading-relaxed font-sans">
+              {liveAllocationData.portfolio_optimizer.regime_explanation}
+            </p>
+          </div>
+
+          {/* Asset Allocations Comparison Table & Progress Bars */}
+          <div className="overflow-x-auto rounded-xl border border-slate-800">
+            <table className="w-full text-left">
+              <thead className="bg-slate-900/90 text-slate-400 border-b border-slate-800">
+                <tr>
+                  <th className="py-2.5 px-3">Asset</th>
+                  <th className="py-2.5 px-3">Role &amp; Asset Class</th>
+                  <th className="py-2.5 px-3 text-cyan-300">Regime Optimal %</th>
+                  <th className="py-2.5 px-3 text-purple-300">HRP %</th>
+                  <th className="py-2.5 px-3 text-slate-400">Classic 60/40</th>
+                  <th className="py-2.5 px-3 text-slate-400">Static KISS</th>
+                  <th className="py-2.5 px-3 min-w-[140px]">Dynamic Weight Visualizer</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800/60 bg-slate-950/60">
+                {liveAllocationData.portfolio_optimizer.assets?.map((asset: any) => {
+                  const optWeight = asset.active_weight_pct || 0;
+                  const hrpWeight = asset.hrp_weight_pct || 0;
+                  return (
+                    <tr key={asset.ticker} className="hover:bg-slate-900/40 transition">
+                      <td className="py-2.5 px-3 font-bold text-white">${asset.ticker}</td>
+                      <td className="py-2.5 px-3 text-slate-300">
+                        <span className="font-semibold text-slate-200">{asset.name}</span>
+                        <span className="text-[10px] text-slate-500 block">{asset.role}</span>
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <span className="px-2 py-0.5 rounded bg-cyan-950/80 border border-cyan-800 text-cyan-300 font-bold">
+                          {optWeight.toFixed(1)}%
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <span className="px-2 py-0.5 rounded bg-purple-950/80 border border-purple-800 text-purple-300 font-semibold">
+                          {hrpWeight.toFixed(1)}%
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-3 text-slate-400 font-medium">
+                        {asset.benchmark_60_40_pct?.toFixed(1)}%
+                      </td>
+                      <td className="py-2.5 px-3 text-slate-400 font-medium">
+                        {asset.static_kiss_pct?.toFixed(1)}%
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <div className="w-full bg-slate-800 rounded-full h-2.5 overflow-hidden flex">
+                          <div
+                            className="bg-cyan-500 h-2.5 transition-all duration-500"
+                            style={{ width: `${Math.min(100, optWeight)}%` }}
+                            title={`Active Optimal: ${optWeight}%`}
+                          />
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       {/* 3. CFTC SPECULATIVE POSITIONING & COT SENTIMENT */}
       {cftcPositions && cftcPositions.length > 0 && (
         <div className="p-5 rounded-2xl bg-[#0c121e] border border-slate-800 shadow-xl space-y-4">

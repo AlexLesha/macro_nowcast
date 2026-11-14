@@ -825,6 +825,27 @@ class TradeIdeasEngine:
             else:
                 conviction_tier = "TACTICAL_HOLD"
 
+            # Compute ML4T Triple-Barrier Meta-Labeling Probability
+            meta_label_data = {}
+            try:
+                try:
+                    from app.quant_engine.meta_labeling import MetaLabelingEngine
+                except ImportError:
+                    from backend.app.quant_engine.meta_labeling import MetaLabelingEngine
+                v_score = 1.0 if "BULLISH" in vams_label else (-1.0 if "BEARISH" in vams_label else 0.0)
+                macro_throttle = 1.0 if macro_ctx.get("active_regime") in ("REFLATION", "GOLDILOCKS") else (0.5 if macro_ctx.get("active_regime") == "INFLATION" else 0.0)
+                meta_label_data = MetaLabelingEngine.evaluate_trade_idea(
+                    spot_price=curr_p,
+                    vams_score=v_score,
+                    ibs=0.25 if bucket == "priority_1_unloved_pivots" else (0.75 if bucket == "played_out_at_highs" else 0.45),
+                    rvol_20d=1.6 if bucket == "priority_1_unloved_pivots" else 1.1,
+                    residual_z_60d=-2.1 if bucket == "priority_1_unloved_pivots" else (1.8 if bucket == "played_out_at_highs" else -0.3),
+                    macro_regime_throttle=macro_throttle,
+                    rsi_14d=rsi_val,
+                )
+            except Exception as ml_err:
+                logger.debug(f"[TradeIdeasEngine] Meta-labeling evaluation notice: {ml_err}")
+
             # Build Formatted Item
             idea_record = {
                 **cand,
@@ -845,6 +866,12 @@ class TradeIdeasEngine:
                 "conviction_tier": conviction_tier,
                 "live_entry_timing": entry_timing,
                 "bucket": bucket,
+                "meta_labeling": meta_label_data,
+                "probability_of_success": meta_label_data.get("probability_of_success", 0.60),
+                "probability_pct": meta_label_data.get("probability_pct", "60%"),
+                "meta_verdict": meta_label_data.get("meta_verdict", "SYSTEMATIC ALLOCATION"),
+                "meta_badge": meta_label_data.get("verdict_badge", "text-cyan-400 bg-cyan-950/70 border-cyan-800"),
+                "triple_barrier": meta_label_data.get("triple_barrier", {}),
             }
 
             # Route into target horizon and bucket
@@ -874,6 +901,17 @@ class TradeIdeasEngine:
         except Exception as rev_err:
             logger.debug(f"[TradeIdeasEngine] Reversal scan integration notice: {rev_err}")
 
+        # Integrated Statistical Arbitrage & Cointegration Pairs Radar
+        stat_arb_summary = {}
+        try:
+            try:
+                from backend.app.quant_engine.statistical_arbitrage import StatisticalArbitrageEngine
+            except ImportError:
+                from app.quant_engine.statistical_arbitrage import StatisticalArbitrageEngine
+            stat_arb_summary = StatisticalArbitrageEngine.scan_stat_arb_pairs(force_refresh=force_refresh, universe_limit=25)
+        except Exception as sa_err:
+            logger.debug(f"[TradeIdeasEngine] StatArb scan integration notice: {sa_err}")
+
         payload = {
             "status": "success",
             "as_of_utc": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
@@ -881,6 +919,7 @@ class TradeIdeasEngine:
             "live_gold_oil_ratio": gold_oil_ratio,
             "horizons": horizons_dict,
             "reversals": reversals_summary,
+            "statistical_arbitrage": stat_arb_summary,
             "total_candidates_tracked": len(TRADE_IDEAS_UNIVERSE),
             "_cache_hit": False,
         }

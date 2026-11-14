@@ -204,13 +204,13 @@ export default function OptionsLabPage() {
     activeRegimeId === 3
       ? "bg-rose-950/80 text-rose-300 border-rose-700"
       : activeRegimeId === 2
-      ? "bg-amber-950/80 text-amber-300 border-amber-700"
-      : "bg-emerald-950/80 text-emerald-300 border-emerald-700";
+        ? "bg-amber-950/80 text-amber-300 border-amber-700"
+        : "bg-emerald-950/80 text-emerald-300 border-emerald-700";
 
   return (
     <div className="min-h-screen bg-[#090D16] text-slate-100">
       <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 space-y-6">
-        
+
         {/* TOP HEADER & LIVE UNDERLYING TICKER SELECTOR */}
         <section className="rounded-xl border border-slate-800 bg-[#111827] p-4 md:p-5 shadow-lg space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-4">
@@ -236,11 +236,10 @@ export default function OptionsLabPage() {
                 <button
                   key={tk}
                   onClick={() => setSelectedTicker(tk)}
-                  className={`px-2.5 py-1 rounded border font-semibold transition text-xs ${
-                    selectedTicker === tk
+                  className={`px-2.5 py-1 rounded border font-semibold transition text-xs ${selectedTicker === tk
                       ? "bg-blue-600 border-blue-400 text-white"
                       : "bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800"
-                  }`}
+                    }`}
                 >
                   ${tk}
                 </button>
@@ -294,10 +293,9 @@ export default function OptionsLabPage() {
               </div>
               <div className="p-2.5 rounded-lg border border-slate-800 bg-slate-950/60">
                 <span className="text-slate-400">42 Macro Volatility Confirmation Gate:</span>
-                <div className={`text-xs font-bold mt-1 ${
-                  regime?.vol_gate_color === "EMERALD" ? "text-emerald-400" :
-                  regime?.vol_gate_color === "ROSE" ? "text-rose-400" : "text-cyan-300"
-                }`}>
+                <div className={`text-xs font-bold mt-1 ${regime?.vol_gate_color === "EMERALD" ? "text-emerald-400" :
+                    regime?.vol_gate_color === "ROSE" ? "text-rose-400" : "text-cyan-300"
+                  }`}>
                   {regime?.forty_two_macro_volatility_gate || "VOLATILITY REGIME NEUTRAL"}
                 </div>
               </div>
@@ -434,8 +432,8 @@ export default function OptionsLabPage() {
                   ? reg.id === 3
                     ? "border-rose-500 bg-rose-950/30 shadow-lg shadow-rose-950/40"
                     : reg.id === 2
-                    ? "border-amber-500 bg-amber-950/30 shadow-lg shadow-amber-950/40"
-                    : "border-emerald-500 bg-emerald-950/30 shadow-lg shadow-emerald-950/40"
+                      ? "border-amber-500 bg-amber-950/30 shadow-lg shadow-amber-950/40"
+                      : "border-emerald-500 bg-emerald-950/30 shadow-lg shadow-emerald-950/40"
                   : "border-slate-800 bg-[#091120] opacity-75";
 
                 return (
@@ -443,15 +441,14 @@ export default function OptionsLabPage() {
                     <div>
                       <div className="flex items-center justify-between border-b border-slate-800 pb-1.5 mb-1.5">
                         <span className="font-bold text-white text-xs">{reg.name}</span>
-                        <span className={`px-2 py-0.5 rounded font-black text-[10px] uppercase border ${
-                          isActive
+                        <span className={`px-2 py-0.5 rounded font-black text-[10px] uppercase border ${isActive
                             ? reg.id === 3
                               ? "bg-rose-950 text-rose-300 border-rose-600 animate-pulse"
                               : reg.id === 2
-                              ? "bg-amber-950 text-amber-300 border-amber-600 animate-pulse"
-                              : "bg-emerald-950 text-emerald-300 border-emerald-600"
+                                ? "bg-amber-950 text-amber-300 border-amber-600 animate-pulse"
+                                : "bg-emerald-950 text-emerald-300 border-emerald-600"
                             : "bg-slate-900 text-slate-500 border-slate-800"
-                        }`}>
+                          }`}>
                           {isActive ? "ACTIVE REGIME" : "INACTIVE"}
                         </span>
                       </div>
@@ -548,9 +545,8 @@ export default function OptionsLabPage() {
                 <div className="text-sm font-bold text-white mt-0.5">
                   {m1?.net_gex_bn >= 0 ? "+" : ""}{m1?.net_gex_bn}B <span className="text-xs font-normal text-slate-400">/ 1%</span>
                 </div>
-                <div className={`mt-1.5 px-2 py-0.5 rounded border text-xs font-semibold inline-block ${
-                  m1?.net_gex_bn >= 0 ? "bg-emerald-950/60 border-emerald-500/40 text-emerald-300" : "bg-rose-950/60 border-rose-500/40 text-rose-300"
-                }`}>
+                <div className={`mt-1.5 px-2 py-0.5 rounded border text-xs font-semibold inline-block ${m1?.net_gex_bn >= 0 ? "bg-emerald-950/60 border-emerald-500/40 text-emerald-300" : "bg-rose-950/60 border-rose-500/40 text-rose-300"
+                  }`}>
                   {m1?.net_gex_bn >= 0 ? "VOL CUSHION" : "VOL ACCELERATOR"}
                 </div>
               </div>
@@ -570,11 +566,10 @@ export default function OptionsLabPage() {
                 <div className="text-sm font-bold text-cyan-300 mt-0.5">
                   {m2?.implied_sector_corr_pct}% <span className="text-xs font-normal text-slate-400">({m2?.corr_1y_percentile}th pct)</span>
                 </div>
-                <div className={`mt-1.5 px-2 py-0.5 rounded border text-xs font-semibold inline-block ${
-                  (m2?.corr_1y_percentile || 50) <= 18 ? "bg-rose-950/60 border-rose-500/40 text-rose-300" :
-                  (m2?.corr_1y_percentile || 50) >= 82 ? "bg-emerald-950/60 border-emerald-500/40 text-emerald-300" :
-                  "bg-slate-800 border-slate-700 text-slate-300"
-                }`}>
+                <div className={`mt-1.5 px-2 py-0.5 rounded border text-xs font-semibold inline-block ${(m2?.corr_1y_percentile || 50) <= 18 ? "bg-rose-950/60 border-rose-500/40 text-rose-300" :
+                    (m2?.corr_1y_percentile || 50) >= 82 ? "bg-emerald-950/60 border-emerald-500/40 text-emerald-300" :
+                      "bg-slate-800 border-slate-700 text-slate-300"
+                  }`}>
                   {(m2?.corr_1y_percentile || 50) <= 18 ? "DE-GROSSING RISK" : (m2?.corr_1y_percentile || 50) >= 82 ? "WASHOUT RALLY" : "BALANCED DISPERSION"}
                 </div>
               </div>
@@ -592,11 +587,10 @@ export default function OptionsLabPage() {
                 <div className="text-sm font-bold text-amber-300 mt-0.5">
                   MOVE {m3?.move_index} <span className="text-xs font-normal text-slate-400">vs VIX {m3?.vix_index}</span>
                 </div>
-                <div className={`mt-1.5 px-2 py-0.5 rounded border text-xs font-semibold inline-block ${
-                  statusBadgeStyle(m3?.signal_status)
-                }`}>
+                <div className={`mt-1.5 px-2 py-0.5 rounded border text-xs font-semibold inline-block ${statusBadgeStyle(m3?.signal_status)
+                  }`}>
                   {m3?.signal_status === "ACTIONABLE_BULLISH" ? "BULLISH CO-SIGNER" :
-                   m3?.signal_status === "ACTIONABLE_BEARISH" ? "RATE AIR-POCKET" : "CO-MOVING REGIME"}
+                    m3?.signal_status === "ACTIONABLE_BEARISH" ? "RATE AIR-POCKET" : "CO-MOVING REGIME"}
                 </div>
               </div>
               <p className="text-slate-300 font-sans text-xs leading-relaxed pt-1 border-t border-slate-800/80">
@@ -613,11 +607,10 @@ export default function OptionsLabPage() {
                 <div className="text-sm font-bold text-rose-300 mt-0.5">
                   {m4?.skew_to_vix_ratio || 7.8}x <span className="text-xs font-normal text-slate-400">({m4?.skew_to_vix_percentile || 65}th pct)</span>
                 </div>
-                <div className={`mt-1.5 px-2 py-0.5 rounded border text-xs font-semibold inline-block ${
-                  (m4?.skew_to_vix_ratio || 0) >= 8.5 ? "bg-rose-950/60 border-rose-500/40 text-rose-300" :
-                  (m4?.cboe_skew_index || 140) <= 125 ? "bg-amber-950/60 border-amber-500/40 text-amber-300" :
-                  "bg-slate-800 border-slate-700 text-slate-300"
-                }`}>
+                <div className={`mt-1.5 px-2 py-0.5 rounded border text-xs font-semibold inline-block ${(m4?.skew_to_vix_ratio || 0) >= 8.5 ? "bg-rose-950/60 border-rose-500/40 text-rose-300" :
+                    (m4?.cboe_skew_index || 140) <= 125 ? "bg-amber-950/60 border-amber-500/40 text-amber-300" :
+                      "bg-slate-800 border-slate-700 text-slate-300"
+                  }`}>
                   {(m4?.skew_to_vix_ratio || 0) >= 8.5 ? "TAIL CRASH ASYMMETRY" : (m4?.cboe_skew_index || 140) <= 125 ? "COMPLACENT UNHEDGED" : "NORMAL TAIL SKEW"}
                 </div>
               </div>
@@ -633,13 +626,12 @@ export default function OptionsLabPage() {
                 <div className="text-sm font-bold text-emerald-300 mt-0.5">
                   {m5?.inverse_etf_vol_share_pct}% <span className="text-xs font-normal text-slate-400">Inverse Vol</span>
                 </div>
-                <div className={`mt-1.5 px-2 py-0.5 rounded border text-xs font-semibold inline-block ${
-                  (m5?.inverse_etf_vol_share_pct || 0) >= 48 ? "bg-emerald-950/60 border-emerald-500/40 text-emerald-300" :
-                  (m5?.inverse_etf_vol_share_pct || 0) <= 19 ? "bg-rose-950/60 border-rose-500/40 text-rose-300" :
-                  "bg-slate-800 border-slate-700 text-slate-300"
-                }`}>
+                <div className={`mt-1.5 px-2 py-0.5 rounded border text-xs font-semibold inline-block ${(m5?.inverse_etf_vol_share_pct || 0) >= 48 ? "bg-emerald-950/60 border-emerald-500/40 text-emerald-300" :
+                    (m5?.inverse_etf_vol_share_pct || 0) <= 19 ? "bg-rose-950/60 border-rose-500/40 text-rose-300" :
+                      "bg-slate-800 border-slate-700 text-slate-300"
+                  }`}>
                   {(m5?.inverse_etf_vol_share_pct || 0) >= 48 ? "CAPITULATION WASHOUT" :
-                   (m5?.inverse_etf_vol_share_pct || 0) <= 19 ? "LEVERAGED LONG EUPHORIA" : "NEUTRAL BAND"}
+                    (m5?.inverse_etf_vol_share_pct || 0) <= 19 ? "LEVERAGED LONG EUPHORIA" : "NEUTRAL BAND"}
                 </div>
               </div>
               <p className="text-slate-300 font-sans text-xs leading-relaxed pt-1 border-t border-slate-800/80">
@@ -697,9 +689,8 @@ export default function OptionsLabPage() {
                     <MetricTip term="DEALER GEX">Net Dealer GEX</MetricTip>
                   </div>
                   <div
-                    className={`text-sm font-bold mt-1 ${
-                      m1.net_gex_bn >= 0 ? "text-emerald-400" : "text-rose-400"
-                    }`}
+                    className={`text-sm font-bold mt-1 ${m1.net_gex_bn >= 0 ? "text-emerald-400" : "text-rose-400"
+                      }`}
                   >
                     {m1.net_gex_bn >= 0 ? "+" : ""}
                     {m1.net_gex_bn}B / 1%
@@ -753,9 +744,8 @@ export default function OptionsLabPage() {
                       <tr key={i} className="hover:bg-slate-800/40">
                         <td className="py-2 px-3 font-bold text-white">${row.strike}</td>
                         <td
-                          className={`py-2 px-3 font-semibold ${
-                            row.net_gex_bn >= 0 ? "text-emerald-400" : "text-rose-400"
-                          }`}
+                          className={`py-2 px-3 font-semibold ${row.net_gex_bn >= 0 ? "text-emerald-400" : "text-rose-400"
+                            }`}
                         >
                           {row.net_gex_bn >= 0 ? "+" : ""}
                           {row.net_gex_bn}B
@@ -866,9 +856,8 @@ export default function OptionsLabPage() {
                           <tr key={idx} className="hover:bg-slate-800/30">
                             <td className="py-1.5 px-3 font-bold text-white">${s.sector}</td>
                             <td
-                              className={`py-1.5 px-3 ${
-                                s.sharpe_21d >= 0 ? "text-emerald-400" : "text-rose-400"
-                              }`}
+                              className={`py-1.5 px-3 ${s.sharpe_21d >= 0 ? "text-emerald-400" : "text-rose-400"
+                                }`}
                             >
                               {s.sharpe_21d >= 0 ? "+" : ""}
                               {s.sharpe_21d}
@@ -1035,9 +1024,8 @@ export default function OptionsLabPage() {
                         <MetricTip term="TERM STRUCTURE CONTANGO">VIX / VIX3M Ratio</MetricTip>
                       </div>
                       <div
-                        className={`text-sm font-bold mt-1 ${
-                          m4.vix_to_vix3m_ratio >= 1.0 ? "text-rose-400" : "text-emerald-400"
-                        }`}
+                        className={`text-sm font-bold mt-1 ${m4.vix_to_vix3m_ratio >= 1.0 ? "text-rose-400" : "text-emerald-400"
+                          }`}
                       >
                         {m4.vix_to_vix3m_ratio}x
                       </div>
@@ -1184,6 +1172,179 @@ export default function OptionsLabPage() {
                 </div>
               </div>
             )}
+          </section>
+
+          {/* ============================================================================== */}
+          {/* MODULE 6: QUANTCONNECT-STYLE VRP HARVESTING & MICROSTRUCTURE GAMMA SQUEEZES  */}
+          {/* ============================================================================== */}
+          <section className="rounded-xl border border-cyan-500/40 bg-[#111827] p-5 space-y-5 shadow-xl">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-3">
+              <div>
+                <span className="text-xs font-mono uppercase tracking-wider text-cyan-400 font-bold">
+                  Systematic Alpha • QuantConnect VRP Harvesting &amp; Hummingbot Gamma Squeezes
+                </span>
+                <h2 className="text-base font-bold text-white mt-0.5">
+                  Volatility Risk Premium (IV30 &minus; RV21) &amp; Dealer Short-Gamma Acceleration
+                </h2>
+                <p className="text-xs text-slate-400 mt-0.5 max-w-3xl font-sans">
+                  Harvests structural volatility overpricing where <MetricTip term="VRP" explanation="Volatility Risk Premium (IV30 - RV21): The structural spread between implied volatility and realized volatility. When VRP > 8.0%, options are overpriced and systematically favor options sellers.">VRP &gt; 8.0%</MetricTip> cross-referenced with 42 Macro VAMS trends, and flags high-velocity <MetricTip term="GAMMA FLIP" explanation="The inflection price where dealer aggregate positioning flips from positive gamma (stabilizing mean-reverting hedging) to negative gamma (forced pro-cyclical trend chasing).">Gamma Squeeze inflections</MetricTip>.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 font-mono text-xs">
+                <span className="px-2.5 py-1 rounded bg-cyan-950/80 border border-cyan-700 text-cyan-300 font-semibold">
+                  Overpriced Vol: {data?.vrp_and_gamma_suite?.overpriced_vol_count || 0}
+                </span>
+                <span className="px-2.5 py-1 rounded bg-amber-950/80 border border-amber-700 text-amber-300 font-semibold">
+                  Gamma Alerts: {data?.vrp_and_gamma_suite?.gamma_squeeze_alerts_count || 0}
+                </span>
+              </div>
+            </div>
+
+            {/* PART A: DEALER GAMMA SQUEEZE DETECTOR */}
+            {(data?.vrp_and_gamma_suite?.gamma_squeeze_alerts || []).length > 0 && (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 text-xs font-mono font-bold text-amber-400">
+                  <Zap className="w-4 h-4 text-amber-400 animate-pulse" />
+                  <span>DEALER SHORT-GAMMA SQUEEZE RADAR (0DTE ACCELERATION)</span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {(data?.vrp_and_gamma_suite?.gamma_squeeze_alerts || []).map((alert: any) => {
+                    const isActive = alert.status === "GAMMA_SQUEEZE_ACTIVE";
+                    return (
+                      <div
+                        key={alert.ticker}
+                        className={`rounded-xl border p-4 space-y-2.5 font-mono text-xs transition ${
+                          isActive
+                            ? "border-amber-500/60 bg-amber-950/20 shadow-lg shadow-amber-950/40"
+                            : "border-slate-800 bg-slate-900/60"
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2 border-b border-slate-800 pb-2">
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-base font-bold text-white">${alert.ticker}</span>
+                              <span className="text-slate-400 font-bold">${alert.spot_price}</span>
+                            </div>
+                            <span className="text-[10px] text-amber-300 font-semibold">
+                              {alert.status.replace("_", " ")}
+                            </span>
+                          </div>
+                          <span className="px-2 py-0.5 rounded text-[10px] bg-slate-800 border border-slate-700 text-slate-300 font-bold">
+                            Window: {alert.catalyst_window}
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2 text-[11px] p-2 rounded bg-black/40 border border-slate-800/80">
+                          <div>
+                            <span className="text-slate-500 text-[10px] block">Gamma Flip:</span>
+                            <span className="font-bold text-cyan-300">${alert.gamma_flip_level}</span>
+                            <span className="text-[10px] text-slate-400 block">({alert.distance_to_flip_pct >= 0 ? "+" : ""}{alert.distance_to_flip_pct}%)</span>
+                          </div>
+                          <div>
+                            <span className="text-slate-500 text-[10px] block">Call Wall Target:</span>
+                            <span className="font-bold text-emerald-400">${alert.call_wall_target}</span>
+                            <span className="text-[10px] text-slate-400 block">(+{alert.distance_to_call_wall_pct}%)</span>
+                          </div>
+                        </div>
+
+                        <div className="text-[11px] text-slate-300 space-y-1">
+                          <div className="text-amber-300 font-semibold">
+                            ► 0DTE Heat: {(alert.zero_dte_heat_ratio * 100).toFixed(0)}% Volume Share
+                          </div>
+                          <p className="text-slate-200 text-xs font-sans leading-relaxed">
+                            {alert.actionable_setup}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* PART B: QUANTCONNECT VOLATILITY RISK PREMIUM (VRP) HARVESTING */}
+            <div className="space-y-3 pt-2">
+              <div className="flex items-center justify-between text-xs font-mono font-bold text-cyan-400">
+                <div className="flex items-center gap-2">
+                  <Activity className="w-4 h-4 text-cyan-400" />
+                  <span>SYSTEMATIC VRP HARVESTING CANDIDATES (IV30 &minus; RV21 &gt; 8.0%)</span>
+                </div>
+                <span className="text-slate-400 text-[11px]">
+                  Optimal: High PoP Credit Spreads
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {(data?.vrp_and_gamma_suite?.vrp_harvesting_trades || []).slice(0, 9).map((vrp: any) => {
+                  const isHighVrp = vrp.is_overpriced_vol;
+                  return (
+                    <div
+                      key={vrp.ticker}
+                      className={`rounded-xl border p-4 space-y-2.5 font-mono text-xs transition ${
+                        isHighVrp
+                          ? "border-emerald-500/50 bg-[#0C161D] shadow-md hover:border-emerald-400"
+                          : "border-slate-800 bg-slate-900/60 hover:border-slate-700"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2 border-b border-slate-800 pb-2">
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-base font-bold text-white">${vrp.ticker}</span>
+                            <span className="text-slate-400">${vrp.spot_price}</span>
+                          </div>
+                          <span className={`text-[10px] font-bold ${vrp.vams_state >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                            VAMS: {vrp.vams_state >= 0 ? "BULLISH TREND" : "BEARISH TREND"} ({vrp.vams_score > 0 ? "+" : ""}{vrp.vams_score})
+                          </span>
+                        </div>
+
+                        <span
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
+                            isHighVrp
+                              ? "bg-emerald-950 border-emerald-600 text-emerald-300"
+                              : "bg-slate-800 border-slate-700 text-slate-400"
+                          }`}
+                        >
+                          VRP: {vrp.vrp_spread_pts > 0 ? "+" : ""}{vrp.vrp_spread_pts} pts
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 text-[11px] p-2 rounded bg-black/40 border border-slate-800/80">
+                        <div>
+                          <span className="text-slate-500 text-[10px] block">IV 30D:</span>
+                          <span className="font-bold text-cyan-300">{vrp.iv_30d_pct}%</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-500 text-[10px] block">RV 21D:</span>
+                          <span className="font-bold text-amber-300">{vrp.rv_21d_pct}%</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-500 text-[10px] block">Put Wall Floor:</span>
+                          <span className="font-semibold text-emerald-300">${vrp.put_wall}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-500 text-[10px] block">Call Wall Cap:</span>
+                          <span className="font-semibold text-rose-300">${vrp.call_wall}</span>
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5 pt-1">
+                        <div className="text-xs font-semibold text-emerald-400">
+                          {vrp.strategy_title}
+                        </div>
+                        <p className="text-slate-300 text-xs font-sans leading-relaxed">
+                          {vrp.actionable_direction}
+                        </p>
+                        <div className="text-[10px] text-cyan-300 font-mono">
+                          PoP: {vrp.expected_win_rate}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           </section>
         </div>
       </div>

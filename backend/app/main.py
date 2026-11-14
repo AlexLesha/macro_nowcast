@@ -310,6 +310,17 @@ def get_trade_ideas(force: bool = False):
     return TradeIdeasEngine.build_trade_ideas_payload(force_refresh=force)
 
 
+@app.get("/api/v1/trade-ideas/stat-arb")
+@app.get("/api/trade-ideas/stat-arb")
+def get_statistical_arbitrage_ideas(force: bool = False, limit: int = 25):
+    """Returns the Institutional Statistical Arbitrage & Cointegration Pairs dataset."""
+    try:
+        from backend.app.quant_engine.statistical_arbitrage import StatisticalArbitrageEngine
+    except ImportError:
+        from app.quant_engine.statistical_arbitrage import StatisticalArbitrageEngine
+    return StatisticalArbitrageEngine.scan_stat_arb_pairs(force_refresh=force, universe_limit=limit)
+
+
 @app.api_route("/api/v1/cron/daily-scan", methods=["GET", "POST"])
 @app.api_route("/api/cron/daily-scan", methods=["GET", "POST"])
 async def run_daily_cron_scan(
@@ -455,10 +466,34 @@ async def get_options_lab_dashboard(ticker: str = "SPY", force: bool = False):
     except ImportError:
         from app.quant_engine.options_surface_engine import OptionsAndVolatilitySurfaceEngine
 
-    return OptionsAndVolatilitySurfaceEngine.build_options_lab_dashboard(
+    payload = OptionsAndVolatilitySurfaceEngine.build_options_lab_dashboard(
         target_ticker=ticker,
         force_refresh=force
     )
+    
+    # Attach QuantConnect-style VRP harvesting & Gamma Squeeze Suite
+    try:
+        try:
+            from backend.app.quant_engine.options_outliers import build_vrp_and_gamma_harvesting_suite
+        except ImportError:
+            from app.quant_engine.options_outliers import build_vrp_and_gamma_harvesting_suite
+        vrp_suite = build_vrp_and_gamma_harvesting_suite(force_refresh=force)
+        payload["vrp_and_gamma_suite"] = vrp_suite
+    except Exception as vrp_err:
+        logger.debug(f"[OptionsLab] VRP suite integration note: {vrp_err}")
+
+    return payload
+
+
+@app.get("/api/v1/options-lab/vrp-harvesting")
+@app.get("/api/options-lab/vrp-harvesting")
+def get_options_lab_vrp_harvesting(force: bool = False):
+    """Returns the QuantConnect-style Volatility Risk Premium (VRP) & Dealer Gamma Squeeze dataset."""
+    try:
+        from backend.app.quant_engine.options_outliers import build_vrp_and_gamma_harvesting_suite
+    except ImportError:
+        from app.quant_engine.options_outliers import build_vrp_and_gamma_harvesting_suite
+    return build_vrp_and_gamma_harvesting_suite(force_refresh=force)
 
 
 @app.get("/api/v1/options-lab/cross-asset-volatility")
@@ -931,11 +966,23 @@ async def get_live_liquidity_and_horizons(force: bool = False):
         from backend.app.quant_engine.macro_plumbing_state import MacroPlumbingAndOptionsStateEngine
     plumbing_state = MacroPlumbingAndOptionsStateEngine.build_complete_plumbing_and_options_state(force_refresh=force)
 
+    # Riskfolio-Lib Dynamic HRP & CVaR Optimization
+    portfolio_optimizer = {}
+    try:
+        try:
+            from app.quant_engine.portfolio_optimizer import PortfolioOptimizerEngine
+        except ImportError:
+            from backend.app.quant_engine.portfolio_optimizer import PortfolioOptimizerEngine
+        portfolio_optimizer = PortfolioOptimizerEngine.optimize_portfolio(force_refresh=force)
+    except Exception as opt_err:
+        logger.debug(f"[LiquidityAllocation] Portfolio optimizer integration notice: {opt_err}")
+
     res = {
         "status": "ok",
         "as_of_utc": liq["as_of_utc"],
         "macro_regime": macro_regime_summary,
         "macro_plumbing_state": plumbing_state,
+        "portfolio_optimizer": portfolio_optimizer,
         "cftc_positioning": cftc_summary,
         "kiss_portfolio": ftm["kiss_and_drmo"]["kiss_portfolio"],
         "liquidity": liq,
@@ -1100,6 +1147,17 @@ async def get_live_liquidity_and_horizons(force: bool = False):
             pass
 
     return _sanitize_floats(res)
+
+
+@app.get("/api/v1/liquidity-allocation/optimize")
+@app.get("/api/liquidity-allocation/optimize")
+def get_portfolio_optimization(force: bool = False):
+    """Returns the Riskfolio-Lib Hierarchical Risk Parity (HRP) & Regime CVaR Optimization dataset."""
+    try:
+        from app.quant_engine.portfolio_optimizer import PortfolioOptimizerEngine
+    except ImportError:
+        from backend.app.quant_engine.portfolio_optimizer import PortfolioOptimizerEngine
+    return PortfolioOptimizerEngine.optimize_portfolio(force_refresh=force)
 
 
 @app.get("/api/v1/scenarios")

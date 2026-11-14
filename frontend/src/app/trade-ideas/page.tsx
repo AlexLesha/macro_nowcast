@@ -21,14 +21,16 @@ import {
 import { getApiUrl } from "@/lib/api";
 import { MetricTip } from "@/components/FinancialTooltip";
 import { ReversalsDashboard } from "@/components/ReversalsDashboard";
+import { StatisticalArbitrageDashboard } from "@/components/StatisticalArbitrageDashboard";
 
-type HorizonKey = "1_to_3_months" | "12_months" | "3_plus_years" | "reversals";
+type HorizonKey = "1_to_3_months" | "12_months" | "3_plus_years" | "reversals" | "stat_arb";
 
 const SUBMENU_TITLES: Record<HorizonKey, string> = {
   "1_to_3_months": "1-3 months",
   "12_months": "12 months",
   "3_plus_years": "3+ Years",
   "reversals": "Reversals (T+3)",
+  "stat_arb": "Statistical Arbitrage (Pairs)",
 };
 
 function extractFirstTicker(displayTicker: string): string {
@@ -48,7 +50,7 @@ function TradeIdeasContent() {
 
   useEffect(() => {
     const h = searchParams.get("horizon") || searchParams.get("tab");
-    if (h === "reversals" || h === "1_to_3_months" || h === "12_months" || h === "3_plus_years") {
+    if (h === "reversals" || h === "stat_arb" || h === "1_to_3_months" || h === "12_months" || h === "3_plus_years") {
       setHorizon(h as HorizonKey);
     }
   }, [searchParams]);
@@ -77,11 +79,13 @@ function TradeIdeasContent() {
     return () => window.removeEventListener("macro-nowcast-global-refresh", handleGlobalRefresh);
   }, []);
 
-  const activeHorizonData = (horizon !== "reversals" ? data?.horizons?.[horizon] : null) || {
+  const activeHorizonData = (horizon !== "reversals" && horizon !== "stat_arb" ? data?.horizons?.[horizon] : null) || {
     label: SUBMENU_TITLES[horizon],
     subtitle:
       horizon === "reversals"
         ? "Daily Residual Shock Scanner (Residual < -2.25σ vs SPY & Sector ETF, IBS < 0.15, RVOL > 1.8x, T+3 Mean-Reversion Target)"
+        : horizon === "stat_arb"
+        ? "Engle-Granger Two-Step Cointegration & Ornstein-Uhlenbeck Mean-Reversion Pairs Scanner (|Z| > 2.2σ)"
         : "Fetching live 5-year price series, Weekly/Monthly RSIs, and central macro regimes...",
     range_bar_label: "Range Position",
     priority_1_unloved_pivots: [],
@@ -165,7 +169,7 @@ function TradeIdeasContent() {
 
             {/* TIME HORIZON TABS & RECALCULATE LIVE */}
             <div className="flex flex-wrap items-center gap-2 font-mono text-xs">
-              {(["1_to_3_months", "12_months", "3_plus_years", "reversals"] as HorizonKey[]).map((hKey) => (
+              {(["1_to_3_months", "12_months", "3_plus_years", "reversals", "stat_arb"] as HorizonKey[]).map((hKey) => (
                 <button
                   key={hKey}
                   id={`trade-ideas-tab-${hKey}`}
@@ -177,15 +181,23 @@ function TradeIdeasContent() {
                     horizon === hKey
                       ? hKey === "reversals"
                         ? "bg-emerald-600 border-emerald-400 text-white shadow-md shadow-emerald-900/40"
+                        : hKey === "stat_arb"
+                        ? "bg-purple-600 border-purple-400 text-white shadow-md shadow-purple-900/40"
                         : "bg-blue-600 border-blue-400 text-white shadow-md shadow-blue-900/40"
                       : "bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-800"
                   }`}
                 >
                   {hKey === "reversals" && <Zap className="w-3.5 h-3.5 text-amber-300" />}
+                  {hKey === "stat_arb" && <GitBranch className="w-3.5 h-3.5 text-purple-300" />}
                   <span>{SUBMENU_TITLES[hKey]}</span>
                   {hKey === "reversals" && (data?.reversals?.candidates?.length || 0) > 0 && (
                     <span className="px-1.5 py-0.2 rounded-full bg-emerald-950 border border-emerald-500/50 text-emerald-300 text-[10px] font-mono">
                       {data.reversals.candidates.length}
+                    </span>
+                  )}
+                  {hKey === "stat_arb" && (data?.statistical_arbitrage?.actionable_signals_count || 0) > 0 && (
+                    <span className="px-1.5 py-0.2 rounded-full bg-purple-950 border border-purple-500/50 text-purple-300 text-[10px] font-mono">
+                      {data.statistical_arbitrage.actionable_signals_count}
                     </span>
                   )}
                 </button>
@@ -295,10 +307,14 @@ function TradeIdeasContent() {
           </div>
         </section>
 
-        {/* CONDITIONAL RENDER: REVERSALS DASHBOARD VS THEMATIC TIME HORIZONS */}
+        {/* CONDITIONAL RENDER: REVERSALS DASHBOARD VS STAT ARB VS THEMATIC TIME HORIZONS */}
         {horizon === "reversals" ? (
           <section className="pt-1">
             <ReversalsDashboard isSubPage={false} initialData={data?.reversals || null} />
+          </section>
+        ) : horizon === "stat_arb" ? (
+          <section className="pt-1">
+            <StatisticalArbitrageDashboard statArbData={data?.statistical_arbitrage || null} />
           </section>
         ) : (
           <>
@@ -464,6 +480,25 @@ function TradeIdeasContent() {
                             </div>
                           )}
 
+                          {/* ML4T TRIPLE-BARRIER META-LABELING BADGE */}
+                          {idea.meta_labeling && (
+                            <div className="flex flex-wrap items-center justify-between gap-1 p-2 rounded bg-black/50 border border-slate-800 text-[11px] font-mono">
+                              <div className="flex items-center gap-1.5">
+                                <span className={`px-1.5 py-0.2 rounded border font-bold text-[10px] ${idea.meta_badge || "text-emerald-300 bg-emerald-950 border-emerald-700"}`}>
+                                  ML4T: {idea.probability_pct} PoP
+                                </span>
+                                <span className="text-slate-300 font-semibold text-[10px]">
+                                  {idea.meta_verdict}
+                                </span>
+                              </div>
+                              {idea.triple_barrier && (
+                                <span className="text-[10px] text-slate-400">
+                                  Tgt: ${idea.triple_barrier.upper_profit_target} | Stop: ${idea.triple_barrier.lower_stop_loss}
+                                </span>
+                              )}
+                            </div>
+                          )}
+
                           <p className="text-xs text-slate-300 leading-relaxed font-sans">
                             {idea.why_this_trade}
                           </p>
@@ -569,6 +604,25 @@ function TradeIdeasContent() {
                             )}
                           </div>
 
+                          {/* ML4T TRIPLE-BARRIER META-LABELING BADGE */}
+                          {idea.meta_labeling && (
+                            <div className="flex flex-wrap items-center justify-between gap-1 p-2 rounded bg-black/50 border border-slate-800 text-[11px] font-mono">
+                              <div className="flex items-center gap-1.5">
+                                <span className={`px-1.5 py-0.2 rounded border font-bold text-[10px] ${idea.meta_badge || "text-emerald-300 bg-emerald-950 border-emerald-700"}`}>
+                                  ML4T: {idea.probability_pct} PoP
+                                </span>
+                                <span className="text-slate-300 font-semibold text-[10px]">
+                                  {idea.meta_verdict}
+                                </span>
+                              </div>
+                              {idea.triple_barrier && (
+                                <span className="text-[10px] text-slate-400">
+                                  Tgt: ${idea.triple_barrier.upper_profit_target} | Stop: ${idea.triple_barrier.lower_stop_loss}
+                                </span>
+                              )}
+                            </div>
+                          )}
+
                           <p className="text-xs text-slate-300 leading-relaxed font-sans">
                             {idea.why_this_trade}
                           </p>
@@ -655,6 +709,25 @@ function TradeIdeasContent() {
                               {idea.rsi_label}: {idea.rsi}
                             </span>
                           </div>
+
+                          {/* ML4T TRIPLE-BARRIER META-LABELING BADGE */}
+                          {idea.meta_labeling && (
+                            <div className="flex flex-wrap items-center justify-between gap-1 p-2 rounded bg-black/50 border border-slate-800 text-[11px] font-mono">
+                              <div className="flex items-center gap-1.5">
+                                <span className={`px-1.5 py-0.2 rounded border font-bold text-[10px] ${idea.meta_badge || "text-emerald-300 bg-emerald-950 border-emerald-700"}`}>
+                                  ML4T: {idea.probability_pct} PoP
+                                </span>
+                                <span className="text-slate-300 font-semibold text-[10px]">
+                                  {idea.meta_verdict}
+                                </span>
+                              </div>
+                              {idea.triple_barrier && (
+                                <span className="text-[10px] text-slate-400">
+                                  Tgt: ${idea.triple_barrier.upper_profit_target} | Stop: ${idea.triple_barrier.lower_stop_loss}
+                                </span>
+                              )}
+                            </div>
+                          )}
 
                           <p className="text-xs text-slate-300 leading-relaxed font-sans">
                             {idea.why_this_trade}
