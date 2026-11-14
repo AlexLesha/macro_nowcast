@@ -85,8 +85,8 @@ function TradeIdeasContent() {
       horizon === "reversals"
         ? "Daily Residual Shock Scanner (Residual < -2.25σ vs SPY & Sector ETF, IBS < 0.15, RVOL > 1.8x, T+3 Mean-Reversion Target)"
         : horizon === "stat_arb"
-        ? "Engle-Granger Two-Step Cointegration & Ornstein-Uhlenbeck Mean-Reversion Pairs Scanner (|Z| > 2.2σ)"
-        : "Fetching live 5-year price series, Weekly/Monthly RSIs, and central macro regimes...",
+          ? "Engle-Granger Two-Step Cointegration & Ornstein-Uhlenbeck Mean-Reversion Pairs Scanner (|Z| > 2.2σ)"
+          : "Fetching live 5-year price series, Weekly/Monthly RSIs, and central macro regimes...",
     range_bar_label: "Range Position",
     priority_1_unloved_pivots: [],
     priority_2_trend_compounders: [],
@@ -134,7 +134,7 @@ function TradeIdeasContent() {
   return (
     <div className="min-h-screen bg-[#090D16] text-slate-100">
       <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 space-y-6">
-        
+
         {/* HEADER & CENTRAL MACRO REGIME CONTEXT RIBBON */}
         <section className="rounded-xl border border-slate-800 bg-[#111827] p-5 shadow-lg space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-4">
@@ -156,15 +156,6 @@ function TradeIdeasContent() {
                   </span>
                 )}
               </div>
-              <h1 className="text-xl md:text-2xl font-black text-white mt-1">
-                Trade Ideas
-              </h1>
-              <p className="text-xs md:text-sm text-slate-400 mt-1 max-w-3xl">
-                Cross-framework institutional trade ideas synthesizing <strong>1-3 Month Tactical Pivots</strong>,{" "}
-                <strong>12-Month Cyclical Compounders</strong>, <strong>3+ Year Secular Supercycles</strong>, and{" "}
-                <strong>T+3 Microstructural Reversals</strong> with explicit <em>&quot;Why this trade&quot;</em>,{" "}
-                <em>Actionable Directions</em>, and <em>Invalidation Stops</em>.
-              </p>
             </div>
 
             {/* TIME HORIZON TABS & RECALCULATE LIVE */}
@@ -177,15 +168,14 @@ function TradeIdeasContent() {
                     setHorizon(hKey);
                     setThemeFilter("ALL");
                   }}
-                  className={`px-3.5 py-2 rounded-lg border font-semibold transition flex items-center gap-1.5 ${
-                    horizon === hKey
+                  className={`px-3.5 py-2 rounded-lg border font-semibold transition flex items-center gap-1.5 ${horizon === hKey
                       ? hKey === "reversals"
                         ? "bg-emerald-600 border-emerald-400 text-white shadow-md shadow-emerald-900/40"
                         : hKey === "stat_arb"
-                        ? "bg-purple-600 border-purple-400 text-white shadow-md shadow-purple-900/40"
-                        : "bg-blue-600 border-blue-400 text-white shadow-md shadow-blue-900/40"
+                          ? "bg-purple-600 border-purple-400 text-white shadow-md shadow-purple-900/40"
+                          : "bg-blue-600 border-blue-400 text-white shadow-md shadow-blue-900/40"
                       : "bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-800"
-                  }`}
+                    }`}
                 >
                   {hKey === "reversals" && <Zap className="w-3.5 h-3.5 text-amber-300" />}
                   {hKey === "stat_arb" && <GitBranch className="w-3.5 h-3.5 text-purple-300" />}
@@ -318,28 +308,6 @@ function TradeIdeasContent() {
           </section>
         ) : (
           <>
-            {/* CROSS-LINK REVERSALS RADAR BANNER (ON THEMATIC HORIZONS) */}
-            {data?.reversals?.candidates?.length > 0 && (
-              <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-xl border border-emerald-500/30 bg-emerald-950/20 text-xs font-mono">
-                <div className="flex items-center gap-2 text-emerald-300">
-                  <Zap className="w-4 h-4 text-emerald-400 animate-pulse" />
-                  <span>
-                    <strong>T+3 Reversals Radar Active:</strong>{" "}
-                    <span className="text-white font-bold">{data.reversals.candidates.length} candidates</span> flagged with idiosyncratic residual shock (&epsilon; &lt; -2.25&sigma;, IBS &lt; 0.15).
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setHorizon("reversals")}
-                    className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold transition text-xs font-mono flex items-center gap-1 shadow-md shadow-emerald-950"
-                  >
-                    <span>View Reversals Tab</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
-            )}
-
             {/* INTERACTIVE FILTERS BAR */}
             <section className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-xl border border-slate-800 bg-[#111827]">
               <div className="flex flex-wrap items-center gap-2">
@@ -406,8 +374,8 @@ function TradeIdeasContent() {
                   {horizon === "1_to_3_months"
                     ? "Tactical Gate: 52W Range <= 48% | RSI <= 46 | Near 15D Probable Low"
                     : horizon === "12_months"
-                    ? "Cyclical Gate: 2Y Range <= 52% | 14W RSI <= 48 | Near 200D SMA"
-                    : "Secular Gate: 5Y Relative Ratio vs SPY <= 52nd Pct | 14M RSI <= 50"}
+                      ? "Cyclical Gate: 2Y Range <= 52% | 14W RSI <= 48 | Near 200D SMA"
+                      : "Secular Gate: 5Y Relative Ratio vs SPY <= 52nd Pct | 14M RSI <= 50"}
                 </span>
               </div>
 
@@ -538,8 +506,8 @@ function TradeIdeasContent() {
                   {horizon === "1_to_3_months"
                     ? "Tactical Trend Gate: Range 48% - 75% | RSI 46 - 65 | Bullish VAMS"
                     : horizon === "12_months"
-                    ? "Cyclical Trend Gate: 2Y Range 52% - 78% | RSI 48 - 65 | Above 200D SMA"
-                    : "Secular Trend Gate: 5Y Relative Ratio 52nd - 80th Pct | Above 20M SMA"}
+                      ? "Cyclical Trend Gate: 2Y Range 52% - 78% | RSI 48 - 65 | Above 200D SMA"
+                      : "Secular Trend Gate: 5Y Relative Ratio 52nd - 80th Pct | Above 20M SMA"}
                 </span>
               </div>
 
